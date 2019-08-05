@@ -26,13 +26,16 @@ gt = file.GetGeoTransform()
 xsize = band.XSize
 ysize = band.YSize
 
-array[array < 0] = 0
+array[array == np.amin(array)] = 0
 
 #%% Polygon and Point class
 class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        
+    def dist(self, p):
+        return np.sqrt((p.x - self.x)**2 + (p.y - self.y)**2)
         
 class Polygon:
     EXTREME = 100000000
@@ -121,46 +124,6 @@ class Polygon:
                 break
         
         return count % 2 == 1
-
-class Polynomial_fit:
-    coeff = []
-    def __init__(self, x: List[Point], array, order: int):
-        self.x = x
-        self.order = order 
-        
-        n_terms = int(((self.order + 1) * (self.order + 2)) / 2)
-        
-        # Create matrix which describes (1, x, x^2, x*y, y, y^2) and vector for z-values in all points of x
-        z = np.zeros(len(self.x))
-        X = np.zeros((len(self.x), n_terms))
-        
-        for i in range(len(x)):
-            z[i] = array[x[i].x, x[i].y]
-            
-            X[i, 0] = 1
-            a = 1
-            for k in range(1, order + 1):
-                for l in range(k + 1):
-                    X[i, a] = x[i].x**l * x[i].y**(k - l)
-                    a += 1
-        
-        # Create function z = b[0] + b[1]*x + b[2]*x^2 + b[3]*x*y + b[4]*y + b[5]*y^2 + b[6]*x^3 + b[7]*x^2*y + b[8]*x*y^2 + b[9]*y^3
-        # b = (X^T*X)^-1 X^T * z
-        XT = X.transpose()
-        self.coeff = np.linalg.inv(np.matmul(XT, X)) @ (XT @ z)
-    
-    def get_values_on_matrix(self, ysize, xsize):
-        Z = np.zeros((ysize, xsize))
-        for i in range(ysize):
-            for j in range(xsize):
-                a = 0
-                for k in range(self.order + 1):
-                    for l in range(k + 1):
-                        Z[i, j] += self.coeff[a] * i**l * j**(k - l)
-                        a += 1
-        return Z
-        
-
     
 def create_tiff(array, gt, projection, dest: str):
     driver = gdal.GetDriverByName('GTiff')
@@ -171,39 +134,106 @@ def create_tiff(array, gt, projection, dest: str):
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
     
-#%%
-x1 = (51.73861232, 4.38036677) #top-left
-x2 = (51.73829906, 4.38376774) #top-right
-x3 = (51.73627495, 4.38329311) #bottom-right
-x4 = (51.73661151, 4.37993097) #bottom-left
+#%% semivariogram
+x1 = (52.27874252, 4.53404572) #top-left
+x2 = (52.27856259, 4.53438068) #top-right
+x3 = (52.27813766, 4.53389149) #bottom-right
+x4 = (52.27826056, 4.53364649) #bottom-left
 
-x1_i = Point(abs(np.floor((x1[0] - gt[3])/gt[1])), abs(np.floor((x1[1] - gt[0])/gt[5])))
-x2_i = Point(abs(np.floor((x2[0] - gt[3])/gt[1])), abs(np.floor((x2[1] - gt[0])/gt[5])))
-x3_i = Point(abs(np.floor((x3[0] - gt[3])/gt[1])), abs(np.floor((x3[1] - gt[0])/gt[5])))
-x4_i = Point(abs(np.floor((x4[0] - gt[3])/gt[1])), abs(np.floor((x4[1] - gt[0])/gt[5])))
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[1]))), int(abs(np.floor((x1[1] - gt[0])/gt[5]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[1]))), int(abs(np.floor((x2[1] - gt[0])/gt[5]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[1]))), int(abs(np.floor((x3[1] - gt[0])/gt[5]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[1]))), int(abs(np.floor((x4[1] - gt[0])/gt[5]))))
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
-xmin = 0
-xmax = 7000
-ymin = 0
-ymax = 12000
+xstep = 2
+xmax = 400
+x = range(xstep, xmax, xstep)
+gamma = np.zeros(len(x))
 
-xstep = 400
-ystep = 400
+for a in x:
+    sum0 = 0
+    V = 0
+    for i in range(0, ysize, a):
+        for j in range(0, xsize, a):
+            if i + a < ysize and array[i][j] != 0 and array[i][j] and array[i + a][j] and ridges_array[i][j] == 0:
+                sum0 += (array[i][j] - array[i + a][j])**2
+                V += 1
+    gamma[x.index(a)] = sum0 /(2 * V) if V != 0 else 0
 
-field = gdal.Open("C:/Users/wytze/vanBoven/PreparingDEMS/field.tif")
-in_field = field.GetRasterBand(1).ReadAsArray()
-dfdx = np.zeros(array.shape)
-dfdy = np.zeros(array.shape)
-slope = np.zeros(array.shape)
+for i in range(len(gamma) - 1, -1, -1):
+    if gamma[i] > 0.15:
+        gamma = np.delete(gamma, i)
+        x = np.delete(x, i)
+        
+plt.plot(x, gamma)
+coeff = np.polyfit(x, gamma, 2)
+gamma_fit = coeff[2] + coeff[1] *x + coeff[0] * np.square(x)
+
+s = np.amax(gamma_fit)
+r = float(np.argmax(gamma_fit))
+n = coeff[2]
+
+vario = np.ones(len(x)) * (s + n)
+
+for i in range(0, len(x)):
+    if x[i] < r:
+        vario[i] = n + s*(1.5 * (x[i] / r) - 0.5 * (x[i]/r)**3)
+        
+def corr(h):
+    if h < r:
+        return n + s*(1 - n + s*(1.5 * (h/r) - 0.5 * (h/r)**3))
+    else:
+        return 0
+    
+plt.plot(x, vario)
+plt.show()
+
+#%%
+x1 = (52.27874252, 4.53404572) #top-left
+x2 = (52.27856259, 4.53438068) #top-right
+x3 = (52.27813766, 4.53389149) #bottom-right
+x4 = (52.27826056, 4.53364649) #bottom-left
+
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[1]))), int(abs(np.floor((x1[1] - gt[0])/gt[5]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[1]))), int(abs(np.floor((x2[1] - gt[0])/gt[5]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[1]))), int(abs(np.floor((x3[1] - gt[0])/gt[5]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[1]))), int(abs(np.floor((x4[1] - gt[0])/gt[5]))))
+
+poly = Polygon([x1_i, x2_i, x3_i, x4_i])
+
+vs = []
+values = []
+
+for i in range(0, ysize, 50):
+    for j in range(0, xsize, 50):
+        if poly.is_inside_polygon(Point(i,j)) and ridges_array[i,j] == 0:
+            vs.append((i, j))
+            values.append(array[i][j])
+            
+C = np.zeros((len(vs), len(vs)))
+for i in range(len(vs)):
+    for j in range(i, len(vs)):
+        C[i][j] = corr(Point(vs[i][0], vs[i][1]).dist(Point(vs[j][0], vs[j][1])))
+
+C = np.matrix(C).T
+
+e = np.zeros(array.shape)
+for i in range(len(vs)):
+    e[vs[i][0]][vs[i][1]] = - array[vs[i][0]][vs[i][1]]
+
 for i in range(ysize):
     for j in range(xsize):
-        if in_field[i][j] == 1:
-            dfdx[i][j] = (-array[i - 1][j - 1] - array[i - 1][j] - array[i - 1][j + 1] + array[i + 1][j - 1] + array[i + 1][j] + array[i + 1][j + 1])/6
-            dfdx[i][j] = (-array[i - 1][j - 1] - array[i][j - 1] - array[i + 1][j - 1] + array[i - 1][j + 1] + array[i][j + 1] + array[i + 1][j + 1])/6
-            slope[i][j] = np.sqrt(dfdx[i][j]**2 + dfdy[i][j]**2)
-            
-create_tiff(1000 *slope, gt, projection, 'slope.tif')
+        if poly.is_inside_polygon(Point(i, j)) and (i, j) not in vs:
+            D = np.zeros((len(vs), 1))
+            for k in range(len(vs)):
+                D[k] = corr(Point(i, j).dist(Point(vs[k][0], vs[k][1])))
+            l = (D.T @ np.linalg.inv(C) @ np.ones((len(vs), 1)) - 1) / (np.ones((1, len(vs))) @ np.linalg.inv(C) @ np.ones((len(vs), 1)))
+            w = np.linalg.inv(C) @ (D - float(l) * np.ones((len(vs), 1)))
+            sum0 = 0
+            for k in range(len(vs)):
+                sum0 += w[k] * array[vs[k][0]][vs[k][1]]
+            e[i][j] = sum0
+    print(100*(i/ysize))            
 
-                
