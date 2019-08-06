@@ -1,6 +1,6 @@
 #%% INPUT
 wdir = r"E:\Tulips\DEM"
-files = ["3","4"]
+files = ["0","1","2"]
 
 ppp   = 15   # Nr. of GCPs per photo (points per photo)
 ft    = 0.5  # Patch must at least contain ft times the maximum of the sum of edges found in any potential patch
