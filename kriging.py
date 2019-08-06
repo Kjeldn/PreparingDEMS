@@ -10,9 +10,12 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D #shows as unused but is needed for surf plot
 import matplotlib.pyplot as plt
 from scipy import stats, signal
+from scipy.sparse import csr_matrix
 from typing import List
 from scipy import interpolate
 import skgstat as skg
+import pykrige.kriging_tools as kt
+from pykrige.ok import OrdinaryKriging
 
 file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
 ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
@@ -135,15 +138,15 @@ def create_tiff(array, gt, projection, dest: str):
     tiff = None
     
 #%% semivariogram
-x1 = (52.27874252, 4.53404572) #top-left
-x2 = (52.27856259, 4.53438068) #top-right
-x3 = (52.27813766, 4.53389149) #bottom-right
-x4 = (52.27826056, 4.53364649) #bottom-left
+x1 = (52.27873864, 4.53404786) #top-left
+x2 = (52.27856326, 4.53438642) #top-right
+x3 = (52.27813579, 4.53389075) #bottom-right
+x4 = (52.27825880, 4.53365449) #bottom-left
 
-x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[1]))), int(abs(np.floor((x1[1] - gt[0])/gt[5]))))
-x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[1]))), int(abs(np.floor((x2[1] - gt[0])/gt[5]))))
-x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[1]))), int(abs(np.floor((x3[1] - gt[0])/gt[5]))))
-x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[1]))), int(abs(np.floor((x4[1] - gt[0])/gt[5]))))
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
@@ -157,23 +160,25 @@ for a in x:
     V = 0
     for i in range(0, ysize, a):
         for j in range(0, xsize, a):
-            if i + a < ysize and array[i][j] != 0 and array[i][j] and array[i + a][j] and ridges_array[i][j] == 0:
+            if i + a < ysize and array[i][j] != 0 and array[i][j] and array[i + a][j] and ridges_array[i][j] == 0 and ridges_array[i + a][j] == 0:
                 sum0 += (array[i][j] - array[i + a][j])**2
                 V += 1
     gamma[x.index(a)] = sum0 /(2 * V) if V != 0 else 0
 
-for i in range(len(gamma) - 1, -1, -1):
-    if gamma[i] > 0.15:
-        gamma = np.delete(gamma, i)
-        x = np.delete(x, i)
+# =============================================================================
+# for i in range(len(gamma) - 1, -1, -1):
+#     if gamma[i] > 0.15:
+#         gamma = np.delete(gamma, i)
+#         x = np.delete(x, i)
+# =============================================================================
         
 plt.plot(x, gamma)
 coeff = np.polyfit(x, gamma, 2)
 gamma_fit = coeff[2] + coeff[1] *x + coeff[0] * np.square(x)
 
-s = np.amax(gamma_fit)
-r = float(np.argmax(gamma_fit))
 n = coeff[2]
+s = np.amax(gamma_fit) - n
+r = float(np.argmax(gamma_fit))
 
 vario = np.ones(len(x)) * (s + n)
 
@@ -190,50 +195,126 @@ def corr(h):
 plt.plot(x, vario)
 plt.show()
 
-#%%
-x1 = (52.27874252, 4.53404572) #top-left
-x2 = (52.27856259, 4.53438068) #top-right
-x3 = (52.27813766, 4.53389149) #bottom-right
-x4 = (52.27826056, 4.53364649) #bottom-left
+def v_func(l, h):
+    ret = np.zeros(h.shape)
+    if len(h.shape) == 2:
+        for i in range(h.shape[0]):    
+            for j in range(h.shape[1]):      
+                if h[i][j] < r:
+                    ret[i][j] = n + s*(1.5 * (h[i][j] / r) - 0.5 * (h[i][j]/r)**3)
+                else:
+                    ret[i][j] = n + s
+    else:
+        for i in range(h.shape[0]):         
+            if h[i] < r:
+                ret[i] = n + s*(1.5 * (h[i] / r) - 0.5 * (h[i]/r)**3)
+            else:
+                ret[i] = n + s
+    return ret
 
-x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[1]))), int(abs(np.floor((x1[1] - gt[0])/gt[5]))))
-x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[1]))), int(abs(np.floor((x2[1] - gt[0])/gt[5]))))
-x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[1]))), int(abs(np.floor((x3[1] - gt[0])/gt[5]))))
-x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[1]))), int(abs(np.floor((x4[1] - gt[0])/gt[5]))))
+#%% kriging framework
+x1 = (52.27873864, 4.53404786) #top-left
+x2 = (52.27856326, 4.53438642) #top-right
+x3 = (52.27813579, 4.53389075) #bottom-right
+x4 = (52.27825880, 4.53365449) #bottom-left
+
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
-vs = []
-values = []
+data = []
 
 for i in range(0, ysize, 50):
     for j in range(0, xsize, 50):
         if poly.is_inside_polygon(Point(i,j)) and ridges_array[i,j] == 0:
-            vs.append((i, j))
-            values.append(array[i][j])
+            data.append([float(i), float(j), array[i][j]])
             
-C = np.zeros((len(vs), len(vs)))
-for i in range(len(vs)):
-    for j in range(i, len(vs)):
-        C[i][j] = corr(Point(vs[i][0], vs[i][1]).dist(Point(vs[j][0], vs[j][1])))
+data = np.array(data)
+
+delta = 10
+OK = OrdinaryKriging(data[:, 0], data[:, 1], data[:, 2], variogram_model='custom', variogram_parameters=[s, r, n], variogram_function=v_func, verbose=True, enable_plotting=True)
+z, ss = OK.execute('grid', np.arange(0, float(xsize), delta), np.arange(0, float(ysize), delta))
+
+grid_x_sparse, grid_y_sparse = np.mgrid[0:float(ysize):delta, 0:float(xsize):delta]
+
+points = []
+values = []
+for i in range(0, ysize, delta):
+    for j in range(0, xsize, delta):
+        points.append([i, j])
+        values.append(z[int(i/delta), int(j/delta)])
+        
+grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
+
+e = interpolate.griddata(points, values, (grid_x, grid_y), method='linear')
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(grid_x, grid_y, e)
+plt.show()
+
+
+create_tiff(array - e, gt, projection, 'kriging.tif')
+
+#%% kriging algorithm
+in_field = np.zeros(array.shape)
+for i in range(0, ysize):
+    for j in range(0, xsize):
+        if poly.is_inside_polygon(Point(i,j)):
+            in_field[i][j] = 1
+
+C = np.zeros((len(data), len(data)))
+for i in range(len(data)):
+    for j in range(len(data)):
+        C[i][j] = corr(Point(data[i][0], data[i][1]).dist(Point(data[j][0], data[j][1])))
 
 C = np.matrix(C).T
+Cinv = np.linalg.inv(C)
+Cinv_sum = float(np.ones((1, len(data))) @ Cinv @ np.ones((len(data), 1)))
 
+delta = 5
 e = np.zeros(array.shape)
-for i in range(len(vs)):
-    e[vs[i][0]][vs[i][1]] = - array[vs[i][0]][vs[i][1]]
+for i in range(len(data)):
+    e[int(data[i][0])][int(data[i][1])] = - data[i][2]
+    
+percent = 0
 
-for i in range(ysize):
-    for j in range(xsize):
-        if poly.is_inside_polygon(Point(i, j)) and (i, j) not in vs:
-            D = np.zeros((len(vs), 1))
-            for k in range(len(vs)):
-                D[k] = corr(Point(i, j).dist(Point(vs[k][0], vs[k][1])))
-            l = (D.T @ np.linalg.inv(C) @ np.ones((len(vs), 1)) - 1) / (np.ones((1, len(vs))) @ np.linalg.inv(C) @ np.ones((len(vs), 1)))
-            w = np.linalg.inv(C) @ (D - float(l) * np.ones((len(vs), 1)))
+e_sparse = np.zeros((int(array.shape[0] / delta), int(array.shape[1] / delta)))
+
+for i in range(e_sparse.shape[0]):
+    for j in range(e_sparse.shape[1]):
+        if in_field[int(i * delta)][int(j * delta)] == 1:
+            D = np.zeros((len(data), 1))
+            for k in range(len(data)):
+                D[k] = corr(Point(i * delta, j * delta).dist(Point(data[k][0], data[k][1])))
+            l = float(D.T @ Cinv @ np.ones((len(data), 1)) - 1) / Cinv_sum
+            w = Cinv @ (D - l * np.ones((len(data), 1)))
             sum0 = 0
-            for k in range(len(vs)):
-                sum0 += w[k] * array[vs[k][0]][vs[k][1]]
+            for k in range(len(data)):
+                sum0 += w[k] * data[k][2]
             e[i][j] = sum0
-    print(100*(i/ysize))            
+    if np.floor((i/e_sparse.shape[0]) * 100) > percent:
+        percent += 1
+        print(percent,"%")
+        
+points = []
+values = []
+for i in range(0, ysize, delta):
+    for j in range(0, xsize, delta):
+        points.append([i, j])
+        values.append(e[int(i/delta), int(j/delta)])
+        
+grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
+
+e = interpolate.griddata(points, values, (grid_x, grid_y), method='linear')
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(grid_x, grid_y, e)
+plt.show()
+
+create_tiff(array - e, gt, projection, 'kriging.tif')
 

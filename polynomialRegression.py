@@ -5,20 +5,6 @@ import matplotlib.pyplot as plt
 from typing import List
 from scipy import interpolate
 
-file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
-ridges = gdal.Open("C:/Users/wytze/crop_top.tif")
-
-ridges_array = ridges.GetRasterBand(1).ReadAsArray()
-
-band = file.GetRasterBand(1)
-array = band.ReadAsArray()
-projection = file.GetProjection()
-gt = file.GetGeoTransform()
-xsize = band.XSize
-ysize = band.YSize
-
-array[array == np.amin(array)] = 0
-
 #%% Polygon and Point class
 class Point:
     def __init__(self, x, y):
@@ -124,15 +110,30 @@ def create_tiff(array, gt, projection, dest: str):
     tiff = None
 
 #%% cubic spline (spruiten)
+    
+file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
+ridges = gdal.Open("C:/Users/wytze/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array == np.amin(array)] = 0
+
 x1 = (51.73861232, 4.38036677) #top-left
 x2 = (51.73829906, 4.38376774) #top-right
 x3 = (51.73627495, 4.38329311) #bottom-right
 x4 = (51.73661151, 4.37993097) #bottom-left
 
-x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[1]))), int(abs(np.floor((x1[1] - gt[0])/gt[5]))))
-x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[1]))), int(abs(np.floor((x2[1] - gt[0])/gt[5]))))
-x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[1]))), int(abs(np.floor((x3[1] - gt[0])/gt[5]))))
-x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[1]))), int(abs(np.floor((x4[1] - gt[0])/gt[5]))))
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[2]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[2]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[2]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[2]))))
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 in_field = np.zeros(array.shape)
@@ -173,6 +174,72 @@ x_field = xnew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(
 y_field = ynew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(x2_i.y, x3_i.y)]
 z_field = znew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(x2_i.y, x3_i.y)]
 surf = ax.plot_surface(x_field, y_field, z_field)
+plt.show()
+
+create_tiff(20 * (array - znew), gt, projection, 'cubic_spline.tif')
+
+#%% cubic spline (tulpen)
+    
+file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
+ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array == np.amin(array)] = 0
+
+x1 = (52.27873864, 4.53404786) #top-left
+x2 = (52.27856326, 4.53438642) #top-right
+x3 = (52.27813579, 4.53389075) #bottom-right
+x4 = (52.27825880, 4.53365449) #bottom-left
+
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
+
+poly = Polygon([x1_i, x2_i, x3_i, x4_i])
+in_field = np.zeros(array.shape)
+
+xmin = 0
+xmax = 4500
+ymin = 0
+ymax = 3000
+
+xstep = 50
+ystep = 50
+
+data = np.zeros((int(xmax/xstep), int(ymax/ystep)))
+mask = np.zeros((int(xmax/xstep), int(ymax/ystep))) > 0
+    
+# create list of points inside the field to get the fit over
+for i in range(int((xmax - xmin)/xstep)):
+    for j in range(int((ymax - ymin)/ystep)):
+        data[i][j] = array[xmin + xstep * i, ymin + ystep * j]
+        if data[i][j] == 0 or ridges_array[xmin + xstep * i, ymin + ystep * j] == -1:
+            mask[i][j] = True
+
+z = np.ma.array(data, mask=mask)
+
+x, y = np.mgrid[0:xmax:xstep, 0:ymax:ystep]
+z1 = z[~z.mask]
+y1 = y[~z.mask]
+x1 = x[~z.mask]
+
+xnew, ynew = np.mgrid[0:ysize, 0:xsize]
+
+tck = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2*len(z)), kx = 3, ky = 3)
+znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(xnew, ynew, znew)
 plt.show()
 
 create_tiff(20 * (array - znew), gt, projection, 'cubic_spline.tif')
