@@ -1,15 +1,27 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Aug  7 11:31:57 2019
+
+@author: wytze
+"""
+
 import gdal
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D #shows as unused but is needed for surf plot
 import matplotlib.pyplot as plt
+from scipy import stats, signal
+from scipy.sparse import csr_matrix
 from typing import List
 from scipy import interpolate
+import skgstat as skg
 
-#%% Polygon and Point class
 class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        
+    def dist(self, p):
+        return np.sqrt((p.x - self.x)**2 + (p.y - self.y)**2)
         
 class Polygon:
     EXTREME = 100000000
@@ -98,7 +110,6 @@ class Polygon:
                 break
         
         return count % 2 == 1
-
     
 def create_tiff(array, gt, projection, dest: str):
     driver = gdal.GetDriverByName('GTiff')
@@ -108,78 +119,8 @@ def create_tiff(array, gt, projection, dest: str):
     tiff.GetRasterBand(1).WriteArray(array)
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
-
-#%% cubic spline (spruiten)
     
-file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
-ridges = gdal.Open("C:/Users/wytze/crop_top.tif")
-
-ridges_array = ridges.GetRasterBand(1).ReadAsArray()
-
-band = file.GetRasterBand(1)
-array = band.ReadAsArray()
-projection = file.GetProjection()
-gt = file.GetGeoTransform()
-xsize = band.XSize
-ysize = band.YSize
-
-array[array < 0] = 0
-
-x1 = (51.73861232, 4.38036677) #top-left
-x2 = (51.73829906, 4.38376774) #top-right
-x3 = (51.73627495, 4.38329311) #bottom-right
-x4 = (51.73661151, 4.37993097) #bottom-left
-
-x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
-x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
-x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
-x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
-
-poly = Polygon([x1_i, x2_i, x3_i, x4_i])
-in_field = np.zeros(array.shape)
-
-xmin = 0
-xmax = 7000
-ymin = 0
-ymax = 12000
-
-xstep = 40
-ystep = 40
-
-data = np.zeros((int(xmax/xstep), int(ymax/ystep)))
-mask = np.zeros((int(xmax/xstep), int(ymax/ystep))) > 0
-    
-# create list of points inside the field to get the fit over
-for i in range(int((xmax - xmin)/xstep)):
-    for j in range(int((ymax - ymin)/ystep)):
-        data[i][j] = array[xmin + xstep * i, ymin + ystep * j]
-        if data[i][j] == 0 or ridges_array[xmin + xstep * i, ymin + ystep * j] == -1:
-            mask[i][j] = True
-
-z = np.ma.array(data, mask=mask)
-
-x, y = np.mgrid[0:xmax:xstep, 0:ymax:ystep]
-z1 = z[~z.mask]
-y1 = y[~z.mask]
-x1 = x[~z.mask]
-
-xnew, ynew = np.mgrid[0:ysize, 0:xsize]
-
-tck = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2*len(z)), kx = 3, ky = 3)
-znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
-
-fig = plt.figure()
-ax = fig.gca(projection='3d')
-x_field = xnew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(x2_i.y, x3_i.y)]
-y_field = ynew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(x2_i.y, x3_i.y)]
-z_field = znew[max(x1_i.x, x2_i.x):min(x3_i.x, x4_i.x), max(x1_i.y, x4_i.y):min(x2_i.y, x3_i.y)]
-surf = ax.plot_surface(x_field, y_field, z_field)
-plt.show()
-
-create_tiff(20 * (array - znew), gt, projection, 'cubic_spline.tif')
-
-#%% cubic spline (tulpen)
-    
+#%% Monte Carlo simulation (tulips)
 file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
 ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
 
@@ -205,41 +146,97 @@ x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] 
 x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
-in_field = np.zeros(array.shape)
 
-xmin = 0
-xmax = 4500
-ymin = 0
-ymax = 3000
+data = []
+for i in range(0, ysize, 50):
+    for j in range(0, xsize, 50):
+        if ridges_array[i][j] == 0 and poly.is_inside_polygon(Point(i,j)):
+            data.append([i, j, array[i][j]])
 
-xstep = 50
-ystep = 50
+data = np.array(data)
+mean = np.mean(data[:, 2])
+std = np.std(data[:, 2])
 
-data = np.zeros((int(xmax/xstep), int(ymax/ystep)))
-mask = np.zeros((int(xmax/xstep), int(ymax/ystep))) > 0
+grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
+
+N = 100
+sims = np.zeros((ysize, xsize))
+for i in range(N):
+    data_s = np.zeros(data.shape)
+    for j in range(len(data)):
+        data_s[j, 0] = data[j, 0]
+        data_s[j, 1] = data[j, 1]
+        data_s[j, 2] = np.random.normal(data[j][2], std)
+        
+    sims += interpolate.griddata(data_s[:, 0:2], data_s[:, 2], (grid_x, grid_y), method="linear")
     
-# create list of points inside the field to get the fit over
-for i in range(int((xmax - xmin)/xstep)):
-    for j in range(int((ymax - ymin)/ystep)):
-        data[i][j] = array[xmin + xstep * i, ymin + ystep * j]
-        if data[i][j] == 0 or ridges_array[xmin + xstep * i, ymin + ystep * j] == -1:
-            mask[i][j] = True
-
-z = np.ma.array(data, mask=mask)
-
-x, y = np.mgrid[0:xmax:xstep, 0:ymax:ystep]
-z1 = z[~z.mask]
-y1 = y[~z.mask]
-x1 = x[~z.mask]
-
-xnew, ynew = np.mgrid[0:ysize, 0:xsize]
-
-tck = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2*len(z)), kx = 3, ky = 3)
-znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
-
+mean_sims = np.zeros((ysize, xsize))
+for i in range(ysize):
+    for j in range(xsize):
+        if sims[i, j]:
+            mean_sims[i][j] = sims[i,j]/N
+    
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-surf = ax.plot_surface(xnew, ynew, znew)
+surf = ax.plot_surface(grid_x, grid_y, mean_sims)
 plt.show()
 
-create_tiff(20 * (array - znew), gt, projection, 'cubic_spline.tif')
+create_tiff(10 * (array - mean_sims), gt, projection, 'montecarlo_tulips.tif')
+
+#%% Monte Carlo simulation (tulips)
+file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
+ridges = gdal.Open("C:/Users/wytze/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array < 0] = 0
+
+x1 = (51.73861232, 4.38036677) #top-left
+x2 = (51.73829906, 4.38376774) #top-right
+x3 = (51.73627495, 4.38329311) #bottom-right
+x4 = (51.73661151, 4.37993097) #bottom-left
+
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
+
+poly = Polygon([x1_i, x2_i, x3_i, x4_i])
+
+data = []
+for i in range(0, ysize, 50):
+    for j in range(0, xsize, 50):
+        if ridges_array[i][j] == 0 and poly.is_inside_polygon(Point(i,j)):
+            data.append([i, j, array[i][j]])
+
+data = np.array(data)
+mean = np.mean(data[:, 2])
+std = np.std(data[:, 2])
+
+grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
+
+N = 100
+sims = np.zeros((ysize, xsize))
+for i in range(N):
+    data_s = np.zeros(data.shape)
+    for j in range(len(data)):
+        data_s[j, 0] = data[j, 0]
+        data_s[j, 1] = data[j, 1]
+        data_s[j, 2] = data[j, 2] + std * np.sqrt(-2 * np.log(1 - np.random.uniform(0.0, 0.99))) * np.cos(2 * np.pi * np.random.uniform(0.0, 0.99))
+        
+    sims += interpolate.griddata(data_s[:, 0:2], data_s[:, 2], (grid_x, grid_y), method="linear")
+    print(i, '%')
+    
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(grid_x, grid_y, sims/N)
+plt.show()
+
+create_tiff(10 * (array - sims/N), gt, projection, 'montecarlo_spruiten.tif')
