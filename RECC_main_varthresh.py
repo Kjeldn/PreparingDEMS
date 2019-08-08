@@ -1,10 +1,10 @@
 #%% INPUT
-wdir = r"E:"
+wdir = r"E:\Tulips\DEM"
 files = ["0","1"]
 #wdir = r"E:\190806_DEMs_Boomgaard\Ortho"
 #files = ["0","1"]
 
-file_type      = 0         # [0: Orthomosaic] [1: DEM]
+file_type      = 1         # [0: Orthomosaic] [1: DEM]
 outlier_type   = 0         # [0: Boxplot] [1: 99%]
 gamma_correct  = 1         # {0,1}
 luma           = 709       # {240,601,709}
