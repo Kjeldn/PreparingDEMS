@@ -117,7 +117,7 @@ class Polygon:
     
 def create_tiff(array, gt, projection, dest: str):
     driver = gdal.GetDriverByName('GTiff')
-    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdal.GDT_Int16)
+    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdal.GDT_Float32)
     tiff.SetGeoTransform(gt)
     tiff.SetProjection(projection)
     tiff.GetRasterBand(1).WriteArray(array)
@@ -305,7 +305,7 @@ ax = fig.gca(projection='3d')
 surf = ax.plot_surface(grid_x, grid_y, e)
 plt.show()
 
-create_tiff(10 * (array - e), gt, projection, 'kriging.tif')
+create_tiff(10.0 * (array - e), gt, projection, 'kriging.tif')
 
 #%% kriging framework (spruiten)
 file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
@@ -334,44 +334,12 @@ x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] 
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
-# =============================================================================
-# point_cloud = []
-# 
-# for i in range(0, ysize, 50):
-#     for j in range(0, xsize, 50):
-#         if array[i][j] != 0 and poly.is_inside_polygon(Point(i, j)):
-#             point_cloud.append([float(i), float(j), array[i][j]])
-#             
-# point_cloud = np.array(point_cloud)
-# 
-# X = np.zeros((len(point_cloud), 6))
-# z = np.zeros((len(point_cloud), 1))
-# for i in range(len(point_cloud)):
-#     X[i, 0] = 1
-#     X[i, 1] = point_cloud[i][0]
-#     X[i, 2] = point_cloud[i][1]
-#     X[i, 3] = point_cloud[i][0]**2
-#     X[i, 4] = point_cloud[i][0] * point_cloud[i][1]
-#     X[i, 5] = point_cloud[i][1]**2
-#     z[i] = point_cloud[1][2]
-#     
-# b = np.linalg.inv(X.T @ X) @ X.T @ z
-# 
-# array_wt = np.zeros(array.shape)
-# =============================================================================
 array_wt = array
-
-# =============================================================================
-# for i in range(0, ysize):
-#     for j in range(0, xsize):
-#         if array[i][j] != 0:
-#             array_wt[i][j] =  array[i][j] - (b[0] + i * b[1] + j * b[2] + i**2*b[3] + i * j * b[4] + j**2 * b[5])
-# =============================================================================
             
 data = []
 
-for i in range(0, ysize, 25):
-    for j in range(0, xsize, 25):
+for i in range(0, ysize, 125):
+    for j in range(0, xsize, 125):
         if array_wt[i][j] != 0 and ridges_array[i][j] == 0 and poly.is_inside_polygon(Point(i, j)):
             data.append([float(i), float(j), array_wt[i][j]])
             
@@ -399,7 +367,7 @@ ax = fig.gca(projection='3d')
 surf = ax.plot_surface(grid_x, grid_y, e)
 plt.show()
 
-create_tiff(10 * (array - e), gt, projection, 'kriging.tif')
+create_tiff(array - e, gt, projection, 'kriging.tif')
 
 #%% kriging algorithm
 in_field = np.zeros(array.shape)

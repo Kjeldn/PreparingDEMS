@@ -222,7 +222,7 @@ std = np.std(data[:, 2])
 
 grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
 
-N = 100
+N = 200
 sims = np.zeros((ysize, xsize))
 for i in range(N):
     data_s = np.zeros(data.shape)
@@ -232,7 +232,7 @@ for i in range(N):
         data_s[j, 2] = data[j, 2] + std * np.sqrt(-2 * np.log(1 - np.random.uniform(0.0, 0.99))) * np.cos(2 * np.pi * np.random.uniform(0.0, 0.99))
         
     sims += interpolate.griddata(data_s[:, 0:2], data_s[:, 2], (grid_x, grid_y), method="linear")
-    print(i, '%')
+    print((i * 100)/N, '%')
     
 fig = plt.figure()
 ax = fig.gca(projection='3d')
