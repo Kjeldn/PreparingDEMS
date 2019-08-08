@@ -16,20 +16,7 @@ from scipy import interpolate
 import skgstat as skg
 import pykrige.kriging_tools as kt
 from pykrige.ok import OrdinaryKriging
-
-file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
-ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
-
-ridges_array = ridges.GetRasterBand(1).ReadAsArray()
-
-band = file.GetRasterBand(1)
-array = band.ReadAsArray()
-projection = file.GetProjection()
-gt = file.GetGeoTransform()
-xsize = band.XSize
-ysize = band.YSize
-
-array[array == np.amin(array)] = 0
+from pykrige.uk import UniversalKriging
 
 #%% Polygon and Point class
 class Point:
@@ -130,7 +117,7 @@ class Polygon:
     
 def create_tiff(array, gt, projection, dest: str):
     driver = gdal.GetDriverByName('GTiff')
-    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdal.GDT_Int16)
+    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdal.GDT_Float32)
     tiff.SetGeoTransform(gt)
     tiff.SetProjection(projection)
     tiff.GetRasterBand(1).WriteArray(array)
@@ -138,6 +125,20 @@ def create_tiff(array, gt, projection, dest: str):
     tiff = None
     
 #%% semivariogram
+file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
+ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array == np.amin(array)] = 0
+
 x1 = (52.27873864, 4.53404786) #top-left
 x2 = (52.27856326, 4.53438642) #top-right
 x3 = (52.27813579, 4.53389075) #bottom-right
@@ -151,7 +152,7 @@ x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
 xstep = 2
-xmax = 400
+xmax = 3000
 x = range(xstep, xmax, xstep)
 gamma = np.zeros(len(x))
 
@@ -165,16 +166,21 @@ for a in x:
                 V += 1
     gamma[x.index(a)] = sum0 /(2 * V) if V != 0 else 0
 
-# =============================================================================
-# for i in range(len(gamma) - 1, -1, -1):
-#     if gamma[i] > 0.15:
-#         gamma = np.delete(gamma, i)
-#         x = np.delete(x, i)
-# =============================================================================
-        
-plt.plot(x, gamma)
-coeff = np.polyfit(x, gamma, 2)
-gamma_fit = coeff[2] + coeff[1] *x + coeff[0] * np.square(x)
+deltah = 500
+h_b = np.arange(0, xmax, deltah)
+gamma_b = np.zeros(len(h_b))
+for i in range(len(gamma_b)):
+    sum1 = 0
+    n1 = 0
+    for j in range(len(gamma)):
+        if x[j] > h_b[i] - deltah/2 and x[j] < h_b[i] + deltah/2:
+            n1 += 1
+            sum1 += gamma[i]
+    gamma_b[i] = sum1 / n1
+
+plt.plot(h_b, gamma_b)
+coeff = np.polyfit(h_b, gamma_b, 2)
+gamma_fit = coeff[2] + coeff[1] * x + coeff[0] * np.square(x)
 
 n = coeff[2]
 s = np.amax(gamma_fit) - n
@@ -212,7 +218,21 @@ def v_func(l, h):
                 ret[i] = n + s
     return ret
 
-#%% kriging framework
+#%% kriging framework (tulips)
+file = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/Achter_de_rolkas-20190420-DEM.tif")
+ridges = gdal.Open("C:/Users/wytze/OneDrive/Documents/vanBoven/Tulips/DEM/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array == np.amin(array)] = 0
+
 x1 = (52.27873864, 4.53404786) #top-left
 x2 = (52.27856326, 4.53438642) #top-right
 x3 = (52.27813579, 4.53389075) #bottom-right
@@ -225,17 +245,46 @@ x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] 
 
 poly = Polygon([x1_i, x2_i, x3_i, x4_i])
 
+point_cloud = []
+
+for i in range(0, ysize, 50):
+    for j in range(0, xsize, 50):
+        if array[i][j] != 0:
+            point_cloud.append([float(i), float(j), array[i][j]])
+            
+point_cloud = np.array(point_cloud)
+
+X = np.zeros((len(point_cloud), 6))
+z = np.zeros((len(point_cloud), 1))
+for i in range(len(point_cloud)):
+    X[i, 0] = 1
+    X[i, 1] = point_cloud[i][0]
+    X[i, 2] = point_cloud[i][1]
+    X[i, 3] = point_cloud[i][0]**2
+    X[i, 4] = point_cloud[i][0] * point_cloud[i][1]
+    X[i, 5] = point_cloud[i][1]**2
+    z[i] = point_cloud[1][2]
+    
+b = np.linalg.inv(X.T @ X) @ X.T @ z
+
+array_wt = np.zeros(array.shape)
+
+for i in range(0, ysize):
+    for j in range(0, xsize):
+        if array[i][j] != 0:
+            array_wt[i][j] =  array[i][j] - (b[0] + i * b[1] + j * b[2] + i**2*b[3] + i * j * b[4] + j**2 * b[5])
+            
 data = []
 
 for i in range(0, ysize, 50):
     for j in range(0, xsize, 50):
-        if poly.is_inside_polygon(Point(i,j)) and ridges_array[i,j] == 0:
-            data.append([float(i), float(j), array[i][j]])
+        if array_wt[i][j] != 0 and ridges_array[i][j] == 0 and poly.is_inside_polygon(Point(i, j)):
+            data.append([float(i), float(j), array_wt[i][j]])
             
 data = np.array(data)
 
 delta = 10
-OK = OrdinaryKriging(data[:, 0], data[:, 1], data[:, 2], variogram_model='custom', variogram_parameters=[s, r, n], variogram_function=v_func, verbose=True, enable_plotting=True)
+OK = OrdinaryKriging(data[:, 0], data[:, 1], data[:, 2], variogram_model='spherical', verbose=True, enable_plotting=True)
 z, ss = OK.execute('grid', np.arange(0, float(xsize), delta), np.arange(0, float(ysize), delta))
 
 grid_x_sparse, grid_y_sparse = np.mgrid[0:float(ysize):delta, 0:float(xsize):delta]
@@ -256,6 +305,67 @@ ax = fig.gca(projection='3d')
 surf = ax.plot_surface(grid_x, grid_y, e)
 plt.show()
 
+create_tiff(10.0 * (array - e), gt, projection, 'kriging.tif')
+
+#%% kriging framework (spruiten)
+file = gdal.Open("C:/Users/wytze/20190603_modified.tif")
+ridges = gdal.Open("C:/Users/wytze/crop_top.tif")
+
+ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+projection = file.GetProjection()
+gt = file.GetGeoTransform()
+xsize = band.XSize
+ysize = band.YSize
+
+array[array < 0] = 0
+
+x1 = (51.73861232, 4.38036677) #top-left
+x2 = (51.73829906, 4.38376774) #top-right
+x3 = (51.73627495, 4.38329311) #bottom-right
+x4 = (51.73661151, 4.37993097) #bottom-left
+
+x1_i = Point(int(abs(np.floor((x1[0] - gt[3])/gt[5]))), int(abs(np.floor((x1[1] - gt[0])/gt[1]))))
+x2_i = Point(int(abs(np.floor((x2[0] - gt[3])/gt[5]))), int(abs(np.floor((x2[1] - gt[0])/gt[1]))))
+x3_i = Point(int(abs(np.floor((x3[0] - gt[3])/gt[5]))), int(abs(np.floor((x3[1] - gt[0])/gt[1]))))
+x4_i = Point(int(abs(np.floor((x4[0] - gt[3])/gt[5]))), int(abs(np.floor((x4[1] - gt[0])/gt[1]))))
+
+poly = Polygon([x1_i, x2_i, x3_i, x4_i])
+
+array_wt = array
+            
+data = []
+
+for i in range(0, ysize, 125):
+    for j in range(0, xsize, 125):
+        if array_wt[i][j] != 0 and ridges_array[i][j] == 0 and poly.is_inside_polygon(Point(i, j)):
+            data.append([float(i), float(j), array_wt[i][j]])
+            
+data = np.array(data)
+
+delta = 20
+UK = UniversalKriging(data[:, 0], data[:, 1], data[:, 2], variogram_model='spherical', verbose=True, enable_plotting=True)
+z, ss = UK.execute('grid', np.arange(0, float(xsize), delta), np.arange(0, float(ysize), delta))
+
+grid_x_sparse, grid_y_sparse = np.mgrid[0:float(ysize):delta, 0:float(xsize):delta]
+
+points = []
+values = []
+for i in range(0, ysize, delta):
+    for j in range(0, xsize, delta):
+        points.append([i, j])
+        values.append(z[int(i/delta), int(j/delta)])
+        
+grid_x, grid_y = np.mgrid[0:ysize, 0:xsize]
+
+e = interpolate.griddata(points, values, (grid_x, grid_y), method='linear')
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(grid_x, grid_y, e)
+plt.show()
 
 create_tiff(array - e, gt, projection, 'kriging.tif')
 
