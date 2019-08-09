@@ -45,27 +45,27 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize
 
-def file_to_edges(i,file_type,path,luma,gamma_correct,extra_blur,ppp,steps):
+def file_to_edges(i,file_type,path,luma,gamma_correct,pixel_size,extra_blur,ppp,steps):
     if i == 0:
         print("[0%] Getting edges for target image.")
     else:
         print("["+"{:.0f}".format((1+(i-1)*(ppp+3))/steps)+"%] Getting edges for image nr "+str(i)+".")
     if file_type == 0:
-        edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,extra_blur)
+        edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur)
     elif file_type == 1:
-        edges, gt, fact_x, fact_y, x_b, y_b, mask = dem_to_edges(path)
+        edges, gt, fact_x, fact_y, x_b, y_b, mask = dem_to_edges(path,pixel_size)
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
 
-def ortho_to_edges(path,luma,gamma_correct,extra_blur):
+def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur):
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     R                                  = file.GetRasterBand(1).ReadAsArray()
     G                                  = file.GetRasterBand(2).ReadAsArray()
     B                                  = file.GetRasterBand(3).ReadAsArray()
     x_s, y_s                           = calc_pixsize(R,gt)
-    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/0.6)), int(B.shape[0]*(x_s/0.6))),interpolation = cv2.INTER_AREA)
-    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/0.6)), int(B.shape[0]*(x_s/0.6))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/0.6)), int(B.shape[0]*(x_s/0.6))),interpolation = cv2.INTER_AREA)
+    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
     if gamma_correct == 1:
         Rlin                           = (R_s**2.2)/255
         Glin                           = (G_s**2.2)/255
@@ -100,14 +100,14 @@ def ortho_to_edges(path,luma,gamma_correct,extra_blur):
     y_b    = edges.shape[1]
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
 
-def dem_to_edges(path):
+def dem_to_edges(path,pixel_size):
     s                                  = 5
     file                               = gdal.Open(path)
     band                               = file.GetRasterBand(1)
     gt                                 = file.GetGeoTransform()
     arr                                = band.ReadAsArray()
     x_s, y_s                           = calc_pixsize(arr,gt)
-    arr_s                              = cv2.resize(arr,(int(arr.shape[1]*(y_s/0.5)), int(arr.shape[0]*(x_s/0.5))),interpolation = cv2.INTER_AREA)
+    arr_s                              = cv2.resize(arr,(int(arr.shape[1]*(y_s/pixel_size)), int(arr.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
     mask                               = np.zeros(arr_s.shape)
     mask[arr_s<=0.8*np.nanmin(arr_s)]  = 1
     mask_b                             = cv2.GaussianBlur(mask,(s,s),0)
@@ -143,7 +143,7 @@ def dem_to_edges(path):
     y_b    = edges.shape[1]
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
                 
-def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, it_cancel, it_max):
+def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, s, it_cancel, it_max):
     print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
     sumedges_0 = np.zeros(edges_0.shape)
     for x in range(w,x_b_0-w):
@@ -151,6 +151,7 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
             sumedges_0[x,y] = sum(sum(edges_0[x-w:x+w,y-w:y+w]))
     minfeatures = np.max(sumedges_0)*0.1
     mask_0_c   = mask_0.copy()
+    RECC_s     = np.zeros(edges.shape)
     dist       = np.zeros(ppp)
     dist_lon   = np.zeros(ppp)
     dist_lat   = np.zeros(ppp)
@@ -161,7 +162,7 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
     j=-1
     it = 0
     if it_cancel == 1:
-        while j <= ppp-2 and it <= 10*ppp:
+        while j <= ppp-2 and it <= it_max*ppp:
             x_i_0 = randint(w,x_b_0-w)
             y_i_0 = randint(w,y_b_0-w)
             check1 = mask_0_c[x_i_0,y_i_0]
@@ -170,13 +171,13 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
                 it = it+1
                 target = edges_0[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]
                 sum_target = np.sum(target)
-                RECC_s = np.zeros(edges.shape)
-                for x in range(max(w,x_i_0-4*w),min(x_b-w,x_i_0+4*w)):
-                    for y in range(max(w,y_i_0-4*w),min(y_b-w,y_i_0+4*w)):
+                RECC_s.fill(np.NaN)
+                for x in range(max(w,x_i_0-s*w),min(x_b-w,x_i_0+s*w)):
+                    for y in range(max(w,y_i_0-s*w),min(y_b-w,y_i_0+s*w)):
                         patch = edges[x-w:x+w,y-w:y+w]
                         RECC_s[x,y]=np.sum(np.multiply(target,patch))/(sum_target+np.sum(patch))           
-                max_one  = np.partition(RECC_s.flatten(),-1)[-1]
-                max_n    = np.partition(RECC_s.flatten(),-4-1)[-4-1]
+                max_one  = np.partition(RECC_s[~np.isnan(RECC_s)].flatten(),-1)[-1]
+                max_n    = np.partition(RECC_s[~np.isnan(RECC_s)].flatten(),-4-1)[-4-1]
                 x_i    = np.where(RECC_s >= max_one)[1][0]
                 y_i    = np.where(RECC_s >= max_one)[0][0]
                 x_n      = np.where(RECC_s >= max_n)[1][0:-1]
@@ -202,15 +203,14 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
                     else:
                         print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+","+"{:.1f}".format(dst)+") Match failed.")
                 else:
-                    print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+",-) Match failed.")
-                if it == it_max*ppp+1:
-                    dist = dist[dist!=0]
-                    dist_lon = dist_lon[dist_lon!=0]
-                    dist_lat = dist_lat[dist_lat!=0]
-                    origin_x = origin_x[origin_x!=0]
-                    origin_y = origin_y[origin_y!=0]
-                    target_lon = target_lon[target_lon!=0]
-                    target_lat = target_lat[target_lat!=0]
+                    print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+",-) Match failed.")      
+        dist = dist[dist!=0]
+        dist_lon = dist_lon[dist_lon!=0]
+        dist_lat = dist_lat[dist_lat!=0]
+        origin_x = origin_x[origin_x!=0]
+        origin_y = origin_y[origin_y!=0]
+        target_lon = target_lon[target_lon!=0]
+        target_lat = target_lat[target_lat!=0]
     if it_cancel == 0:
         while j <= ppp-2:
             x_i_0 = randint(w,x_b_0-w)
@@ -254,6 +254,7 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
                         print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+","+"{:.1f}".format(dst)+") Match failed.")
                 else:
                     print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+",-) Match failed.")
+                    
     return dist, dist_lon, dist_lat, origin_x, origin_y, target_lon, target_lat
 
 def remove_outliers(i, ppp, steps, outlier_type, dist, dist_lon, dist_lat, origin_x, origin_y, target_lon, target_lat):
@@ -306,7 +307,7 @@ def remove_outliers(i, ppp, steps, outlier_type, dist, dist_lon, dist_lat, origi
         gcplist = gcplist+"-gcp "+str(origin_x[k])+" "+str(origin_y[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, dist_lon, dist_lat, origin_x, origin_y, target_lon, target_lat
       
-def georeference(wdir,ppp,path,file,steps,gcplist):
+def georeference(i,wdir,ppp,path,file,steps,gcplist):
     print("["+"{:.0f}".format(((3+ppp)+(i-1)*(ppp+3))/steps)+"%] Georeferencing image nr "+str(i)+".")
     path1 = wdir+"\\temp.tif"
     path2 = wdir+"\\"+file+"_adjusted.tif"
@@ -315,5 +316,5 @@ def georeference(wdir,ppp,path,file,steps,gcplist):
     if os.path.isfile(path2.replace("\\","/")):
         os.remove(path2)
     os.system("gdal_translate -a_srs EPSG:4326 -of GTiff"+gcplist+"\""+path+"\" \""+path1+"\"")
-    print("["+"{:.0f}".format(((3+ppp)+(i-1)*(ppp+3))/steps)+"%] Succesful translate, warping image nr "+str(i)+".")
+    print("["+"{:.0f}".format(((3+ppp)+(i-1)*(ppp+3))/steps)+"%] Succesful translate, warping...")
     os.system("gdalwarp -r cubicspline -tps -co COMPRESS=NONE \""+path1+"\" \""+path2+"\"")    
