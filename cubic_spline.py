@@ -8,7 +8,7 @@ from rasterio import Affine as A
 
 path_original = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\c03_termote-De Boomgaard-201906250000_DEM.tif"
 path_ahn = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\m_67gn1.tif"
-path_ridges =  None
+path_ridges =  r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\c03_termote-De Boomgaard-201906250000_DEM.tif"
 path_destination = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\c03_termote-De Boomgaard-201906250000_DEM_cubic_spline.tif"
 
 vertices = [(51.28414410, 3.79838771), (51.28486227, 3.80228258), (51.28205127, 3.80283333), (51.28194993, 3.79924688)]
