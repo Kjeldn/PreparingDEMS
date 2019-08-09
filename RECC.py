@@ -45,14 +45,18 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize
 
-def file_to_edges(file_type,path,luma,gamma_correct):
+def file_to_edges(i,file_type,path,luma,gamma_correct,extra_blur,ppp,steps):
+    if i == 0:
+        print("[0%] Getting edges for target image.")
+    else:
+        print("["+"{:.0f}".format((1+(i-1)*(ppp+3))/steps)+"%] Getting edges for image nr "+str(i)+".")
     if file_type == 0:
-        edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct)
+        edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,extra_blur)
     elif file_type == 1:
         edges, gt, fact_x, fact_y, x_b, y_b, mask = dem_to_edges(path)
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
 
-def ortho_to_edges(path,luma,gamma_correct):
+def ortho_to_edges(path,luma,gamma_correct,extra_blur):
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     R                                  = file.GetRasterBand(1).ReadAsArray()
@@ -81,6 +85,8 @@ def ortho_to_edges(path,luma,gamma_correct):
             arr_sg                     = 0.299*R + 0.587*G + 0.114*B
         elif luma == 240:
             arr_sg                     = 0.212*R + 0.701*G + 0.087*B
+    if extra_blur == 1:
+            arr_sg                     = cv2.medianBlur(arr_sg,3)
     mask                               = np.zeros(arr_sg.shape)
     mask[arr_sg==255]                  = 1
     mask_b                             = cv2.GaussianBlur(mask,(5,5),0)
@@ -138,6 +144,7 @@ def dem_to_edges(path):
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
                 
 def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, it_cancel, it_max):
+    print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
     sumedges_0 = np.zeros(edges_0.shape)
     for x in range(w,x_b_0-w):
         for y in range(w,y_b_0-w):
@@ -298,9 +305,9 @@ def remove_outliers(i, ppp, steps, outlier_type, dist, dist_lon, dist_lat, origi
     for k in range(len(origin_x)):
         gcplist = gcplist+"-gcp "+str(origin_x[k])+" "+str(origin_y[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, dist_lon, dist_lat, origin_x, origin_y, target_lon, target_lat
-    
-    
-def georeference(wdir,path,file,gcplist):
+      
+def georeference(wdir,ppp,path,file,steps,gcplist):
+    print("["+"{:.0f}".format(((3+ppp)+(i-1)*(ppp+3))/steps)+"%] Georeferencing image nr "+str(i)+".")
     path1 = wdir+"\\temp.tif"
     path2 = wdir+"\\"+file+"_adjusted.tif"
     if os.path.isfile(path1.replace("\\","/")):
@@ -308,4 +315,5 @@ def georeference(wdir,path,file,gcplist):
     if os.path.isfile(path2.replace("\\","/")):
         os.remove(path2)
     os.system("gdal_translate -a_srs EPSG:4326 -of GTiff"+gcplist+"\""+path+"\" \""+path1+"\"")
+    print("["+"{:.0f}".format(((3+ppp)+(i-1)*(ppp+3))/steps)+"%] Succesful translate, warping image nr "+str(i)+".")
     os.system("gdalwarp -r cubicspline -tps -co COMPRESS=NONE \""+path1+"\" \""+path2+"\"")    
