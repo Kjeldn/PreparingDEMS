@@ -4,13 +4,14 @@ from typing import List
 from scipy import interpolate
 import rasterio
 from rasterio.warp import reproject, Resampling
+from rasterio import Affine as A
 
-path_original = r"C:/Users/wytze/20190603_modified.tif"
-path_ahn = r"C:\Users\wytze\OneDrive\Documents\vanBoven\190723_Demo_Hendrik_de_Heer\DEM\m_43ez2.tif"
-path_ridges =  r"C:/Users/wytze/crop_top.tif"
-path_destination = r"C:\Users\wytze\OneDrive\Documents\vanBoven\190723_Demo_Hendrik_de_Heer\DEM\cubic_spline.tif"
+path_original = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\c03_termote-De Boomgaard-201906250000_DEM.tif"
+path_ahn = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\m_67gn1.tif"
+path_ridges =  None
+path_destination = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Boomgaard\c03_termote-De Boomgaard-201906250000_DEM_cubic_spline.tif"
 
-vertices = [(51.73861232, 4.38036677), (51.73829906, 4.38376774), (51.73627495, 4.38329311), (51.73661151, 4.37993097)]
+vertices = [(51.28414410, 3.79838771), (51.28486227, 3.80228258), (51.28205127, 3.80283333), (51.28194993, 3.79924688)]
 
 #%% Polygon and Point class
 class Point:
@@ -118,12 +119,12 @@ def create_tiff(array, gt, projection, dest: str):
     
 
 #%% reproject AHN Model
-with rasterio.open(path_original) as dst:
-    dst_shape = (dst.height, dst.width)
-    dst_transform = dst.transform
-    dst_crs = dst.crs
-    ahn_array = np.zeros(dst_shape)
-    
+orig = gdal.Open(path_original)
+dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
+dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
+ahn_array = np.zeros(dst_shape)
+dst_crs = "EPSG:4326"
+
 with rasterio.open(path_ahn) as src:
     source = src.read(1)
     
@@ -137,13 +138,15 @@ with rasterio.open(path_ahn) as src:
                 dst_crs = dst_crs,
                 respampling = Resampling.nearest
                 )
+        
+        create_tiff(ahn_array, orig.GetGeoTransform(), orig.GetProjection(), 'ahn.tif')
 
 
 #%% cubic spline
 file = gdal.Open(path_original)
-ridges = gdal.Open(path_ridges)
-
-ridges_array = ridges.GetRasterBand(1).ReadAsArray()
+if path_ridges: 
+    ridges = gdal.Open(path_ridges) 
+    ridges_array = ridges.GetRasterBand(1).ReadAsArray()
 
 band = file.GetRasterBand(1)
 array = band.ReadAsArray()
@@ -153,7 +156,7 @@ xsize = band.XSize
 ysize = band.YSize
 
 ##Remove all non-values from array
-array[array < 0] = 0
+array[array == np.amin(array)] = 0
 
 vs_i = []
 
@@ -163,7 +166,7 @@ for i in range(len(vertices)):
 poly = Polygon(vs_i)
 
 ##The space between possible bare ground points to fit over
-step = 40
+step = 50
 
 data = np.zeros((int(ysize/step), int(xsize/step)))
 mask = np.zeros((int(ysize/step), int(xsize/step))) > 0
@@ -176,8 +179,10 @@ for i in range(int(ysize/step)):
         data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j]
         x[i][j] = step * i
         y[i][j] = step * j
-        if array[step * i, step * j] == 0 or ridges_array[step * i, step * j] == -1 or abs(ahn_array[step * i, step * j]) > 2 or not poly.is_inside_polygon(Point(step * i, step * j)):
+        if array[step * i, step * j] == 0 or abs(ahn_array[step * i, step * j]) > 10 or not poly.is_inside_polygon(Point(step * i, step * j)):
             mask[i][j] = True
+            if path_ridges and ridges_array[step * i, step * j] == 0:
+                mask[i][j] = True
 
 z = np.ma.array(data, mask=mask)
 
@@ -188,7 +193,8 @@ x1 = x[~z.mask]
 
 xnew, ynew = np.mgrid[0:ysize, 0:xsize]
 
-tck = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2*len(z)))
+tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, full_output = 1)
+
 znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
 
 create_tiff(array - znew, gt, projection, path_destination)
