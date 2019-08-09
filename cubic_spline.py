@@ -193,36 +193,7 @@ x1 = x[~z.mask]
 
 xnew, ynew = np.mgrid[0:ysize, 0:xsize]
 
-tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2 * len(z)), full_output = 1)
-while fp > len(z) - np.sqrt(2 * len(z)):
-    step += 10
-
-    data = np.zeros((int(ysize/step), int(xsize/step)))
-    mask = np.zeros((int(ysize/step), int(xsize/step))) > 0
-    x = np.zeros((int(ysize/step), int(xsize/step)))
-    y = np.zeros((int(ysize/step), int(xsize/step)))
-        
-    # create list of points inside the field to get the fit over
-    for i in range(int(ysize/step)):
-        for j in range(int(xsize/step)):
-            data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j]
-            x[i][j] = step * i
-            y[i][j] = step * j
-            if array[step * i, step * j] == 0 or abs(ahn_array[step * i, step * j]) > 10 or not poly.is_inside_polygon(Point(step * i, step * j)):
-                mask[i][j] = True
-                if path_ridges and ridges_array[step * i, step * j] == 0:
-                    mask[i][j] = True
-    
-    z = np.ma.array(data, mask=mask)
-    
-    ##Remove all points which are either a non-value, not bare ground, non-value in AHN or not in the polygon
-    z1 = z[~z.mask]
-    y1 = y[~z.mask]
-    x1 = x[~z.mask]
-    
-    xnew, ynew = np.mgrid[0:ysize, 0:xsize]
-    
-    tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, s=len(z) - np.sqrt(2 * len(z)), full_output = 1)
+tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, full_output = 1)
 
 znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
 
