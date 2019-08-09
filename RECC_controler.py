@@ -1,6 +1,4 @@
 #%% INPUT
-#wdir = r"E:\Tulips\DEM"
-#files = ["0","1"]
 wdir = r"E:"
 files = ["0","1"]
 
@@ -14,7 +12,7 @@ ppp            = 25        # Use <...> points per photo to georeference.
 cv_max         = 40        # Approve matches only if CV score is under <...> .
 dst_max        = 20        # Approve matches only if distance is under <...> .
 w              = 30        # Patch-match will be 2*<...> pixels by 2*<...> pixels .
-v              = 10        # Masking area will be 2*<...> pixels by 2*<...> pixels .
+v              = 30        # Masking area will be 2*<...> pixels by 2*<...> pixels .
 it_cancel      = 0         # {0,1} 
 it_max         = 5         # Max number of iterations per match
 
@@ -31,33 +29,30 @@ for i in range(len(path)):
 print("[100%] Done.")        
 
 #%%
-import numpy as np
-import matplotlib.pyplot as plt
-clist = list(np.random.choice(range(256), size=len(dist_1)))
-clist_a = list(np.random.choice(range(256), size=len(dist_a_1)))
+#import numpy as np
+#import matplotlib.pyplot as plt
+#clist = list(np.random.choice(range(256), size=len(dist_1)))
+#clist_a = list(np.random.choice(range(256), size=len(dist_a_1)))
 
 #%% TARGET  
-plt.imshow(edges_0, cmap='gray', interpolation='nearest')
-plt.scatter((target_lon_1-gt_1[0])/(gt_1[1]*fact_x_1), (target_lat_1-gt_1[3])/(gt_1[5]*fact_y_1),c=clist)
+#plt.imshow(edges_0, cmap='gray', interpolation='nearest')
+#plt.scatter((target_lon_1-gt_1[0])/(gt_1[1]*fact_x_1), (target_lat_1-gt_1[3])/(gt_1[5]*fact_y_1),c=clist)
 
 #%% ORIGIN IN IMAGE
-plt.imshow(edges_1, cmap='gray', interpolation='nearest')
-plt.scatter(origin_x_1/fact_x_1, origin_y_1/fact_y_1,c=clist)
+#plt.imshow(edges_1, cmap='gray', interpolation='nearest')
+#plt.scatter(origin_x_1/fact_x_1, origin_y_1/fact_y_1,c=clist)
 
 #%% (OUTLIERS) TARGET
-plt.imshow(edges_0, cmap='gray', interpolation='nearest')
-plt.scatter((target_lon_a_1-gt_1[0])/(gt_1[1]*fact_x_1), (target_lat_a_1-gt_1[3])/(gt_1[5]*fact_y_1),c=clist_a)
+#plt.imshow(edges_0, cmap='gray', interpolation='nearest')
+#plt.scatter((target_lon_a_1-gt_1[0])/(gt_1[1]*fact_x_1), (target_lat_a_1-gt_1[3])/(gt_1[5]*fact_y_1),c=clist_a)
 
 #%% (OUTLIERS) ORIGIN IN IMAGE
-plt.imshow(edges_1, cmap='gray', interpolation='nearest')
-plt.scatter(origin_x_a_1/fact_x_1, origin_y_a_1/fact_y_1,c=clist_a)
+#plt.imshow(edges_1, cmap='gray', interpolation='nearest')
+#plt.scatter(origin_x_a_1/fact_x_1, origin_y_a_1/fact_y_1,c=clist_a)
 
-#%%
+#%% STORE WORKSPACE
 import shelve
-
-#filename= r"E:\temp.out"
 my_shelf = shelve.open(wdir+"\\shelf.out",'n') # 'n' for new
-
 for key in dir():
     try:
         my_shelf[key] = globals()[key]
@@ -68,13 +63,12 @@ for key in dir():
         print('ERROR shelving: {0}'.format(key))
 my_shelf.close()
 
-#%%
-import shelve
-
-my_shelf = shelve.open(wdir+"\\shelf.out")
-for key in my_shelf:
-    try:
-        globals()[key]=my_shelf[key]
-    except:
-        print('ERROR restoring: {0}'.format(key))
-my_shelf.close()
+#%% LOAD WORKSPACE
+#import shelve
+#my_shelf = shelve.open(wdir+"\\shelf.out")
+#for key in my_shelf:
+#    try:
+#        globals()[key]=my_shelf[key]
+#    except:
+#        print('ERROR restoring: {0}'.format(key))
+#my_shelf.close()

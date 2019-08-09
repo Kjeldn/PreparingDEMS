@@ -184,7 +184,7 @@ def pix_size(array,gt):
 
 
 #%% RGB EDGE DETECTION [2019-08-08]
-wdir = r"E:\Tulips\Ortho"
+wdir = r"E:"
 files = ["0","1"]  
 
 path = []
@@ -204,6 +204,8 @@ from math import cos, sin, asin, sqrt, radians
 import warnings
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 #%%
+path = path[0]
+luma = 709
 def ortho_to_edges(path,luma):
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
@@ -225,12 +227,13 @@ def ortho_to_edges(path,luma):
         Y                              = 0.212*Rlin + 0.701*Glin + 0.087*Blin
     L                                  = 116*Y**(1/3)-16
     arr_sg                             = ((L/np.max(L))*255).astype(np.uint8)
+    arr_sgb                            = cv2.medianBlur(arr_sg,3)
     mask                               = np.zeros(arr_sg.shape)
     mask[arr_sg==255]                  = 1
     mask_b                             = cv2.GaussianBlur(mask,(5,5),0)
     ht                                 = 250
     lt                                 = 0.5*ht
-    edges                              = cv2.Canny(arr_sg,lt,ht)
+    edges                              = cv2.Canny(arr_sgb,lt,ht)
     edges[mask_b>=10**-10]             = 0 
     fact_x = B.shape[0]/edges.shape[0]
     fact_y = B.shape[1]/edges.shape[1]
@@ -245,7 +248,7 @@ def dem_to_edges(path):
     gt                                = file.GetGeoTransform()
     arr                               = band.ReadAsArray()
     x_s, y_s                          = pix_size(arr,gt)
-    arr_s                             = cv2.resize(array,(int(arr.shape[1]*(y_s/0.5)), int(array.shape[0]*(x_s/0.5))),interpolation = cv2.INTER_AREA)
+    arr_s                             = cv2.resize(arr,(int(arr.shape[1]*(y_s/0.5)), int(arr.shape[0]*(x_s/0.5))),interpolation = cv2.INTER_AREA)
     mask                              = np.zeros(arr_s.shape)
     mask[arr_s<=0.8*np.nanmin(arr_s)] = 1
     mask_b                            = cv2.GaussianBlur(mask,(s,s),0)
@@ -280,3 +283,9 @@ def dem_to_edges(path):
     x_b    = edges.shape[0]
     y_b    = edges.shape[1]
     return edges, gt, fact_x, fact_y, x_b, y_b, mask
+
+#%%
+edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path[0],709)
+
+#%%
+plt.imshow(edges)
