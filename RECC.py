@@ -90,9 +90,11 @@ def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur):
     mask                               = np.zeros(arr_sg.shape)
     mask[arr_sg==255]                  = 1
     mask_b                             = cv2.GaussianBlur(mask,(5,5),0)
-    ht                                 = 250
-    lt                                 = 0.5*ht
-    edges                              = cv2.Canny(arr_sg,lt,ht)
+    ht, thresh_im                      = cv2.threshold(arr_sg, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    lt = 0.5*ht
+    #ht                                 = 250
+    #lt                                 = 0.5*ht
+    edges                              = cv2.Canny(arr_sg,lt,ht,apertureSize=5)
     edges[mask_b>=10**-10]             = 0 
     fact_x = B.shape[0]/edges.shape[0]
     fact_y = B.shape[1]/edges.shape[1]
