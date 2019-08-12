@@ -45,18 +45,18 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize
 
-def file_to_edges(i,file_type,path,luma,gamma_correct,pixel_size,extra_blur,ppp,steps):
+def file_to_edges(i,file_type,path,luma,gamma_correct,pixel_size,extra_blur,ppp,steps,thresholding,sigma):
     if i == 0:
         print("[0%] Getting edges for target image.")
     else:
         print("["+"{:.0f}".format((1+(i-1)*(ppp+3))/steps)+"%] Getting edges for image nr "+str(i)+".")
     if file_type == 0:
-        edges, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur)
+        edges, array, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,sigma)
     elif file_type == 1:
         edges, gt, fact_x, fact_y, x_b, y_b, mask = dem_to_edges(path,pixel_size)
-    return edges, gt, fact_x, fact_y, x_b, y_b, mask
+    return edges, array, gt, fact_x, fact_y, x_b, y_b, mask
 
-def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur):
+def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,sigma):
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     R                                  = file.GetRasterBand(1).ReadAsArray()
@@ -80,27 +80,32 @@ def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur):
         arr_sg                         = ((L/np.max(L))*255).astype(np.uint8)
     elif gamma_correct == 0:
         if   luma == 709:
-            arr_sg                     = 0.2126*R + 0.7152*G + 0.0722*B
+            arr_sg                     = 0.2126*R_s + 0.7152*G_s + 0.0722*B_s
         elif luma == 601:
-            arr_sg                     = 0.299*R + 0.587*G + 0.114*B
+            arr_sg                     = 0.299*R_s + 0.587*G_s + 0.114*B_s
         elif luma == 240:
-            arr_sg                     = 0.212*R + 0.701*G + 0.087*B
+            arr_sg                     = 0.212*R_s + 0.701*G_s + 0.087*B_s
     if extra_blur == 1:
-            arr_sg                     = cv2.medianBlur(arr_sg,3)
+            arr_sg                     = cv2.medianBlur(arr_sg.astype(np.uint8),3)
     mask                               = np.zeros(arr_sg.shape)
     mask[arr_sg==255]                  = 1
     mask_b                             = cv2.GaussianBlur(mask,(5,5),0)
-    ht, thresh_im                      = cv2.threshold(arr_sg, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    lt = 0.5*ht
-    #ht                                 = 250
-    #lt                                 = 0.5*ht
-    edges                              = cv2.Canny(arr_sg,lt,ht,apertureSize=5)
+    if thresholding == 0:
+        ht, thresh_im                      = cv2.threshold(arr_sg[arr_sg<=254], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        lt = 0.5*ht
+    elif thresholding == 1:
+        lt = max((1-sigma) * np.median(arr_sg[arr_sg<=254]),0)
+        ht = min((1+sigma) * np.median(arr_sg[arr_sg<=254]),255)
+    elif thresholding == 2:
+        lt = max((1-sigma) * np.mean(arr_sg[arr_sg<=254]),0)
+        ht = min((1+sigma) * np.mean(arr_sg[arr_sg<=254]),255)
+    edges                              = cv2.Canny(arr_sg,lt,ht)
     edges[mask_b>=10**-10]             = 0 
     fact_x = B.shape[0]/edges.shape[0]
     fact_y = B.shape[1]/edges.shape[1]
     x_b    = edges.shape[0]
     y_b    = edges.shape[1]
-    return edges, gt, fact_x, fact_y, x_b, y_b, mask
+    return edges, arr_sg, gt, fact_x, fact_y, x_b, y_b, mask
 
 def dem_to_edges(path,pixel_size):
     s                                  = 5
@@ -143,7 +148,7 @@ def dem_to_edges(path,pixel_size):
     fact_y = arr.shape[1]/edges.shape[1]
     x_b    = edges.shape[0]
     y_b    = edges.shape[1]
-    return edges, gt, fact_x, fact_y, x_b, y_b, mask
+    return edges, arr_sg, gt, fact_x, fact_y, x_b, y_b, mask
                 
 def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, s, it_cancel, it_max):
     print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
