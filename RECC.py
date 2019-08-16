@@ -465,115 +465,77 @@ def ortho_to_edges_newnew(path,pixel_size):
     maskMap2 = np.zeros(maskMap.shape)
     for i in range(len(edgeChainsNew)):
         for x in edgeChainsNew[i]:
-            maskMap2[x[0],x[1]]=1
+            maskMap2[x[0],x[1]]=1 
     # Store residuals in quad tree
     edgeChainsNewNew = copy.deepcopy(edgeChainsNew)  
     residuList = [item for item in gradientPoints if item not in edgeChainsNew]
     spindex = pyqtree.Index(bbox=(0,0,maskMap.shape[0],maskMap.shape[1]))
     for item in residuList:
-        spindex.insert(item, bbox=(0,0,1,1))
-    
-    overlapbbox = (0, 0, 2000, 2000)
-    matches = spindex.intersect(overlapbbox)
-    
-    
-    
-    
-    
-    
-    
-    
-    # Extension (new)
+        spindex.insert(item, bbox=(item[0],item[1],item[0],item[1]))
+    # Extension (new new)
     edgeChainsNewNew = copy.deepcopy(edgeChainsNew)
-    residueMap = (edgemap/255) - maskMap2
-    residueList = np.array(np.where(residueMap == 1))
-    size = len(residueList[0])
+    d_t = 0.2/pixel_size
+    d_l_t = 0.1/pixel_size
     for i in range(len(metaLinesNew)):
+        counta = 0
+        countb = 0
         count1 = 0
         count2 = 0
-        count = 0
-        while count <= 0:
-            if count1 <= 0:
-                x1 = metaLinesNew[i][0][0]
-                y1 = metaLinesNew[i][1][0]
-            if count2 <= 0:
-                x2 = metaLinesNew[i][0][-1]
-                y2 = metaLinesNew[i][1][-1]
-            for j in range(len(residueList[0])):
-                a = residueList[0,j]
-                b = residueList[1,j]
-                d1 = sqrt((x1-b)**2+(y1-a)**2)
-                d2 = sqrt((x2-b)**2+(y2-a)**2)
-                #p1 = np.array((x1,y1))
-                #p2 = np.array((x2,y2))
-                #p3 = np.array((b,a))
-                #d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
-                if d1 <= 0.1/pixel_size:
-                    edgeChainsNewNew[i].append((a,b))
-                    x1 = b
-                    y1 = a
-                    count1 += 1
-                    residueList = np.delete(residueList,j,axis=1)
-                    size += -1
-                    print(i,j,d1)
-                    break
-                elif d2 <= 0.1/pixel_size:
-                    edgeChainsNewNew[i].append((a,b))
-                    x2 = b
-                    y2 = a
-                    count2 += 1
-                    residueList = np.delete(residueList,j,axis=1)
-                    size += -1
-                    print(i,j,d2)
-                    break 
-            if j >= size-1:
-                count += 1    
-                
-                
-                
-            
-    # Extension (old)
-    edgeChainsNewNew = copy.deepcopy(edgeChainsNew)
-    residueMap = (edgemap/255) - maskMap2
-    residueList = np.array(np.where(residueMap == 1))
-    for i in range(len(metaLinesNew)):
-        count1 = 0
-        count2 = 0
-        count = 0
-        while count <= 0:
-            if count1 <= 0:
-                x1 = metaLinesNew[i][0][0]
-                y1 = metaLinesNew[i][1][0]
-            if count2 <= 0:
-                x2 = metaLinesNew[i][0][-1]
-                y2 = metaLinesNew[i][1][-1]
-            for j in range(len(residueList[0])):
-                a = residueList[0,j]
-                b = residueList[1,j]
-                d1 = sqrt((x1-b)**2+(y1-a)**2)
-                d2 = sqrt((x2-b)**2+(y2-a)**2)
-                p1 = np.array((x1,y1))
-                p2 = np.array((x2,y2))
-                p3 = np.array((b,a))
-                d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
-                if d1 <= 1/pixel_size and d_toline <= 0.5/pixel_size:
-                    edgeChainsNewNew[i].append((a,b))
-                    x1 = b
-                    y1 = a
-                    count1 += 1
-                    residueList = np.delete(residueList,j,axis=1)
-                    break
-                elif d2 <= 1/pixel_size and d_toline <= 0.5/pixel_size:
-                    edgeChainsNewNew[i].append((a,b))
-                    x2 = b
-                    y2 = a
-                    count2 += 1
-                    residueList = np.delete(residueList,j,axis=1)
-                    break 
-            if j <= len(residueList[0])-1:
-                count += 1
-        
-        
+        last_point = 0
+        while counta == 0 or countb == 0:
+            if count1 == 0:
+                b_x = metaLinesNew[i][1][0]
+                b_y = metaLinesNew[i][0][0]
+            b = np.array((b_x,b_y))
+            if count2 == 0:
+                e_x = metaLinesNew[i][1][-1]
+                e_y = metaLinesNew[i][0][-1]
+            e = np.array((e_x,e_y))
+            # Begin:
+            while counta == 0:
+                print(i,counta,countb,count1,count2)
+                overlapbbox = (b_x-d_t,b_y-d_t,b_x+d_t,b_y+d_t)
+                nearby_points = spindex.intersect(overlapbbox)
+                if len(nearby_points) == 0:
+                    counta += 0.5
+                for point in nearby_points:
+                    last_point = nearby_points[-1]
+                    p = np.array(point)
+                    d_toline = np.linalg.norm(np.cross(e-b, b-p))/np.linalg.norm(e-b)
+                    if d_toline <= d_l_t:
+                        d = sqrt((b_x-point[0])**2+(b_y-point[1])**2)
+                        if d <= d_t:
+                            edgeChainsNewNew[i].append(point)
+                            spindex.remove(point, bbox=(point[0],point[1],point[0],point[1]))
+                            count1 += 1
+                            b_x = point[0]
+                            b_y = point[1]
+                            break 
+                if point == last_point:
+                    counta += 0.5
+            # End:
+            while countb == 0:
+                print(i,counta,countb,count1,count2)
+                overlapbbox = (e_x-d_t,e_y-d_t,e_x+d_t,e_y+d_t)
+                nearby_points = spindex.intersect(overlapbbox)
+                if len(nearby_points) == 0:
+                    countb += 0.5
+                for point in nearby_points:
+                    last_point = nearby_points[-1]
+                    p = np.array(point)
+                    d_toline = np.linalg.norm(np.cross(e-b, b-p))/np.linalg.norm(e-b)
+                    if d_toline <= d_l_t:
+                        d = sqrt((e_x-point[0])**2+(e_y-point[1])**2)
+                        if d <= d_t:
+                            edgeChainsNewNew[i].append(point)
+                            spindex.remove(point, bbox=(point[0],point[1],point[0],point[1]))
+                            count2 += 1
+                            e_x = point[0]
+                            e_y = point[1]
+                            break
+                if point == last_point:
+                    countb += 0.5
+   
     #%%
     plt.imshow(img_s_eq)
     #%%
@@ -612,8 +574,8 @@ def ortho_to_edges_newnew(path,pixel_size):
 
     #%%
     plt.imshow(img_s_eq)
-    for i in range(len(edgeChainsNew)):    
-        chain = np.array(edgeChainsNew[i])
+    for i in range(len(edgeChainsNewNew)):    
+        chain = np.array(edgeChainsNewNew[i])
         plt.scatter(chain[:,1],chain[:,0],s=0.005,c='r')
 
     #%%
