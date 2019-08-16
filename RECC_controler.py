@@ -2,14 +2,14 @@
 #wdir = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\190806_DEMs_Boomgaard\Ortho's"
 #files = ["0","1"]
 wdir = r"E:\ORTHODUMP"
-files = ["T0","T1"]
+files = ["T0","T1","T2","E0","E1"]
 
 file_type      = 0         # [0: Orthomosaic] [1: DEM]
-pixel_size     = 0.6       # One pixel will be <...> m by <...> m.
+pixel_size     = 0.5       # One pixel will be <...> m by <...> m.
 gamma_correct  = 1         # {0,1}
 luma           = 601       # {240,601,709}
 extra_blur     = 1         # {0,1}
-thresholding   = 1         # {0: Binary Otsu} {1: Median} {2: Mean}
+thresholding   = 0         # {0: Binary Otsu} {1: Median} {2: Mean}
 sigma          = 1/3
 
 ppp            = 25        # Use <...> points per photo to georeference.
@@ -37,16 +37,6 @@ for i in range(len(path)):
     #    exec("gcplist, dist_a_"+str(i)+", dist_lon_a_"+str(i)+", dist_lat_a_"+str(i)+", origin_x_a_"+str(i)+", origin_y_a_"+str(i)+", target_lon_a_"+str(i)+", target_lat_a_"+str(i)+",o_x_a_"+str(i)+", o_y_a_"+str(i)+", t_x_a_"+str(i)+", t_y_a_"+str(i)+" = RECC.remove_outliers(i, ppp, conf, steps, outlier_type, dist_"+str(i)+", dist_lon_"+str(i)+", dist_lat_"+str(i)+", origin_x_"+str(i)+", origin_y_"+str(i)+", target_lon_"+str(i)+", target_lat_"+str(i)+",o_x_"+str(i)+", o_y_"+str(i)+", t_x_"+str(i)+", t_y_"+str(i)+")")
     #    exec("RECC.georeference(i,wdir,ppp,path[i],files[i],steps,gcplist)")
 print("[100%] Done.")  
-
-#%%
-extra_blur = 0
-for j in range(len(path)):
-    exec("edges_"+str(j+4)+", array_"+str(j+4)+", gt_"+str(j+4)+", fact_x_"+str(j+4)+", fact_y_"+str(j+4)+", x_b_"+str(j+4)+", y_b_"+str(j+4)+", mask_"+str(j+4)+" = RECC.file_to_edges(j,file_type,path[j],luma,gamma_correct,pixel_size,extra_blur,ppp,steps,thresholding,sigma)")      
-
-extra_blur = 1
-thresholding = 0   
-for j in range(len(path)):
-    exec("edges_"+str(j+8)+", array_"+str(j+8)+", gt_"+str(j+8)+", fact_x_"+str(j+8)+", fact_y_"+str(j+8)+", x_b_"+str(j+8)+", y_b_"+str(j+8)+", mask_"+str(j+8)+" = RECC.file_to_edges(j,file_type,path[j],luma,gamma_correct,pixel_size,extra_blur,ppp,steps,thresholding,sigma)")      
 
 #%%
 #clist = list(np.random.choice(range(256), size=len(dist_1)))

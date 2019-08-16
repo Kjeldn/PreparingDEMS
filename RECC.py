@@ -6,8 +6,12 @@ import numpy.matlib
 import matplotlib.pyplot as plt
 import os
 from random import randint
-from math import cos, sin, asin, sqrt, radians
+from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
 import warnings
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+import copy
+import pyqtree
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
 def initialize(wdir,files,ppp):
@@ -45,13 +49,49 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize
 
+def next(xSeed,ySeed,rows,cols,maskMap,orientationMap):
+    X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
+    Y_OFFSET = [1, 0,-1, 0, 1, 1,-1,-1]
+    #X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1, 0, 2, 0,-2, 1, 2,-1,-2,-1, 2, 1,-2, 2, 2,-2,-2]
+    #Y_OFFSET = [1, 0,-1, 0, 1, 1,-1,-1, 2, 0,-2, 0, 2,-1,-2, 1, 2, 1,-2,-1, 2,-2,-2, 2]
+    direction = orientationMap[xSeed,ySeed]
+    direction0 = direction-1
+    if direction0 < 0:
+        direction0 = 15
+    direction1 = direction
+    direction2 = direction + 1
+    if direction2 == 16:
+        direction2 = 0 
+    a=-1
+    b=-1
+    for i in range(0,len(X_OFFSET)):
+        x = xSeed + X_OFFSET[i]
+        if (x >= 0) and (x <= rows):
+            y = ySeed + Y_OFFSET[i]
+            if (y >= 0) and (y <= cols):
+                if maskMap[x,y] == 1:
+                    directionTemp = orientationMap[x,y]
+                    if (directionTemp == direction0) or (directionTemp == direction1) or (directionTemp == direction2):
+                        a = x
+                        b = y
+                        break
+    return a, b
+
+def moving_average(a, n=3) :
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
+
+#%%
 def file_to_edges(i,file_type,path,luma,gamma_correct,pixel_size,extra_blur,ppp,steps,thresholding,sigma):
     if i == 0:
         print("[0%] Getting edges for target image.")
     else:
         print("["+"{:.0f}".format((1+(i-1)*(ppp+3))/steps)+"%] Getting edges for image nr "+str(i)+".")
     if file_type == 0:
-        edges, array, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,sigma)
+        #edges, array, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,sigma)
+        #edges, array, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges_new(path,pixel_size,thresholding,sigma,extra_blur)
+        edges, array, gt, fact_x, fact_y, x_b, y_b, mask = ortho_to_edges_newnew(path,pixel_size)
     elif file_type == 1:
         edges, gt, fact_x, fact_y, x_b, y_b, mask = dem_to_edges(path,pixel_size)
     return edges, array, gt, fact_x, fact_y, x_b, y_b, mask
@@ -65,7 +105,7 @@ def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,si
     x_s, y_s                           = calc_pixsize(R,gt)
     R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
     G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)   
     if gamma_correct == 1:
         Rlin                           = (R_s**2.2)/255
         Glin                           = (G_s**2.2)/255
@@ -107,6 +147,518 @@ def ortho_to_edges(path,luma,gamma_correct,pixel_size,extra_blur,thresholding,si
     y_b    = edges.shape[1]
     return edges, arr_sg, gt, fact_x, fact_y, x_b, y_b, mask
 
+
+def ortho_to_edges_new(path,pixel_size,thresholding,sigma,extra_blur):
+    file                               = gdal.Open(path)
+    gt                                 = file.GetGeoTransform()
+    R                                  = file.GetRasterBand(1).ReadAsArray()
+    G                                  = file.GetRasterBand(2).ReadAsArray()
+    B                                  = file.GetRasterBand(3).ReadAsArray()
+    x_s, y_s                           = calc_pixsize(R,gt)
+    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    mask                               = np.zeros(B_s.shape)
+    mask[R_s==255]                     = 1
+    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+    img_s[:,:,0]                       = B_s
+    img_s[:,:,1]                       = G_s
+    img_s[:,:,2]                       = R_s
+    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+    L                                  = img_s_cielab[:,:,0] 
+    hist,bins,trash                    = plt.hist(L[mask_b==0],bins=256)
+    cdf                                = hist.cumsum()
+    cdf_m                              = np.ma.masked_equal(cdf,0)
+    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+    L_eq                               = cdf[L] 
+    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq[:,:,0]             = L_eq   
+    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)    
+    if thresholding == 0:
+        ht, thresh_im                  = cv2.threshold(img_g[mask_b==0], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        lt                             = 0.5*ht
+    elif thresholding == 1:
+        lt                             = max((1-sigma) * np.median(img_g[mask_b==0]),0)
+        ht                             = min((1+sigma) * np.median(img_g[mask_b==0]),255)
+    elif thresholding == 2:
+        lt                             = max((1-sigma) * np.mean(img_g[mask_b==0]),0)
+        ht                             = min((1+sigma) * np.mean(img_g[mask_b==0]),255)
+    if extra_blur == 1:
+        img_g                          = cv2.GaussianBlur(img_g,(3,3),0)
+    edges                              = cv2.Canny(img_g,lt,ht,L2gradient=True)
+    edges[mask_b>=10**-10]             = 0 
+    fact_x                             = B.shape[0]/edges.shape[0]
+    fact_y                             = B.shape[1]/edges.shape[1]
+    x_b                                = edges.shape[0]
+    y_b                                = edges.shape[1]
+    return edges, img_s_eq, gt, fact_x, fact_y, x_b, y_b, mask
+
+def ortho_to_edges_newnew(path,pixel_size):
+    file                               = gdal.Open(path[1])
+    gt                                 = file.GetGeoTransform()
+    R                                  = file.GetRasterBand(1).ReadAsArray()
+    G                                  = file.GetRasterBand(2).ReadAsArray()
+    B                                  = file.GetRasterBand(3).ReadAsArray()
+    x_s, y_s                           = calc_pixsize(R,gt)
+    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    mask                               = np.zeros(B_s.shape)
+    mask[R_s==255]                     = 1
+    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+    img_s[:,:,0]                       = B_s
+    img_s[:,:,1]                       = G_s
+    img_s[:,:,2]                       = R_s
+    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+    L                                  = img_s_cielab[:,:,0] 
+    hist,bins,trash                    = plt.hist(L[mask_b==0],bins=256)
+    cdf                                = hist.cumsum()
+    cdf_m                              = np.ma.masked_equal(cdf,0)
+    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+    L_eq                               = cdf[L] 
+    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq[:,:,0]             = L_eq   
+    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
+    img_b                              = cv2.GaussianBlur(img_g,(3,3),1)
+    
+    rows = img_b.shape[0]
+    cols = img_b.shape[1]
+    thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
+    gNoise = 1.33333
+    VMGradient = 70
+    gradientMap                        = np.zeros(img_b.shape)
+    dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    totalNum = 0
+    histogram = np.zeros(255*8)
+    for i in range(gradientMap.shape[0]):
+        for j in range(gradientMap.shape[1]):
+            ptrG = abs(dx[i,j])+abs(dy[i,j])
+            if ptrG > gNoise:
+                histogram[int(ptrG + 0.5)] += 1
+                totalNum +=1
+            else:
+                ptrG = 0
+            gradientMap[i,j] = ptrG
+    gradientMap[mask_b>=10**-10]=0
+    N2 = 0
+    for i in range(len(histogram)):
+        if histogram[i] != 0:
+            N2 += histogram[i]*(histogram[i]-1)
+    pMax = 1/exp((log(N2)/thMeaningfulLength))
+    pMin = 1/exp((log(N2)/sqrt(cols*rows)))
+    greaterThan = np.zeros(255*8)
+    count = 0
+    for i in range(255*8-1,-1,-1):
+        count += histogram[i]
+        probabilityGreater = count/totalNum
+        greaterThan[i] = probabilityGreater
+    count = 0
+    for i in range(255*8-1,-1,-1):
+        if greaterThan[i]>=pMax:
+            thGradientHigh = i
+            break
+    for i in range(255*8-1,-1,-1):
+        if greaterThan[i]>=pMin:
+            thGradientLow = i
+            break
+    if thGradientLow <= gNoise:
+        thGradientLow = gNoise
+    thGradientHigh = sqrt(thGradientHigh*VMGradient)
+    edgemap = cv2.Canny(img_b,thGradientLow,thGradientHigh,3)
+    edgemap[mask_b>=10**-10]=0   
+    anglePer = np.pi / 8
+    orientationMap = np.zeros(img_b.shape)
+    for i in range(orientationMap.shape[0]):
+        for j in range(orientationMap.shape[1]):
+            ptrO = int((atan2(dx[i,j],-dy[i,j]) + np.pi)/anglePer)
+            if ptrO == 16:
+                ptrO = 0
+            orientationMap[i,j] = ptrO
+    maskMap = np.zeros(img_b.shape)
+    gradientPoints = []
+    gradientValues = []
+    for i in range(edgemap.shape[0]):
+        for j in range(edgemap.shape[1]):
+            if edgemap[i,j] == 255:
+                maskMap[i,j] = 1
+                gradientPoints.append((i,j))
+                gradientValues.append(gradientMap[i,j])
+    gradientPoints = [x for _,x in sorted(zip(gradientValues,gradientPoints))]            
+    gradientValues.sort()
+    gradientPoints = gradientPoints[::-1]
+    gradientValues = gradientValues[::-1]
+    edgeChains = []    
+    for i in range(len(gradientPoints)):
+        x = gradientPoints[i][0]
+        y = gradientPoints[i][1]
+        if maskMap[x,y] == 0 or maskMap[x,y] == 2:
+            continue
+        chain = []
+        chain.append((x,y))
+        while x >= 0 and y >= 0:
+            x,y = next(x,y,rows,cols,maskMap,orientationMap)
+            if x >= 0 and y >= 0:
+                chain.append((x,y))
+                maskMap[x,y] = 2
+        if len(chain) >= thMeaningfulLength:
+            edgeChains.append(chain) 
+            chain = np.array(chain)         
+    edgeChainsOrig = edgeChains.copy()
+    # Splitting orientation shifts
+    for i in range(len(edgeChains)-1,-1,-1):
+        if len(edgeChains[i]) >= 2*thMeaningfulLength: 
+            orientationchain = []
+            for x in edgeChains[i]:
+                orientationchain.append(orientationMap[x[0],x[1]])
+            av = moving_average(orientationchain, n=7)
+            avchain = np.zeros(len(orientationchain))
+            avchain[0:3] = av[0]
+            avchain[3:-3] = av
+            avchain[-3:] = av[-1]
+            d = np.diff(avchain)
+            for j in range(len(d)):
+                if abs(d[j]) >= 0.3:
+                    edgeChains.append(edgeChains[i][0:j])
+                    edgeChains.append(edgeChains[i][j:])
+                    del edgeChains[i] 
+    edgeChains = [x for x in edgeChains if x != []] 
+    # Splitting to meaningful length
+    splitchains = []
+    for i in range(len(edgeChains)-1,-1,-1):
+        if len(edgeChains[i]) >= 2*thMeaningfulLength:            
+            chainlist = [edgeChains[i][j: j + 2*thMeaningfulLength] for j in range(0, len(edgeChains[i]), 2*thMeaningfulLength)]
+            if len(chainlist[-1]) <= thMeaningfulLength:
+                chainlist[-2].extend(chainlist[-1])
+                del chainlist[-1]
+            splitchains.extend(chainlist)
+            del edgeChains[i]
+    edgeChains.extend(splitchains)              
+    edgeChains = [x for x in edgeChains if x != []]   
+    # Initial meta line fitting         
+    metaLines = []
+    length = []
+    for i in range(len(edgeChains)):
+        chain = np.array(edgeChains[i])
+        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
+        xmin = min(chain[:,1])
+        xmax = max(chain[:,1])
+        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
+        yn = np.polyval([m, c], xn)
+        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
+        metaLines.append((xn,yn,m,c))
+        length.append(l)
+    length = np.array(length)
+    metaLines = np.array(metaLines)
+    edgeChains = np.array(edgeChains)
+    indices = length.argsort()
+    indices = indices[::-1]
+    metaLines = metaLines[indices] 
+    edgeChains = edgeChains[indices]
+    length = length[indices]    
+    # Line merging
+    theta_s = thMeaningfulLength / 2 
+    theta_m = 2*tan(2/thMeaningfulLength)
+    connections = []            
+    for i in range(len(metaLines)):    
+        x1 = metaLines[i][0][0]
+        y1 = metaLines[i][1][0]
+        x2 = metaLines[i][0][-1]
+        y2 = metaLines[i][1][-1]
+        s = metaLines[i][2]
+        for j in range(i,len(metaLines)):
+            s2 = metaLines[j][2]
+            sd = abs(atan(s)-atan(s2))
+            if i!= j and sd <= theta_m:
+                a1 = metaLines[j][0][0]
+                b1 = metaLines[j][1][0]
+                a2 = metaLines[j][0][-1]
+                b2 = metaLines[j][1][-1]
+                d1 = sqrt((x1-a2)**2+(y1-b2)**2)
+                d2 = sqrt((x2-a1)**2+(y2-b1)**2)
+                if d1 <= 3/pixel_size: # 3m direct distance
+                    p1 = np.array((x1,y1))
+                    p2 = np.array((x2,y2))
+                    p3 = np.array((a2,b2))
+                    d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
+                    if d_toline <= 0.1/pixel_size: # 0.15m distance to line
+                        connections.append((i,j))
+                if d2 <= 3/pixel_size: # 3m direct distance
+                    p1 = np.array((x1,y1))
+                    p2 = np.array((x2,y2))
+                    p3 = np.array((a1,b1))
+                    d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
+                    if d_toline <= 0.1/pixel_size: # 0.15m distance to line
+                        connections.append((i,j))           
+    chains = []
+    connections = np.array(connections)
+    connections_c = connections.copy()
+    for i in range(len(connections)):
+        if all(connections_c[i] == -1):
+            continue
+        chain = []
+        chain.append(connections_c[i][0])
+        chain.append(connections_c[i][1])
+        connections_c[i]=-1
+        while len(set(chain) & set(connections_c[:,0].tolist())) >= 1 or len(set(chain) & set(connections_c[:,1].tolist())) >= 1:
+            num1 = set(chain) & set(connections_c[:,0].tolist())
+            num2 = set(chain) & set(connections_c[:,1].tolist())
+            if len(num1) >= 1:
+                index = np.where(connections_c[:,0]==list(num1)[0])[0][0]
+            elif len(num2) >= 1:
+                index = np.where(connections_c[:,1]==list(num2)[0])[0][0]
+            chain.append(connections_c[index][0])
+            chain.append(connections_c[index][1])
+            connections_c[index]=-1
+        chains.append(sorted(list(set(chain))))  
+    edgeChainsMerged = []     
+    for i in range(len(chains)):
+        chain = []
+        for j in range(len(chains[i])):
+            chain.extend(edgeChains[chains[i][j]])
+        edgeChainsMerged.append(chain)  
+    edgeChainsNonmerged = []
+    alledges = np.linspace(0,len(edgeChains)-1,len(edgeChains)).astype(int)
+    merged = np.unique(connections)
+    nonmerged = np.array(list(set(alledges)-set(merged)))
+    for i in range(len(nonmerged)):
+        edgeChainsNonmerged.append(edgeChains[nonmerged[i]])
+    edgeChainsNew = edgeChainsMerged.copy()
+    edgeChainsNew.extend(edgeChainsNonmerged)
+    # Refit meta lines
+    metaLinesNew = []
+    lengthNew = []
+    for i in range(len(edgeChainsNew)):
+        chain = np.array(edgeChainsNew[i])
+        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
+        xmin = min(chain[:,1])
+        xmax = max(chain[:,1])
+        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
+        yn = np.polyval([m, c], xn)
+        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
+        metaLinesNew.append((xn,yn,m,c))
+        lengthNew.append(l)
+    lengthNew = np.array(lengthNew)
+    metaLinesNew = np.array(metaLinesNew)
+    edgeChainsNew = np.array(edgeChainsNew)
+    indices = lengthNew.argsort()
+    indices = indices[::-1]
+    metaLinesNew = metaLinesNew[indices] 
+    edgeChainsNew = edgeChainsNew[indices]
+    lengthNew = lengthNew[indices] 
+    # Remove nonsensical length
+    metaLinesNew = metaLinesNew.tolist()
+    edgeChainsNew = edgeChainsNew.tolist()
+    lengthNew = lengthNew.tolist()
+    bullshitlength = 5/pixel_size # 5m
+    for i in range(len(metaLinesNew)-1,-1,-1):
+        if lengthNew[i] <= bullshitlength:
+            del metaLinesNew[i]
+            del edgeChainsNew[i]
+            del lengthNew[i]
+    maskMap2 = np.zeros(maskMap.shape)
+    for i in range(len(edgeChainsNew)):
+        for x in edgeChainsNew[i]:
+            maskMap2[x[0],x[1]]=1
+    # Store residuals in quad tree
+    edgeChainsNewNew = copy.deepcopy(edgeChainsNew)  
+    residuList = [item for item in gradientPoints if item not in edgeChainsNew]
+    spindex = pyqtree.Index(bbox=(0,0,maskMap.shape[0],maskMap.shape[1]))
+    for item in residuList:
+        spindex.insert(item, bbox=(0,0,1,1))
+    
+    overlapbbox = (0, 0, 2000, 2000)
+    matches = spindex.intersect(overlapbbox)
+    
+    
+    
+    
+    
+    
+    
+    
+    # Extension (new)
+    edgeChainsNewNew = copy.deepcopy(edgeChainsNew)
+    residueMap = (edgemap/255) - maskMap2
+    residueList = np.array(np.where(residueMap == 1))
+    size = len(residueList[0])
+    for i in range(len(metaLinesNew)):
+        count1 = 0
+        count2 = 0
+        count = 0
+        while count <= 0:
+            if count1 <= 0:
+                x1 = metaLinesNew[i][0][0]
+                y1 = metaLinesNew[i][1][0]
+            if count2 <= 0:
+                x2 = metaLinesNew[i][0][-1]
+                y2 = metaLinesNew[i][1][-1]
+            for j in range(len(residueList[0])):
+                a = residueList[0,j]
+                b = residueList[1,j]
+                d1 = sqrt((x1-b)**2+(y1-a)**2)
+                d2 = sqrt((x2-b)**2+(y2-a)**2)
+                #p1 = np.array((x1,y1))
+                #p2 = np.array((x2,y2))
+                #p3 = np.array((b,a))
+                #d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
+                if d1 <= 0.1/pixel_size:
+                    edgeChainsNewNew[i].append((a,b))
+                    x1 = b
+                    y1 = a
+                    count1 += 1
+                    residueList = np.delete(residueList,j,axis=1)
+                    size += -1
+                    print(i,j,d1)
+                    break
+                elif d2 <= 0.1/pixel_size:
+                    edgeChainsNewNew[i].append((a,b))
+                    x2 = b
+                    y2 = a
+                    count2 += 1
+                    residueList = np.delete(residueList,j,axis=1)
+                    size += -1
+                    print(i,j,d2)
+                    break 
+            if j >= size-1:
+                count += 1    
+                
+                
+                
+            
+    # Extension (old)
+    edgeChainsNewNew = copy.deepcopy(edgeChainsNew)
+    residueMap = (edgemap/255) - maskMap2
+    residueList = np.array(np.where(residueMap == 1))
+    for i in range(len(metaLinesNew)):
+        count1 = 0
+        count2 = 0
+        count = 0
+        while count <= 0:
+            if count1 <= 0:
+                x1 = metaLinesNew[i][0][0]
+                y1 = metaLinesNew[i][1][0]
+            if count2 <= 0:
+                x2 = metaLinesNew[i][0][-1]
+                y2 = metaLinesNew[i][1][-1]
+            for j in range(len(residueList[0])):
+                a = residueList[0,j]
+                b = residueList[1,j]
+                d1 = sqrt((x1-b)**2+(y1-a)**2)
+                d2 = sqrt((x2-b)**2+(y2-a)**2)
+                p1 = np.array((x1,y1))
+                p2 = np.array((x2,y2))
+                p3 = np.array((b,a))
+                d_toline = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
+                if d1 <= 1/pixel_size and d_toline <= 0.5/pixel_size:
+                    edgeChainsNewNew[i].append((a,b))
+                    x1 = b
+                    y1 = a
+                    count1 += 1
+                    residueList = np.delete(residueList,j,axis=1)
+                    break
+                elif d2 <= 1/pixel_size and d_toline <= 0.5/pixel_size:
+                    edgeChainsNewNew[i].append((a,b))
+                    x2 = b
+                    y2 = a
+                    count2 += 1
+                    residueList = np.delete(residueList,j,axis=1)
+                    break 
+            if j <= len(residueList[0])-1:
+                count += 1
+        
+        
+    #%%
+    plt.imshow(img_s_eq)
+    #%%
+    plt.imshow(gradientMap)
+    #%%
+    plt.imshow(orientationMap)
+    #%%
+    plt.imshow(edgemap)
+    
+    #%% Initial chains of linked edge pixels
+    for i in range(len(edgeChainsOrig)):
+        chain = np.array(edgeChainsOrig[i])
+        plt.scatter(chain[:,1],chain[:,0],s=1)
+    #%% Chains after splitting on orientation differences and length
+    for i in range(len(edgeChains)):    
+        chain = np.array(edgeChains[i])
+        plt.scatter(chain[:,1],chain[:,0],s=1)
+    #%% Polyfitted chains
+    for i in range(len(metaLines)):
+        xn = metaLines[i][0]
+        yn = metaLines[i][1]
+        plt.plot(xn,yn)
+    #%% Chains after merging coinciding polyfitted chains and removing short lines
+    for i in range(len(edgeChainsNew)):    
+        chain = np.array(edgeChainsNew[i])
+        plt.scatter(chain[:,1],chain[:,0],s=1)
+    #%% Polyfitted chains
+    for i in range(len(metaLinesNew)):
+        xn = metaLinesNew[i][0]
+        yn = metaLinesNew[i][1]
+        plt.plot(xn,yn)
+    #%% Chains after extending remaining lines
+    for i in range(len(edgeChainsNewNew)):    
+        chain = np.array(edgeChainsNewNew[i])
+        plt.scatter(chain[:,1],chain[:,0],s=1)
+
+    #%%
+    plt.imshow(img_s_eq)
+    for i in range(len(edgeChainsNew)):    
+        chain = np.array(edgeChainsNew[i])
+        plt.scatter(chain[:,1],chain[:,0],s=0.005,c='r')
+
+    #%%
+    fact_x                             = B.shape[0]/edgemap.shape[0]
+    fact_y                             = B.shape[1]/edgemap.shape[1]
+    x_b                                = edgemap.shape[0]
+    y_b                                = edgemap.shape[1]
+    return edgemap, img_s_eq, gt, fact_x, fact_y, x_b, y_b, mask
+
+
+def ortho_to_color(path,pixel_size):
+    file                               = gdal.Open(path)
+    gt                                 = file.GetGeoTransform()
+    R                                  = file.GetRasterBand(1).ReadAsArray()
+    G                                  = file.GetRasterBand(2).ReadAsArray()
+    B                                  = file.GetRasterBand(3).ReadAsArray()
+    x_s, y_s                           = calc_pixsize(R,gt)
+    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    mask                               = np.zeros(B_s.shape)
+    mask[R_s==255]                     = 1
+    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+    img_s[:,:,0]                       = B_s
+    img_s[:,:,1]                       = G_s
+    img_s[:,:,2]                       = R_s
+    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+    L                                  = img_s_cielab[:,:,0] 
+    hist,bins,trash                    = plt.hist(L[mask_b==0],bins=256)
+    cdf                                = hist.cumsum()
+    cdf_m                              = np.ma.masked_equal(cdf,0)
+    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+    L_eq                               = cdf[L] 
+    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq[:,:,0]             = L_eq   
+    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+    edgemap = np.zeros(img_s_eq.shape)    
+    fact_x                             = B.shape[0]/edgemap.shape[0]
+    fact_y                             = B.shape[1]/edgemap.shape[1]
+    x_b                                = edgemap.shape[0]
+    y_b                                = edgemap.shape[1]
+    return edgemap, img_s_eq, gt, fact_x, fact_y, x_b, y_b, mask
+    
 def dem_to_edges(path,pixel_size):
     s                                  = 5
     file                               = gdal.Open(path)
@@ -148,7 +700,7 @@ def dem_to_edges(path,pixel_size):
     fact_y = arr.shape[1]/edges.shape[1]
     x_b    = edges.shape[0]
     y_b    = edges.shape[1]
-    return edges, arr_sg, gt, fact_x, fact_y, x_b, y_b, mask
+    return edges, arr_sc, gt, fact_x, fact_y, x_b, y_b, mask
                 
 def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, s, it_cancel, it_max):
     print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
