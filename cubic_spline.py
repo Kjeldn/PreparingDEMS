@@ -6,87 +6,143 @@ from rasterio.warp import reproject, Resampling
 from rasterio import Affine as A
 import detect_ridges as dt
 import util
+import fiona
+from shapely.geometry import Polygon, Point
+from shapely.geometry.polygon import LinearRing
+import matplotlib.pyplot as plt
 
-path_original = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Tulips\DEM\Achter_de_rolkas-20190420-DEM_full_plot.tif"
-path_ahn = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Tulips\DEM\m_24hz2.tif"
-path_destination = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Tulips\DEM\Achter_de_rolkas-20190420-DEM_full_plot_cubic_spline.tif"
+gdal.UseExceptions()
+
+wd = r"C:/Users/wytze/OneDrive/Documents/vanBoven/Broccoli"
+#paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
+paths = ["c01_verdonk-Wever oost-201907240707_DEM-GR", "c01_verdonk-Wever oost-201907170731_DEM-GR"]
+path_ahn = None #"m_19fn2.tif"
 use_ridges = True
+load_ridges = False
 
-vertices = [(52.28058744, 4.53064423), (52.28007165, 4.53009194), (52.27968238, 4.53250545), (52.27956559, 4.53241543), (52.27864350, 4.53447008), (52.27810824, 4.53390806)]
-
-#%% reproject AHN Model
-orig = gdal.Open(path_original)
-dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
-dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
-ahn_array = np.zeros(dst_shape)
-dst_crs = "EPSG:4326"
-
-with rasterio.open(path_ahn) as src:
-    source = src.read(1)
+#%% plants
+plants = []
     
-    with rasterio.Env():
-        reproject(
-                source,
-                ahn_array,
-                src_transform = src.transform,
-                src_crs = src.crs,
-                dst_transform = dst_transform,
-                dst_crs = dst_crs,
-                respampling = Resampling.nearest
-                )
+with fiona.open(wd + "/20190717_count.shp") as src:
+    for s in src:
+        plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
+        src_driver = src.driver
+        src_crs = src.crs
+        src_schema = src.schema
+    
+#%% reproject AHN Model
+if path_ahn:
+    orig = gdal.Open(wd + "/" + paths[0] + ".tif")
+    dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
+    dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
+    ahn_array = np.zeros(dst_shape)
+    dst_crs = "EPSG:4326"
+    
+    with rasterio.open(wd + "/" + path_ahn) as src:
+        source = src.read(1)
+        
+        with rasterio.Env():
+            reproject(
+                    source,
+                    ahn_array,
+                    src_transform = src.transform,
+                    src_crs = src.crs,
+                    dst_transform = dst_transform,
+                    dst_crs = dst_crs,
+                    respampling = Resampling.nearest
+                    )
+            
+    source = None
         
         ##util.create_tiff(ahn_array, orig.GetGeoTransform(), orig.GetProjection(), 'ahn.tif')
 
-#%% cubic spline
-file = gdal.Open(path_original)
-if use_ridges: 
-    ridges_array, _, _ = dt.get_ridges_array(path_original)
-
-band = file.GetRasterBand(1)
-array = band.ReadAsArray()
-projection = file.GetProjection()
-gt = file.GetGeoTransform()
-xsize = band.XSize
-ysize = band.YSize
-
-##Remove all non-values from array
-array[array == np.amin(array)] = 0
-
-vs_i = []
-
-for i in range(len(vertices)):
-    vs_i.append(util.Point(int(abs(np.floor((vertices[i][0] - gt[3])/gt[5]))), int(abs(np.floor((vertices[i][1] - gt[0])/gt[1])))))
-
-poly = util.Polygon(vs_i)
-
-##The space between possible bare ground points to fit over
-step = 40
-
-data = np.zeros((int(ysize/step), int(xsize/step)))
-mask = np.zeros((int(ysize/step), int(xsize/step))) > 0
-x = np.zeros((int(ysize/step), int(xsize/step)))
-y = np.zeros((int(ysize/step), int(xsize/step)))
+#%% cubic spline   
+for a in range(len(paths)):
+    file = gdal.Open(wd + "/" + paths[a] + ".tif")
     
-# create list of points inside the field to get the fit over
-for i in range(int(ysize/step)):
-    for j in range(int(xsize/step)):
-        data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j]
-        x[i][j] = step * i
-        y[i][j] = step * j
-        if array[step * i, step * j] == 0 or abs(ahn_array[step * i, step * j]) > 10 or not poly.is_inside_polygon(util.Point(step * i, step * j)):
-            mask[i][j] = True
-            if use_ridges and ridges_array[step * i, step * j] == 0:
+    band = file.GetRasterBand(1)
+    array = band.ReadAsArray()
+    projection = file.GetProjection()
+    gt = file.GetGeoTransform()
+    xsize = band.XSize
+    ysize = band.YSize
+    
+    x_plants = []
+    y_plants = []
+    values = []
+    
+    plane = util.Plane(array, gt)
+    for p in plants:
+        if p:
+            xc_plant, yc_plant = plane.getIndicesByCoord(p[1], p[0])
+            x_plants.append(xc_plant)
+            y_plants.append(yc_plant)
+    poly = Polygon(zip(x_plants, y_plants))
+    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
+    polygon = Polygon(poly_line.buffer(100).exterior.coords)
+        
+    if use_ridges:
+        if load_ridges:
+            ridges_file = gdal.Open(wd + "/" + paths[a] + "_ridges.tif")
+            ridges_band = ridges_file.GetRasterBand(1)
+            ridges_array = ridges_band.ReadAsArray()
+            ridges_array = ridges_array.astype(np.uint8)
+            file = None
+        else:
+            ridges_array = dt.get_ridges_array(array).astype(np.uint8)
+    #ridges_array = createMask.getMask(array, plants, gt)
+    
+    ##Remove all non-values from array
+    array[array == np.amin(array)] = 0
+    
+    ##The space between possible bare ground points to fit over
+    step = 40
+    
+    data = np.zeros((int(ysize/step), int(xsize/step)))
+    mask = np.zeros((int(ysize/step), int(xsize/step))) > 0
+    x = np.zeros((int(ysize/step), int(xsize/step)))
+    y = np.zeros((int(ysize/step), int(xsize/step)))
+        
+    # create list of points inside the field to get the fit over
+    for i in range(int(ysize/step)):
+        for j in range(int(xsize/step)):
+            data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j] if path_ahn else array[step * i, step * j]
+            x[i][j] = step * i
+            y[i][j] = step * j
+            if array[step * i, step * j] == 0 or not polygon.contains(Point(step * i, step * j)):
                 mask[i][j] = True
-
-z = np.ma.array(data, mask=mask)
-
-##Remove all points which are either a non-value, not bare ground, non-value in AHN or not in the polygon
-z1 = z[~z.mask]
-y1 = y[~z.mask]
-x1 = x[~z.mask]
-
-xnew, ynew = np.mgrid[0:ysize, 0:xsize]
-tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, full_output = 1)
-znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
-
-util.create_tiff(array - znew, gt, projection, path_destination)
+            if use_ridges and ridges_array[step * i, step * j] != 0:
+                mask[i][j] = True
+            if path_ahn and abs(ahn_array[step * i, step * j]) > 10:
+                mask[i][j] = True
+                    
+    ridges_array = None
+    
+    z = np.ma.array(data, mask=mask)
+    data = None
+    mask = None
+    
+    ##Remove all points which are either a non-value, not bare ground, non-value in AHN or not in the polygon
+    z1 = z[~z.mask]
+    y1 = y[~z.mask]
+    x1 = x[~z.mask]
+    
+    print(len(z1))
+    z = None
+    y = None
+    x = None
+    
+    xnew, ynew = np.mgrid[0:ysize, 0:xsize]
+    tck, fp, ier, msg = interpolate.bisplrep(x1, y1, z1, full_output = 1)
+    znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
+    xnew = None
+    ynew = None
+    z1 = None
+    y1 = None
+    x1 = None
+    
+    znew = array - znew
+    array = None
+    
+    util.create_tiff(znew, gt, projection, wd + "/" + paths[a] +'_cubic.tif')
+    znew = None

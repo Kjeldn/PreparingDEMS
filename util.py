@@ -1,105 +1,61 @@
 from typing import List
 import gdal
+import numpy as np
+import util
 
-class Point:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+class Plane:
+    def __init__(self, array, gt):
+        self.array = array
+        self.gt = gt
         
-class Polygon:
-    EXTREME = 100000000
-    def __init__(self, vs: List[Point]):
-        self.vs = vs
+    def getIndicesByCoord(self, cx, cy):
+        return int(abs(np.floor((cx - self.gt[3])/self.gt[5]))), int(abs(np.floor((cy - self.gt[0])/self.gt[1])))
     
-    """Given three colinear points p, q, r, the function checks if q lies on line segment pr
+    def getCoordByIndices(self, x, y):
+        return self.gt[3] + x * self.gt[5], self.gt[0] + y * self.gt[1] 
+        
+    def getMeanValueAt(self, x, y, k_size = 3):
+        ptl = util.Point(int(abs(np.floor((x - self.gt[3])/self.gt[5]))), int(abs(np.floor((y - self.gt[0])/self.gt[1]))))
+        sum_k = 0
+        for i in range(ptl.x - int((k_size - 1)/2), ptl.x + int((k_size - 1)/2) + 1):
+            for j in range(ptl.y - int((k_size - 1)/2), ptl.y + int((k_size - 1)/2) + 1):
+                sum_k += self.array[i][j]
+        return sum_k/(k_size**2)
     
-    :param p: start of line segment pr
-    :param q: the point to check
-    :param r: end of line segment pr
-    :returns: True if q on line segment pr
-    """
-    def on_segment(self, p, q, r):
-        if (q.x <= max(p.x, r.x) and q.x >= min(p.x, r.x) and q.y <= max(p.y, r.y) and q.y >= min(p.y, r.y)):
-            return True
-        return False
+    def getMaxValueAt(self, x, y, k_size = 7):
+        xi, yi = self.getIndicesByCoord(x, y)
+        return np.amax(self.array[xi - int((k_size - 1)/2):xi + int((k_size - 1)/2) + 1, yi - int((k_size - 1)/2):yi + int((k_size - 1)/2) + 1])
     
-    """Find orientation of ordered triplet (p, q, r)
-    0 --> p, q, r are colinear
-    1 --> Clockwise
-    2 --> Counter clockwise
+    def getMaxValueCoordAt(self, x, y, k_size = 7):
+        xc, yc = self.getIndicesByCoord(x, y)
+        maxValue, mx, my = 0
+        for i in range(xc - int((k_size - 1)/2), xc + int((k_size - 1)/2) + 1):
+            for j in range(yc - int((k_size - 1)/2), yc + int((k_size - 1)/2) + 1):
+                if self.array[i][j] > maxValue:
+                    maxValue = self.array[i][j]
+                    mx = i
+                    my = j
+        return mx, my
     
-    :param p, q, r: points of which the orientation is checked
-    :returns: orientation of the given points
-    """
-    def orientation(self, p, q, r):
-        val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
-        if (val == 0): 
-            return 0
-        return 1 if val > 0 else 2
+    def maskValuesInNeighborhood(self, x, y, k_size = 7):
+        xc, yc = self.getIndicesByCoord(x, y)
+        self.array[xc - int((k_size - 1)/2):xc + int((k_size - 1)/2) + 1, yc - int((k_size - 1)/2):yc + int((k_size - 1)/2) + 1] = np.ones((k_size, k_size))
     
-    """Check if line segment p1q1 and p2q2 intersect
-    
-    :param p1, q1, p1, p2: the points of the line segments which are checked for intersection
-    :returns: True if p1q1 and p2q2 intersect
-    """
-    def do_intersect(self, p1, q1, p2, q2):
-        o1 = self.orientation(p1, q1, p2)
-        o2 = self.orientation(p1, q1, q2)
-        o3 = self.orientation(p2, q2, p1)
-        o4 = self.orientation(p2, q2, q1)
-        
-        if (o1 != o2 and o3 != o4):
-            return True
-        
-        if (o1 == 0 and self.on_segment(p1, p2, q1)):
-            return True
-        
-        if (o2 == 0 and self.on_segment(p1, q2, q1)):
-            return True
-        
-        if (o3 == 0 and self.on_segment(p2, p1, q2)):
-            return True
-        
-        if (o4 == 0 and self.on_segment(p2, q1, q2)):
-            return True
-        
-        return False
-    
-    """Check if point p is inside the n-sized polygon given by points vs
-    
-    :param vs: list of points which make up the polygon
-    :param n: number of vertices of the polygon
-    :param p: the point to be checked
-    :returns: True if p lies inside the polygon
-    """
-    def is_inside_polygon(self, p: Point):
-        if len(self.vs) < 3:
-            return False
-        
-        extreme = Point(self.EXTREME, p.y)
-        
-        count = 0
-        i = 0
-        while True:
-            next_i = (i + 1) % len(self.vs)
-            
-            if self.do_intersect(self.vs[i], self.vs[next_i], p, extreme):
-                if self.orientation(self.vs[i], p, self.vs[next_i]) == 0:
-                    return self.on_segment(self.vs[i], p, self.vs[next_i])
-                count += 1
-                
-            i = next_i
-            if i == 0:
-                break
-        
-        return count % 2 == 1
-
-    
-def create_tiff(array, gt, projection, dest: str):
+def create_tiff(array, gt, projection, dest: str, gdt_type = gdal.GDT_Float32):
     driver = gdal.GetDriverByName('GTiff')
-    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdal.GDT_Float32)
+    tiff = driver.Create(dest, array.shape[1], array.shape[0], 1, gdt_type, options=['COMPRESS=LZW'])
     tiff.SetGeoTransform(gt)
     tiff.SetProjection(projection)
     tiff.GetRasterBand(1).WriteArray(array)
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
+    
+def getMask(array, plants, gt):
+    mask = np.zeros(array.shape)
+    plane = util.Plane(mask, gt)
+    
+    for p in plants:
+        if p:
+            plane.maskValuesInNeighborhood(p[1], p[0], 25)
+
+    return plane.array
