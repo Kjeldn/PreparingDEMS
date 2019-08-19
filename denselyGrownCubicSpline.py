@@ -91,7 +91,7 @@ e = []
 for i in range(0, a.shape[0], 20):
     for j in range(0, a.shape[1], 20):
         if mask[i][j] == 0 and polygon.contains(Point(i, j)):
-            e.append(a[i][j] if path_ahn else a[i][j] - ahn_array[i][j])
+            e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
 mask = None
 
 util.create_tiff(a - np.mean(e), gt, proj, wd + "\\" + path + "cubic_dense.tif")

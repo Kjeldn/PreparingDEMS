@@ -50,12 +50,12 @@ def create_tiff(array, gt, projection, dest: str, gdt_type = gdal.GDT_Float32):
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
     
-def getMask(array, plants, gt):
+def getMask(array, plants, gt, k_size = 45):
     mask = np.zeros(array.shape)
     plane = util.Plane(mask, gt)
     
     for p in plants:
         if p:
-            plane.maskValuesInNeighborhood(p[1], p[0], 25)
+            plane.maskValuesInNeighborhood(p[1], p[0], k_size)
 
     return plane.array
