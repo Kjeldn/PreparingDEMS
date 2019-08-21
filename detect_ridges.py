@@ -1,12 +1,9 @@
 import numpy as np
 import cv2
 import gdal
+import matplotlib.pyplot as plt
 
-def get_ridges_array(path):
-    ds = gdal.Open(path)
-    dem = ds.GetRasterBand(1).ReadAsArray()
-    gt = ds.GetGeoTransform()
-    projection = ds.GetProjection()
+def get_ridges_array(dem):
     dem[dem == np.amin(dem)] = 0
     dem[dem > 10] = 0
     
@@ -15,24 +12,30 @@ def get_ridges_array(path):
     for i in range(2):
         filtered_dem = cv2.filter2D(filtered_dem,-1,kernel)
     
-    n=35
+    n=25
     kernel = np.ones((n,n),np.float32)/(n**2)
     smooth = cv2.filter2D(dem,-1,kernel)
     
     ridges = (filtered_dem-smooth)
-    ridges[ridges > -0.05] = 255
+    ridges[ridges > 0] = 1
     ridges = ridges.astype(np.uint8)
     
-    return ridges, gt, projection
+    return ridges
 
 def write_ridges_array(src_path, dst_path):
-    
-    array, gt, projection = get_ridges_array(src_path)
+    file = gdal.Open(src_path)
+    gt = file.GetGeoTransform()
+    projection = file.GetProjection()
+    band = file.GetRasterBand(1)
+    array = get_ridges_array(band.ReadAsArray())
+    file = None
     
     driver = gdal.GetDriverByName('GTiff')
-    tiff = driver.Create(dst_path, array.shape[1], array.shape[0], 1, gdal.GDT_Int16)
+    tiff = driver.Create(dst_path, array.shape[1], array.shape[0], 1, gdal.GDT_Byte)
     tiff.SetGeoTransform(gt)
     tiff.SetProjection(projection)
     tiff.GetRasterBand(1).WriteArray(array)
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
+    
+#write_ridges_array(r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR.tif", r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR_ridges.tif")
