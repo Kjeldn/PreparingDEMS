@@ -7,6 +7,7 @@ from random import randint
 from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
 import warnings
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
+
                 
 def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, s, it_cancel, it_max):
     print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
