@@ -5,7 +5,8 @@ wdir = r"E:\ORTHODUMP"
 files = ["T0","T1","T2","E0","E1"]
 
 file_type      = 0         # [0: Orthomosaic] [1: DEM]
-pixel_size     = 0.5       # One pixel will be <...> m by <...> m.
+pixel_size     = 0.05      # One pixel will be <...> m by <...> m.
+k              = 7         # {3,5,7} 
 gamma_correct  = 1         # {0,1}
 luma           = 601       # {240,601,709}
 extra_blur     = 1         # {0,1}
