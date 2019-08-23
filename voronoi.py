@@ -1,18 +1,11 @@
-import gdal
 import fiona
-import util
 import numpy as np
-from scipy import interpolate
 from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
-import rasterio
-from rasterio import Affine as A
-from rasterio.warp import reproject, Resampling
 from scipy.spatial import Voronoi,voronoi_plot_2d
 import matplotlib.pyplot as plt
 import scipy.stats as st
 from collections import OrderedDict
-import pyqtree
 from pyqtree import Index
 
 path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\20190717_count.shp"
@@ -264,6 +257,21 @@ def plot_voronoi_diagram(vor, plot_points, missed_regions, small_regions):
         plt.fill(*zip(*r.vc), color="g", alpha = 1)
         
     plt.show()
+    
+def get_missing_points(plants, plot=False):
+    convex_hull = get_convex_hull(np.array(plants))
+    vor = Voronoi(plants)
+    a, lengths = get_areas_and_lengths(vor, convex_hull)                     
+    ci = get_confidence_interval(a, 0.95)
+    missed_regions, small_regions = get_large_and_small_regions(vor, convex_hull, ci, lengths)         
+    adjacent_missed_regions = find_adjacent_polygons(missed_regions)                    
+    missed_points = find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions)          
+    slopes, dists = get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
+    ci_s = get_confidence_interval(slopes, 0.95)
+    missed_points = missed_points + find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex)
+    if plot:
+        plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
+    return missed_points
 
 
 #%% plants
@@ -306,40 +314,17 @@ for i in range(int(np.ceil(len(plants)/n))):
     
         missed_points = []
         for j in range(2):
-            convex_hull = get_convex_hull(np.array(plants_list[j]))
-            vor = Voronoi(plants_list[j])
-            a, lengths = get_areas_and_lengths(vor, convex_hull)                     
-            ci = get_confidence_interval(a, 0.95)
-            missed_regions, small_regions = get_large_and_small_regions(vor, convex_hull, ci, lengths)         
-            adjacent_missed_regions = find_adjacent_polygons(missed_regions)                    
-            missed_points = missed_points + find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions)          
-            slopes, dists = get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
-            ci_s = get_confidence_interval(slopes, 0.95)
-            ci_d = get_confidence_interval(dists, 0.95)
-            missed_points = missed_points + find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex)    
-            #plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
+            missed_points = missed_points + get_missing_points(plants_list[j])
                                             
         missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))                
         
     else:
-        convex_hull = get_convex_hull(np.array(plants_i))
-        vor = Voronoi(plants_i)
-        a, lengths = get_areas_and_lengths(vor, convex_hull)        
-        ci = get_confidence_interval(a, 0.95)
-        missed_regions, small_regions = get_large_and_small_regions(vor, convex_hull, ci, lengths)         
-        adjacent_missed_regions = find_adjacent_polygons(missed_regions)
-        missed_points = find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions)          
-        slopes, dists = get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
-        ci_s = get_confidence_interval(slopes, 0.95)
-        ci_d = get_confidence_interval(dists, 0.95)
-        missed_points = missed_points + find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex)    
-        #plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
-        missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))
+        missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(get_missing_points(plants_i, True)), mean_x_coord, mean_y_coord))
         
 missed_points_coord = np.array(missed_points_coord)
 missed_points_qtree = Index(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
-d_y = 1/444444.0
-d_x = np.cos(missed_points_coord[0][1] / (180 / np.pi))/444444.0
+d_y = 1/444444.0 ## 0.25 meters
+d_x = np.cos(missed_points_coord[0][1] / (180 / np.pi))/444444.0 ## 0.25 meters
 for mp in missed_points_coord:
     if not missed_points_qtree.intersect((mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y)):
         missed_points_qtree.insert(mp, (mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y))
