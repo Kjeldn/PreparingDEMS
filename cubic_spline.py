@@ -15,8 +15,8 @@ gdal.UseExceptions()
 
 wd = r"C:/Users/wytze/OneDrive/Documents/vanBoven/Broccoli"
 #paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["c01_verdonk-Wever oost-201907240707_DEM-GR", "c01_verdonk-Wever oost-201907170731_DEM-GR"]
-path_ahn = None #"m_19fn2.tif"
+paths = ["c01_verdonk-Wever oost-201907170731_DEM-GR"]
+path_ahn = "m_19fn2.tif"
 use_ridges = True
 load_ridges = False
 
@@ -126,8 +126,7 @@ for a in range(len(paths)):
     z1 = z[~z.mask]
     y1 = y[~z.mask]
     x1 = x[~z.mask]
-    
-    print(len(z1))
+
     z = None
     y = None
     x = None

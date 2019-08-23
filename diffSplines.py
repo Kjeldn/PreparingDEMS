@@ -7,7 +7,7 @@ from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
 
 wd = r"C:/Users/wytze/OneDrive/Documents/vanBoven/Broccoli"
-paths = ["c01_verdonk-Wever oost-201907240707_DEM-GR_cubic", "c01_verdonk-Wever oost-201907170731_DEM-GR_cubic", "cubic_dense"]
+paths = ["c01_verdonk-Wever oost-201907240707_DEM-GR_cubic", "c01_verdonk-Wever oost-201907170731_DEM-GR_cubic", "c01_verdonk-Wever oost-201908041528_DEM-GRcubic_dense"]
 
 plants = []
 
@@ -31,36 +31,39 @@ for p in paths:
     
     planes.append(util.Plane(array, gt))
     
-h = []
-k = 1
+e = []
+hh = []
+for k in range(len(paths) -1):
+    h = []
+        
+    mask = util.getMask(np.zeros(planes[k].array.shape), plants, planes[k].gt, k_size=29)
+    x = []
+    y = []
     
-mask = util.getMask(np.zeros(planes[k].array.shape), plants, planes[k].gt, k_size=29)
-x = []
-y = []
-
-for i in range(0, len(plants)):
-    if plants[i]:
-        xx, yy = planes[k].getIndicesByCoord(plants[i][1], plants[i][0])
-        x.append(xx)
-        y.append(yy)
+    for i in range(0, len(plants)):
+        if plants[i]:
+            xx, yy = planes[k].getIndicesByCoord(plants[i][1], plants[i][0])
+            x.append(xx)
+            y.append(yy)
+        
+    poly = Polygon(zip(x, y))
+    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
+    polygon = Polygon(poly_line.coords)
+    x = []
+    y = []
     
-poly = Polygon(zip(x, y))
-poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-polygon = Polygon(poly_line.coords)
-x = []
-y = []
-
-for i in range(0, planes[k].array.shape[0], 30):
-    for j in range(0, planes[k].array.shape[1], 30):
-        if mask[i][j] == 0 and polygon.contains(Point(i, j)):
-            xx, yy = planes[k].getCoordByIndices(i, j)
-            h.append(planes[k].array[i][j] - planes[k+1].getMaxValueAt(xx, yy, k_size = 1))
-            x.append(i)
-            y.append(j)
-                        
-array = None
-
-plt.boxplot(h, sym='')
+    for i in range(0, planes[k].array.shape[0], 30):
+        for j in range(0, planes[k].array.shape[1], 30):
+            if mask[i][j] == 0 and polygon.contains(Point(i, j)):
+                xx, yy = planes[k].getCoordByIndices(i, j)
+                h.append(planes[k].array[i][j] - planes[k+1].getMaxValueAt(xx, yy, k_size = 1))
+                x.append(i)
+                y.append(j)
+                            
+    array = None
+    mask = None
+    hh.append(h)
+    e.append(np.mean(abs(np.array(h))))
+    
+plt.boxplot(hh, sym='')
 plt.show()
-
-mask = None
