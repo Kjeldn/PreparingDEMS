@@ -283,7 +283,8 @@ with fiona.open(path) as src:
     for i in range(len(src)):
         if src[i]['geometry']:
             plants.append([src[i]['geometry']['coordinates'][0][0], src[i]['geometry']['coordinates'][0][1]])
-        
+
+#plants = sorted(sorted(plants, key=lambda a : a[0]), key = lambda a: a[1]) ## use if point data is not ordered
 plants = np.array(plants)
 for i in range(plants.shape[0]-1, -1, -1):
     if (plants[i][0] == 0 and plants[i][1] == 0):
@@ -292,8 +293,8 @@ for i in range(plants.shape[0]-1, -1, -1):
 missed_points_coord = []
 n = 5000
 overlap = 1000
-i = 0
 for i in range(int(np.ceil(len(plants)/n))):
+#for i in range(4,5):
     print(i / int(len(plants)/n) * 100, '%')
     offset = n if (i + 1) * n < len(plants) else len(plants) - i * n
     offset = offset + overlap if i * n + offset + overlap < len(plants) else offset
@@ -319,7 +320,7 @@ for i in range(int(np.ceil(len(plants)/n))):
         missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))                
         
     else:
-        missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(get_missing_points(plants_i, True)), mean_x_coord, mean_y_coord))
+        missed_points_coord = missed_points_coord + list(readable_values_inv(np.array(get_missing_points(plants_i)), mean_x_coord, mean_y_coord))
         
 missed_points_coord = np.array(missed_points_coord)
 missed_points_qtree = Index(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
@@ -328,7 +329,7 @@ d_x = np.cos(missed_points_coord[0][1] / (180 / np.pi))/444444.0 ## 0.25 meters
 for mp in missed_points_coord:
     if not missed_points_qtree.intersect((mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y)):
         missed_points_qtree.insert(mp, (mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y))
-        
+
 missed_points_coord = missed_points_qtree.intersect(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
 
 with fiona.open(dst, 'w', crs = src_crs, driver =src_driver, schema ={'geometry': 'Point', 'properties': OrderedDict([('name', 'str')])}) as dst:
@@ -340,3 +341,6 @@ with fiona.open(dst, 'w', crs = src_crs, driver =src_driver, schema ={'geometry'
                         },
                 'properties': OrderedDict([('name', 'missed point')])
     })
+    
+
+    
