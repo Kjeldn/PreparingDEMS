@@ -5,9 +5,19 @@ import matplotlib.pyplot as plt
 import os
 from random import randint
 from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
+from random import randint
 import warnings
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
+def initgrit(mask_o,w):
+    bound1 = mask_o.shape[0]
+    bound2 = mask_o.shape[1]
+    grid = []
+    for i in range(w,bound1,w):
+        for j in range(w,bound2,w):
+            if mask_o[i,j] == 0:
+                grid.append((i,j))
+    return grid              
                 
 def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_0, ppp, cv_max, dst_max, w, v, steps, s, it_cancel, it_max):
     print("["+"{:.0f}".format((2+(i-1)*(ppp+3))/steps)+"%] Matching patches for image nr "+str(i)+".")
@@ -58,7 +68,7 @@ def patch_match(i, edges, gt, fact_x, fact_y, x_b, y_b, mask, edges_0, gt_0, fac
                     lat = gt[3] + gt[4]*x_i*fact_x + gt[5]*y_i*fact_y
                     lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_x_0 + gt_0[2]*x_i_0*fact_y_0
                     lat_0 = gt_0[3] + gt_0[4]*y_i_0*fact_x_0 + gt_0[5]*x_i_0*fact_y_0
-                    dst = calc_distance(lat,lon,lat_0,lon_0)
+                    dst = META.calc_distance(lat,lon,lat_0,lon_0)
                     if dst <= dst_max:
                         j=j+1
                         print("["+"{:.0f}".format(((3+j)+(i-1)*(ppp+3))/steps)+"%] ("+"{:.0f}".format(cv_score)+","+"{:.1f}".format(dst)+") Succesful patch-match nr "+str(j+1)+" of "+str(ppp)+".")

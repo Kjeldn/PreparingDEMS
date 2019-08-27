@@ -86,7 +86,11 @@ def switch_correct_ortho(ps1,ps2,path,edgeChainsE):
     #img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
     img_b                              = img_g
     mask_n                             = 1 - mask_n
-    return img_s, img_g, img_b, mask_n,
+    fact_x = B.shape[0]/B_s.shape[0]
+    fact_y = B.shape[1]/B_s.shape[1]
+    x_b    = B_s.shape[0]
+    y_b    = B_s.shape[1]
+    return img_s, img_g, img_b, mask_n, mask_o, fact_x, fact_y, x_b, y_b, gt
 
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
