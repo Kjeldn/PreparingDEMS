@@ -35,27 +35,28 @@ def patch_match(pixel_size, w, s, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b
     o_y        = np.zeros(len(grid))
     t_x        = np.zeros(len(grid))
     t_y        = np.zeros(len(grid))
-    RECC_s = np.zeros(edges1C.shape)
+    RECC_total = np.zeros(edges1C.shape)
     for i in range(len(grid)):
         print(i,len(grid))
         x_i_0 = grid[i][0]
         y_i_0 = grid[i][1]
         target = edges0C[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]
         sum_target = np.sum(target)
-        search_area = edges1C[x_i_0-max_dist-w:x_i_0+max_dist+w,y_i_0-max_dist-w:y_i_0+max_dist+w]
-        sum_patch = cv2.filter2D(search_area,-1,np.ones(target.shape))
-        numerator = cv2.filter2D(search_area,-1,target)
-        RECC = numerator / (sum_patch+sum_target)
-        RECC_s.fill(np.NaN)
-        RECC_s[x_i_0-max_dist:x_i_0+max_dist,y_i_0-max_dist:y_i_0+max_dist] = RECC[w:-w,w:-w]
-        RECC_l.append(RECC_s)
-        max_one  = np.partition(RECC_s[~np.isnan(RECC_s)].flatten(),-1)[-1]
-        max_n    = np.partition(RECC_s[~np.isnan(RECC_s)].flatten(),-4-1)[-4-1]
-        y_i      = np.where(RECC_s >= max_one)[1][0]  
-        x_i      = np.where(RECC_s >= max_one)[0][0]
-        y_n      = np.where(RECC_s >= max_n)[1][0:-1]
-        x_n      = np.where(RECC_s >= max_n)[0][0:-1]
-        cv[i] = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))
+        search_wide = edges1C[x_i_0-max_dist-w:x_i_0+max_dist+w,y_i_0-max_dist-w:y_i_0+max_dist+w]
+        sum_patch = cv2.filter2D(search_wide,-1,np.ones(target.shape))
+        numerator = cv2.filter2D(search_wide,-1,target)
+        RECC_wide = numerator / (sum_patch+sum_target)
+        RECC_area = RECC_wide[w:-w,w:-w]
+        RECC_total.fill(np.NaN)
+        RECC_total[x_i_0-max_dist:x_i_0+max_dist,y_i_0-max_dist:y_i_0+max_dist] = RECC_area
+        RECC_l.append(RECC_total)
+        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
+        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
+        y_i      = np.where(RECC_total >= max_one)[1][0]  
+        x_i      = np.where(RECC_total >= max_one)[0][0]
+        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
+        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
+        cv[i] = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))/4
         lon = gt[0] + gt[1]*y_i*fact_x + gt[2]*x_i*fact_y
         lat = gt[3] + gt[4]*y_i*fact_x + gt[5]*x_i*fact_y
         lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_x_0 + gt_0[2]*x_i_0*fact_y_0
@@ -76,9 +77,9 @@ def patch_match(pixel_size, w, s, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b
         target_lat[i] = lat_0
     return dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, RECC_l, target_l, patch_l, cv
 
-def remove_outliers(conf, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
     size1 = len(dist)
-    indices = np.where(cv<=40)[0]
+    indices = np.where(cv<=cv_thresh)[0]
     dist       = dist[~indices]
     origin_x   = origin_x[~indices]
     origin_y   = origin_y[~indices]

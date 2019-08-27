@@ -3,9 +3,18 @@ import CANNY
 import RECC2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as 
 
 wdir = r"E:\ORTHODUMP"
-files = ["T1","T2"]
+files = ["E0","E1"]
+
+ps1 = 0.5  #[m] (0.5)
+ps2 = 0.05 #[m] (0.05)
+w   = 500  #[pix] (500)
+s   = 200 #[pix] (1000)
+md  = 10   #[m] (10)
+cvt = 1.5  #[pix] (1.5)
+ci  = 50   #[%] (50)
 
 path = META.initialize(wdir,files)
 
@@ -33,23 +42,22 @@ for i in range(1,2):
     edges,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(0.05,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
     exec("edges"+str(i)+"F = edges")
 
-    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_l,target_l,patch_l,cv = RECC2.patch_match(0.05, 500, 500, 10, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0)
-    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y                    = RECC2.remove_outliers(50, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv)
+    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_l,target_l,patch_l,cv = RECC2.patch_match(0.05, 500, 200, 10, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0)
+    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y                    = RECC2.remove_outliers(50, 1.5, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv)
     RECC2.georeference(wdir,path[i],files[i],gcplist)
 
-
-
-
 #%%
+clist = list(np.random.choice(range(256), size=len(dist)))
+plt.subplot(1,2,1)
+plt.title('Orthomosaic 1')
 plt.imshow(edges0F,cmap='gray')  
-plt.scatter(t_y,t_x,c='r')
-plt.scatter(o_y,o_x,c='b')
-#%%
-plt.imshow(edges0F,cmap='gray')  
-ind = np.where(cv<=20)[0]
-plt.scatter(t_y[ind],t_x[ind],c='r')
-plt.scatter(o_y[ind],o_x[ind],c='b')
-    
+plt.scatter(t_y,t_x,c=clist)
+
+plt.subplot(1,2,2)
+plt.title('Orthomosaic 2')
+plt.imshow(edges1F,cmap='gray')  
+plt.scatter(o_y,o_x,c=clist)
+
 #%% 1 IMAGE OVERLAY CHECK
 plt.imshow(edges_0,cmap='gray')
 for i in range(len(edgeChainsE_F)):    
