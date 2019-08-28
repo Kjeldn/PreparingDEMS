@@ -11,7 +11,7 @@ path  = META.initialize(wdir,files)
 ps1 = 0.5  #[m]   (0.5)
 ps2 = 0.05 #[m]   (0.05)
 w   = 500  #[pix] (500)
-s   = 1000 #[pix] (1000)
+s   = 300  #[pix] (1000/300)
 md  = 7    #[m]   (7)
 cvt = 1.5  #[pix] (1.5)
 ci  = 95   #[%]   (50/75/80/90/95)
@@ -38,7 +38,7 @@ for i in range(1,len(path)):
     edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
     dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,s,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
-    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y                    = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
+    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv                 = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
 #%% [RECC] GCP Comparison
@@ -53,9 +53,12 @@ plt.imshow(edges1F,cmap='gray')
 plt.scatter(o_y,o_x,c=clist)
 
 #%% [RECC] RECC check
+fig,ax = plt.subplots()
 plt.imshow(RECC_m,cmap='gray')
-plt.scatter(t_y,t_x,c='r')
-plt.scatter(o_y,o_x,c='y')
+plt.scatter(t_y,t_x,c='b')
+ax.scatter(o_y,o_x,c='r')
+for i in range(len(o_y)):
+    ax.annotate(str(round(cv[i],2)),(o_y[i]+(7/0.05),o_x[i]-(7/0.05)))
 
 #%% [CANNY] IMAGE OVERLAY CHECK
 plt.imshow(edges_0,cmap='gray')
