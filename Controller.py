@@ -1,64 +1,63 @@
 import META
 import CANNY
-import RECC2
+import RECC
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as 
 
-wdir = r"E:\ORTHODUMP"
+wdir  = r"E:\ORTHODUMP"
 files = ["E0","E1"]
+path  = META.initialize(wdir,files)
 
-ps1 = 0.5  #[m] (0.5)
-ps2 = 0.05 #[m] (0.05)
+ps1 = 0.5  #[m]   (0.5)
+ps2 = 0.05 #[m]   (0.05)
 w   = 500  #[pix] (500)
-s   = 200 #[pix] (1000)
-md  = 10   #[m] (10)
+s   = 1000 #[pix] (1000)
+md  = 7    #[m]   (7)
 cvt = 1.5  #[pix] (1.5)
-ci  = 50   #[%] (50)
+ci  = 95   #[%]   (50/75/80/90/95)
 
-path = META.initialize(wdir,files)
+file = path[0]
 
-temp_path = path[0]
+img_C,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa,fact_x_0,fact_y_0,x_b_0,y_b_0              = META.correct_ortho(ps1,ps2,file)
+edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
+edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C         = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
+
+img_F,img_g_F,img_b_F,mask_b_0,mask_o_0                                               = META.switch_correct_ortho(ps1,ps2,img_Fa,edgeChainsE_C)
+edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(ps2,img_b_F,mask_b_0)
+edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F         = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
+
+for i in range(1,len(path)):
+    file = path[i]
     
-img_C,img_g_C,img_b_C,mask_b_C                                                        = META.correct_ortho(0.5,temp_path)
-edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(0.5,img_b_C,mask_b_C)
-edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C         = CANNY.CannyLines(0.5,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
-    
-img_F,img_g_F,img_b_F,mask_b_0,mask_o_0,fact_x_0,fact_y_0,x_b_0,y_b_0,gt_0            = META.switch_correct_ortho(0.5,0.05,temp_path,edgeChainsE_C)
-edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(0.05,img_b_F,mask_b_0)
-edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F         = CANNY.CannyLines(0.05,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
+    img_C,img_g_C,img_b_C,mask_b_C,gt,img_Fa,fact_x,fact_y,x_b,y_b                          = META.correct_ortho(ps1,ps2,file)
+    edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C    = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
+    edges1C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C           = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
 
-for i in range(1,2):
-    print(i)
-    temp_path = path[i]
-    
-    img_C,img_g_C,img_b_C,mask_b_C                                                        = META.correct_ortho(0.5,temp_path)
-    edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(0.5,img_b_C,mask_b_C)
-    edgechainmap_C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C  = CANNY.CannyLines(0.5,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
-    exec("edges"+str(i)+"C = edgechainmap_C")
-    
-    img_F,img_g_F,img_b_F,mask_b_F,mask_o,fact_x,fact_y,x_b,y_b,gt                        = META.switch_correct_ortho(0.5,0.05,temp_path,edgeChainsE_C)
-    edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(0.05,img_b_F,mask_b_F)
-    edges,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(0.05,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
-    exec("edges"+str(i)+"F = edges")
+    img_F,img_g_F,img_b_F,mask_b_F,mask_o                                                   = META.switch_correct_ortho(ps1,ps2,img_Fa,edgeChainsE_C)
+    edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F    = CANNY.CannyPF(ps2,img_b_F,mask_b_F)
+    edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
-    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_l,target_l,patch_l,cv = RECC2.patch_match(0.05, 500, 200, 10, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0)
-    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y                    = RECC2.remove_outliers(50, 1.5, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv)
-    RECC2.georeference(wdir,path[i],files[i],gcplist)
+    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,s,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
+    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y                    = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
+    RECC.georeference(wdir,path[i],files[i],gcplist)
 
-#%%
+#%% [RECC] GCP Comparison
 clist = list(np.random.choice(range(256), size=len(dist)))
 plt.subplot(1,2,1)
 plt.title('Orthomosaic 1')
 plt.imshow(edges0F,cmap='gray')  
 plt.scatter(t_y,t_x,c=clist)
-
 plt.subplot(1,2,2)
 plt.title('Orthomosaic 2')
 plt.imshow(edges1F,cmap='gray')  
 plt.scatter(o_y,o_x,c=clist)
 
-#%% 1 IMAGE OVERLAY CHECK
+#%% [RECC] RECC check
+plt.imshow(RECC_m,cmap='gray')
+plt.scatter(t_y,t_x,c='r')
+plt.scatter(o_y,o_x,c='y')
+
+#%% [CANNY] IMAGE OVERLAY CHECK
 plt.imshow(edges_0,cmap='gray')
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
@@ -66,7 +65,7 @@ for i in range(len(edgeChainsE_F)):
 plt.scatter(t_y[index],t_x[index],c='r')
 plt.scatter(o_y[index],o_x[index],c='b')
     
-#%% 2 EDGEMAP / CHAIN EXTENSION CHECK
+#%% [CANNY] EDGEMAP / CHAIN EXTENSION CHECK
 plt.imshow(img_F)
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
@@ -75,7 +74,7 @@ for i in range(len(edgeChainsD_F)):
     chain = np.array(edgeChainsD_F[i])
     plt.scatter(chain[:,1],chain[:,0],s=2,c='g')
     
-#%% 3 STEPWISE CHECK
+#%% [CANNY] STEPWISE CHECK
 ### [A] Initial chains of linked edge pixels
 for i in range(len(edgeChainsA_F)):
     chain = np.array(edgeChainsA_F[i])
@@ -95,5 +94,5 @@ for i in range(len(edgeChainsD_F)):
 #%% [E] Chains after extending remaining lines
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
-    plt.scatter(chain[:,1],-1*chain[:,0],s=2)'
+    plt.scatter(chain[:,1],-1*chain[:,0],s=2)
     

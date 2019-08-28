@@ -9,9 +9,10 @@ from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
 import warnings
 import copy
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
-warnings.filterwarnings('ignore', r'RankWarning')
+warnings.filterwarnings("ignore")
 
 def CannyPF(pixel_size,img_b,mask_b):
+    print("Gathering CannyPF edgemap...")
     rows = img_b.shape[0]
     cols = img_b.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
@@ -90,6 +91,7 @@ def CannyPF(pixel_size,img_b,mask_b):
     return edgemap, gradientMap, orientationMap, maskMap, gradientPoints, gradientValues
 
 def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoints,gradientValues):
+    print("Linking edgemap edges...")
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)

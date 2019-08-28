@@ -14,16 +14,17 @@ def initialize(wdir,files):
         path.append(wdir+"\\"+files[x]+".tif")
     return path
 
-def correct_ortho(pixel_size,path):
+def correct_ortho(ps1,ps2,path):
+    print("Correcting orthomosaic...")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     R                                  = file.GetRasterBand(1).ReadAsArray()
     G                                  = file.GetRasterBand(2).ReadAsArray()
     B                                  = file.GetRasterBand(3).ReadAsArray()
     x_s, y_s                           = calc_pixsize(R,gt)
-    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
-    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/pixel_size)), int(B.shape[0]*(x_s/pixel_size))),interpolation = cv2.INTER_AREA)
+    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
+    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
+    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -33,7 +34,7 @@ def correct_ortho(pixel_size,path):
     img_s[:,:,2]                       = R_s
     img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
     L                                  = img_s_cielab[:,:,0] 
-    hist,bins,trash                    = plt.hist(L[mask_b==0],bins=256)
+    hist                               = np.histogram(L[mask_b==0],bins=256)[0]
     cdf                                = hist.cumsum()
     cdf_m                              = np.ma.masked_equal(cdf,0)
     cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
@@ -43,54 +44,51 @@ def correct_ortho(pixel_size,path):
     img_s_cielab_eq[:,:,0]             = L_eq   
     img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
-    fsize                              = int(np.ceil((1.05/pixel_size))//2*2+1)
+    fsize                              = int(np.ceil((1.05/ps1))//2*2+1)
     img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
-    return img_s, img_g, img_b, mask_b
-
-def switch_correct_ortho(ps1,ps2,path,edgeChainsE):
-    file                               = gdal.Open(path)
-    gt                                 = file.GetGeoTransform()
-    R                                  = file.GetRasterBand(1).ReadAsArray()
-    G                                  = file.GetRasterBand(2).ReadAsArray()
-    B                                  = file.GetRasterBand(3).ReadAsArray()
-    x_s, y_s                           = calc_pixsize(R,gt)
     R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
     G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
     B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    img_s2                             = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    img_s2[:,:,0]                      = B_s
+    img_s2[:,:,1]                      = G_s
+    img_s2[:,:,2]                      = R_s
+    fact_x = B.shape[0]/B_s.shape[0]
+    fact_y = B.shape[1]/B_s.shape[1]
+    x_b    = B_s.shape[0]
+    y_b    = B_s.shape[1]
+    return img_s, img_g, img_b, mask_b, gt, img_s2, fact_x, fact_y, x_b, y_b
+
+def switch_correct_ortho(ps1,ps2,img_s2,edgeChainsE):
+    print("Switching pixelsizes...")
     ratio                              = int(ps1/ps2)
-    mask_o                             = np.zeros(B_s.shape)
-    mask_o[R_s==255]                   = 1
+    mask_o                             = np.zeros(img_s2[:,:,0].shape)
+    mask_o[img_s2[:,:,0]==255]  = 1
     mask_o_b                           = cv2.GaussianBlur(mask_o,(5,5),0) 
-    mask_n                             = np.zeros(B_s.shape)
+    mask_n                             = np.zeros(img_s2[:,:,0].shape)
     for chain in edgeChainsE:
         for point in chain:
             mask_n[(point[0]-1)*ratio:(point[0]+2)*ratio,(point[1]-1)*ratio:(point[1]+2)*ratio]=1
     mask_n[mask_o_b>=10**-10]          = 0
-    img_s[:,:,0]                       = B_s*mask_n
-    img_s[:,:,1]                       = G_s*mask_n
-    img_s[:,:,2]                       = R_s*mask_n
-    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab) 
-    L                                  = img_s_cielab[:,:,0] 
-    hist,bins,trash                    = plt.hist(L[mask_n==1],bins=256)
+    img_s3                             = np.zeros(img_s2.shape,np.uint8)
+    img_s3[:,:,0]                      = img_s2[:,:,0]*mask_n
+    img_s3[:,:,1]                      = img_s2[:,:,1]*mask_n
+    img_s3[:,:,2]                      = img_s2[:,:,2]*mask_n
+    img_s3_cielab                      = cv2.cvtColor(img_s3,cv2.COLOR_BGR2Lab)
+    L                                  = img_s3_cielab[:,:,0]
+    hist                               = np.histogram(L[mask_n==1],bins=256)[0]
     cdf                                = hist.cumsum()
     cdf_m                              = np.ma.masked_equal(cdf,0)
     cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
     cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
     L_eq                               = cdf[L] 
-    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq                    = img_s3_cielab.copy()
     img_s_cielab_eq[:,:,0]             = L_eq   
     img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)    
-    #fsize                              = int(np.ceil((1.05/ps2))//2*2+1)
-    #img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
     img_b                              = img_g
     mask_n                             = 1 - mask_n
-    fact_x = B.shape[0]/B_s.shape[0]
-    fact_y = B.shape[1]/B_s.shape[1]
-    x_b    = B_s.shape[0]
-    y_b    = B_s.shape[1]
-    return img_s, img_g, img_b, mask_n, mask_o, fact_x, fact_y, x_b, y_b, gt
+    return img_s_eq, img_g, img_b, mask_n, mask_o
 
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
