@@ -47,10 +47,12 @@ def patch_match(pixel_size, w, s, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b
         print(i,len(grid))
         x_i_0 = grid[i][0]
         y_i_0 = grid[i][1]
-        x_i_0_og = int(((gt_0[3]+gt_0[5]*x_i_0)-gt[3])/gt[5])
-        y_i_0_og = int(((gt_0[0]+gt_0[1]*y_i_0)-gt[0])/gt[1])
         target = edges0C[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]
-        sum_target = np.sum(target)
+        sum_target = np.sum(target)   
+        lat_0 = gt_0[3] + gt_0[5]*x_i_0*fact_x_0  
+        lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_y_0
+        x_i_0_og = int((lat_0-gt[3])/(gt[5]*fact_x))
+        y_i_0_og = int((lon_0-gt[0])/(gt[1]*fact_y))    
         search_wide = edges1C[x_i_0_og-max_dist-w:x_i_0_og+max_dist+w,y_i_0_og-max_dist-w:y_i_0_og+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
             continue

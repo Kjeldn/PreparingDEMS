@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 wdir  = r"E:\ORTHODUMP"
-files = ["E0","E1"]
+files = ["T1","T2"]
 path  = META.initialize(wdir,files)
 
 ps1 = 0.5  #[m]   (0.5)
@@ -16,20 +16,17 @@ md  = 7    #[m]   (7)
 cvt = 1.5  #[pix] (1.5)
 ci  = 95   #[%]   (50/75/80/90/95)
 
-file = path[0]
-
-img_C,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa,fact_x_0,fact_y_0,x_b_0,y_b_0              = META.correct_ortho(ps1,ps2,file)
+img_C0,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa0,fact_x_0,fact_y_0,x_b_0,y_b_0             = META.correct_ortho(ps1,ps2,path[0])
 edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
 edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C         = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
 
-img_F,img_g_F,img_b_F,mask_b_0,mask_o_0                                               = META.switch_correct_ortho(ps1,ps2,img_Fa,edgeChainsE_C)
+img_F,img_g_F,img_b_F,mask_b_0,mask_o_0                                               = META.switch_correct_ortho(ps1,ps2,img_Fa0,edgeChainsE_C)
 edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(ps2,img_b_F,mask_b_0)
 edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F         = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
 for i in range(1,len(path)):
-    file = path[i]
     
-    img_C,img_g_C,img_b_C,mask_b_C,gt,img_Fa,fact_x,fact_y,x_b,y_b                          = META.correct_ortho(ps1,ps2,file)
+    img_C,img_g_C,img_b_C,mask_b_C,gt,img_Fa,fact_x,fact_y,x_b,y_b                          = META.correct_ortho(ps1,ps2,path[i])
     edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C    = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
     edges1C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C           = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
 
