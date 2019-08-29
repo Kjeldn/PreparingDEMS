@@ -7,6 +7,7 @@ from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
 import warnings
 import matplotlib.pyplot as plt
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
+from tqdm import tqdm
 
 def initialize(wdir,files):
     path = []
@@ -15,7 +16,7 @@ def initialize(wdir,files):
     return path
 
 def correct_ortho(ps1,ps2,path):
-    print("Correcting orthomosaic...")
+    pbar1 = tqdm(total=1,position=0,desc="Opening   ")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     R                                  = file.GetRasterBand(1).ReadAsArray()
@@ -57,10 +58,12 @@ def correct_ortho(ps1,ps2,path):
     fact_y = B.shape[1]/B_s.shape[1]
     x_b    = B_s.shape[0]
     y_b    = B_s.shape[1]
+    pbar1.update(1)
+    pbar1.close()
     return img_s, img_g, img_b, mask_b, gt, img_s2, fact_x, fact_y, x_b, y_b
 
 def switch_correct_ortho(ps1,ps2,img_s2,edgeChainsE):
-    print("Switching pixelsizes...")
+    pbar2 = tqdm(total=1,position=0,desc="Switching ")
     ratio                              = int(ps1/ps2)
     mask_o                             = np.zeros(img_s2[:,:,0].shape)
     mask_o[img_s2[:,:,0]==255]  = 1
@@ -88,6 +91,8 @@ def switch_correct_ortho(ps1,ps2,img_s2,edgeChainsE):
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)    
     img_b                              = img_g
     mask_n                             = 1 - mask_n
+    pbar2.update(1)
+    pbar2.close()
     return img_s_eq, img_g, img_b, mask_n, mask_o
 
 def calc_distance(lat1, lon1, lat2, lon2):

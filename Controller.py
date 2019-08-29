@@ -5,17 +5,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 wdir  = r"E:\ORTHODUMP"
-files = ["T1","T2"]
+files = ["T0","T1"]
 path  = META.initialize(wdir,files)
 
 ps1 = 0.5  #[m]   (0.5)
 ps2 = 0.05 #[m]   (0.05)
 w   = 500  #[pix] (500)
-s   = 300  #[pix] (1000/300)
-md  = 7    #[m]   (7)
-cvt = 1.5  #[pix] (1.5)
-ci  = 95   #[%]   (50/75/80/90/95)
+s   = 100  #[pix] (1000)
+md  = 10   #[m]   (7)
+cvt = 4    #[pix] (1.5)
+ci  = 50   #[%]   (50/75/80/90/95)
 
+print("[IMAGE 0]")
 img_C0,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa0,fact_x_0,fact_y_0,x_b_0,y_b_0             = META.correct_ortho(ps1,ps2,path[0])
 edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
 edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C         = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
@@ -25,7 +26,7 @@ edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValu
 edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F         = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
 for i in range(1,len(path)):
-    
+    print("[IMAGE "+str(i)+"]")
     img_C,img_g_C,img_b_C,mask_b_C,gt,img_Fa,fact_x,fact_y,x_b,y_b                          = META.correct_ortho(ps1,ps2,path[i])
     edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C    = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
     edges1C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C           = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
@@ -38,15 +39,26 @@ for i in range(1,len(path)):
     gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv                 = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
-#%% [RECC] GCP Comparison
+#%% [RECC] Image GCP Comparison
 clist = list(np.random.choice(range(256), size=len(dist)))
 plt.subplot(1,2,1)
 plt.title('Orthomosaic 1')
-plt.imshow(edges0F,cmap='gray')  
+plt.imshow(img_Fa0)  
 plt.scatter(t_y,t_x,c=clist)
 plt.subplot(1,2,2)
 plt.title('Orthomosaic 2')
-plt.imshow(edges1F,cmap='gray')  
+plt.imshow(img_Fa)  
+plt.scatter(o_y,o_x,c=clist)
+    
+#%% [RECC] Edgemap GCP Comparison
+clist = list(np.random.choice(range(256), size=len(dist)))
+plt.subplot(1,2,1)
+plt.title('Orthomosaic 1')
+plt.imshow(edges0F)  
+plt.scatter(t_y,t_x,c=clist)
+plt.subplot(1,2,2)
+plt.title('Orthomosaic 2')
+plt.imshow(edges1F)  
 plt.scatter(o_y,o_x,c=clist)
 
 #%% [RECC] RECC check

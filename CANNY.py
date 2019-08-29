@@ -10,9 +10,10 @@ import warnings
 import copy
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 warnings.filterwarnings("ignore")
+from tqdm import tqdm
 
 def CannyPF(pixel_size,img_b,mask_b):
-    print("Gathering CannyPF edgemap...")
+    pbar1 = tqdm(total=5,position=0,desc="CannyPF   ")
     rows = img_b.shape[0]
     cols = img_b.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
@@ -22,6 +23,7 @@ def CannyPF(pixel_size,img_b,mask_b):
     gradientMap = np.zeros(img_b.shape)
     dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
     dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    pbar1.update(1)
     dx[mask_b>=10**-10]=0
     dy[mask_b>=10**-10]=0
     if k == 5:
@@ -41,6 +43,7 @@ def CannyPF(pixel_size,img_b,mask_b):
             else:
                 ptrG = 0
             gradientMap[i,j] = ptrG
+    pbar1.update(1)
     N2 = 0
     for i in range(len(histogram)):
         if histogram[i] != 0:
@@ -65,6 +68,7 @@ def CannyPF(pixel_size,img_b,mask_b):
     if thGradientLow <= gNoise:
         thGradientLow = gNoise
     thGradientHigh = sqrt(thGradientHigh*VMGradient)
+    pbar1.update(1)
     edgemap = cv2.Canny(img_b,thGradientLow,thGradientHigh,3)
     edgemap[mask_b>=10**-10]=0   
     anglePer = np.pi / 8
@@ -75,6 +79,7 @@ def CannyPF(pixel_size,img_b,mask_b):
             if ptrO == 16:
                 ptrO = 0
             orientationMap[i,j] = ptrO
+    pbar1.update(1)
     maskMap = np.zeros(img_b.shape)
     gradientPoints = []
     gradientValues = []
@@ -87,14 +92,16 @@ def CannyPF(pixel_size,img_b,mask_b):
     gradientPoints = [x for _,x in sorted(zip(gradientValues,gradientPoints))]            
     gradientValues.sort()
     gradientPoints = gradientPoints[::-1]
-    gradientValues = gradientValues[::-1]   
+    gradientValues = gradientValues[::-1]  
+    pbar1.update(1)
+    pbar1.close()
     return edgemap, gradientMap, orientationMap, maskMap, gradientPoints, gradientValues
 
 def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoints,gradientValues):
-    print("Linking edgemap edges...")
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
+    pbar2 = tqdm(total=7,position=0,desc="CannyLines")
     # [A] Initial Chains
     edgeChainsA = []    
     for i in range(len(gradientPoints)):
@@ -111,7 +118,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
                 maskMap[x,y] = 2
         if len(chain) >= thMeaningfulLength:
             edgeChainsA.append(chain) 
-            chain = np.array(chain)         
+            chain = np.array(chain)       
+    pbar2.update(1)
     # [B] Splitting orientation shifts
     edgeChainsB = copy.deepcopy(edgeChainsA)
     for i in range(len(edgeChainsB)-1,-1,-1):
@@ -131,6 +139,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
                     edgeChainsB.append(edgeChainsB[i][j:])
                     del edgeChainsB[i] 
     edgeChainsB = [x for x in edgeChainsB if x != []] 
+    pbar2.update(1)
     # [B] Line fitting     
     metaLinesB = []
     lengthB = []
@@ -152,6 +161,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     metaLinesB = metaLinesB[indices] 
     edgeChainsB = edgeChainsB[indices]
     lengthB = lengthB[indices]   
+    pbar2.update(1)
     # [C] Alternative Line merging
 #    theta_s = thMeaningfulLength / 2 
 #    theta_m = 2*tan(2/thMeaningfulLength)
@@ -278,6 +288,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     edgeChainsC = []
     edgeChainsC.extend(edgeChainsMerged)
     edgeChainsC.extend(edgeChainsNonmerged)
+    pbar2.update(1)
     # [C] Line fitting
     metaLinesC = []
     lengthC = []
@@ -299,6 +310,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     metaLinesC = metaLinesC[indices] 
     edgeChainsC = edgeChainsC[indices]
     lengthC = lengthC[indices] 
+    pbar2.update(1)
     # [D] Remove nonsensical length
     if pixel_size >= 0.5:
         metaLinesD = metaLinesC.tolist()
@@ -322,6 +334,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
         for i in range(len(edgeChainsD)):
             for x in edgeChainsD[i]:
                 maskMap2[x[0],x[1]]=1 
+    pbar2.update(1)
     # [E] Alternative Extending
     edgeChainsE = copy.deepcopy(edgeChainsD)
     if pixel_size <= 0.05:  
@@ -392,4 +405,6 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     for chain in edgeChainsE:
         for point in chain:    
             edgechainmap[point[0],point[1]]=1
+    pbar2.update(1)
+    pbar2.close()
     return edgechainmap,edgeChainsA,edgeChainsB,edgeChainsC,edgeChainsD,edgeChainsE
