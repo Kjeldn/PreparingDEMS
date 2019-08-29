@@ -11,16 +11,20 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
 
                 
-def patch_match(pixel_size, w, s, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, edges0C, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0):
+def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, edges0C, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0):
     max_dist = int((dst_max)/pixel_size)
     buffer = 20
     bound1 = mask_o_0.shape[0]
     bound2 = mask_o_0.shape[1]
+    s = min(1000,int((min(bound1,bound2)-2*w-2*buffer)/10))
     grid = []
-    for i in range(max_dist+w+buffer,bound1-max_dist-w-buffer,s):
-        for j in range(max_dist+w+buffer,bound2-max_dist-w-buffer,s):
-            if mask_o_0[i,j] == 0:
-                grid.append((i,j))
+    while len(grid) <= 60 and s > w/100:
+        grid = []
+        for i in range(max_dist+w+buffer,bound1-max_dist-w-buffer,s):
+            for j in range(max_dist+w+buffer,bound2-max_dist-w-buffer,s):
+                if mask_o_0[i,j] == 0:
+                    grid.append((i,j))
+        s -= 50
     target_l   = []
     patch_l    = []
     cv         = np.zeros(len(grid)) 
@@ -151,10 +155,10 @@ def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targe
     return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
       
 def georeference(wdir,path,file,gcplist):
-    if gcplist.count('gcp') <= 20:
+    if gcplist.count('gcp') <= 5:
         print("Not enough GCPs for georegistration.")
     else:
-        pbar3 = tqdm(total=2,position=0,desc="Georegist ")
+        pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
         path1 = wdir+"\\temp.tif"
         path2 = wdir+"\\"+file+"_adjusted.tif"
         if os.path.isfile(path1.replace("\\","/")):

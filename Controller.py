@@ -5,14 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 wdir  = r"E:\ORTHODUMP"
-files = ["T0","T1"]
+files = ["BR0","BR1","BR2"]
 path  = META.initialize(wdir,files)
 
 ps1 = 0.5  #[m]   (0.5)
 ps2 = 0.05 #[m]   (0.05)
 w   = 500  #[pix] (500)
-s   = 100  #[pix] (1000)
-md  = 10   #[m]   (7)
+s   = 500   #[pix] (1000)
+md  = 12   #[m]   (7)
 cvt = 4    #[pix] (1.5)
 ci  = 50   #[%]   (50/75/80/90/95)
 
@@ -35,7 +35,7 @@ for i in range(1,len(path)):
     edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F    = CANNY.CannyPF(ps2,img_b_F,mask_b_F)
     edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
-    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,s,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
+    dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
     gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv                 = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
@@ -78,7 +78,7 @@ plt.scatter(t_y[index],t_x[index],c='r')
 plt.scatter(o_y[index],o_x[index],c='b')
     
 #%% [CANNY] EDGEMAP / CHAIN EXTENSION CHECK
-plt.imshow(img_F)
+plt.imshow(img_Fa)
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
     plt.scatter(chain[:,1],chain[:,0],s=2,c='r')
