@@ -222,7 +222,7 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
 #        gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
 #    return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
 
-def remove_outliers2(dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+def remove_outliers2(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
     flag = 0
     size0 = len(dist)
     indices = np.where(cv>0)[0]
@@ -315,7 +315,23 @@ def remove_outliers2(dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y,
     t_y        = Ct_y
     cv         = Ccv
     size3=len(dist)
-    print("GCP status: ("+str(size3)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(flag)+") [OK/OoD/CV/2D/B]")   
+    median = np.median(dist)
+    indices = []
+    for i in range(len(dist)-1,-1,-1):
+        if  median-ps2*2 < dist[i] < median+ps2*2:
+            indices.append(i)
+    dist       = dist[indices]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    o_x        = o_x[indices]
+    o_y        = o_y[indices]
+    t_x        = t_x[indices]
+    t_y        = t_y[indices]
+    cv         = cv[indices]
+    size4=len(dist)
+    print("GCP status: ("+str(size4)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(size3-size4)+"/"+str(flag)+") [OK/OoD/CV/2D/M/B]")   
     gcplist = " "
     distC = dist
     if len(distC) >= 160:
