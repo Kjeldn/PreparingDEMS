@@ -14,6 +14,9 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
                 
 def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, edges0C, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0):
+    buffer = 2*w
+    edges1Ca = np.zeros((edges1C.shape[0]+buffer*2,edges1C.shape[1]+2*buffer))
+    edges1Ca[buffer:-buffer,buffer:-buffer] = edges1C
     pixel_size=0.05
     dst_max=12
     max_dist = int((dst_max)/pixel_size)
@@ -31,7 +34,7 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
         polygon = Polygon([(xlist[ind1],ylist[ind1]),(xlist[ind2],ylist[ind2]),(xlist[ind3],ylist[ind3]),(xlist[ind4],ylist[ind4])])
         polygon = polygon.buffer(-sqrt(v**2+v**2))
     if v != w:
-        print("WARNING   : Patches may overflow...")
+        print("WARNING   : Polygon-buffer ("+str(v)+") < w...")
     c_x,c_y = polygon.exterior.xy
     c_x = [int(round(x)) for x in c_x]
     c_y = [int(round(y)) for y in c_y] 
@@ -67,8 +70,8 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
     o_y        = np.zeros(len(grid))
     t_x        = np.zeros(len(grid))
     t_y        = np.zeros(len(grid))
-    RECC_total = np.zeros(edges1C.shape)
-    RECC_over  = np.zeros(edges1C.shape)
+    RECC_total = np.zeros(edges1Ca.shape)
+    RECC_over  = np.zeros(edges1Ca.shape)
     RECC_over.fill(np.NaN)
     circle = np.zeros((2*max_dist,2*max_dist))
     for x in range(circle.shape[0]):
@@ -80,12 +83,15 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
         x_i_0 = grid[i][0]
         y_i_0 = grid[i][1]
         target = edges0C[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]
+        if target.shape != (2*w,2*w):
+            continue
         sum_target = np.sum(target)   
         lat_0 = gt_0[3] + gt_0[5]*x_i_0*fact_x_0  
         lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_y_0
         x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fact_x)))
         y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fact_y))) 
-        search_wide = edges1C[x_i_0_og-max_dist-w:x_i_0_og+max_dist+w,y_i_0_og-max_dist-w:y_i_0_og+max_dist+w]
+        search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
+        search_wide = edges1Ca[buffer+x_i_0_og-max_dist-w:buffer+x_i_0_og+max_dist+w,buffer+y_i_0_og-max_dist-w:buffer+y_i_0_og+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
             continue
         sum_patch = cv2.filter2D(search_wide,-1,np.ones(target.shape))
@@ -123,100 +129,101 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
         target_lat[i] = lat_0
     return dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, RECC_over, target_l, patch_l, cv
 
-def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
-    size0 = len(dist)
-    indices = np.where(cv>0)[0]
-    dist       = dist[indices]
-    origin_x   = origin_x[indices]
-    origin_y   = origin_y[indices]
-    target_lon = target_lon[indices]
-    target_lat = target_lat[indices]
-    o_x        = o_x[indices]
-    o_y        = o_y[indices]
-    t_x        = t_x[indices]
-    t_y        = t_y[indices]
-    cv         = cv[indices]
-    size1=len(dist)
-    indices     = np.where(cv<=cv_thresh)[0]
-    Cdist       = dist[indices]
-    Corigin_x   = origin_x[indices]
-    Corigin_y   = origin_y[indices]
-    Ctarget_lon = target_lon[indices]
-    Ctarget_lat = target_lat[indices]
-    Co_x        = o_x[indices]
-    Co_y        = o_y[indices]
-    Ct_x        = t_x[indices]
-    Ct_y        = t_y[indices]
-    Ccv         = cv[indices]
-    size2=len(Cdist)
-    if   conf == 95:
-        s = 5.991
-    elif conf == 90:
-        s = 4.605
-    elif conf == 80:
-        s = 3.219
-    elif conf == 75:
-        s = 2.770
-    elif conf == 50:
-        s = 1.388
-    Cd_x = Ct_x - Co_x
-    Cd_y = Ct_y - Co_y
-    Cd_x_m = Cd_x - np.median(Cd_x)
-    Cd_y_m = Cd_y - np.median(Cd_y)        
-    indices = ((Cd_x_m/sqrt(np.var(Cd_x_m)))**2 + (Cd_y_m/sqrt(np.var(Cd_y_m)))**2 <= s)   
-    if len(indices) >= 20:
-        dist       = Cdist[indices]
-        origin_x   = Corigin_x[indices]
-        origin_y   = Corigin_y[indices]
-        target_lon = Ctarget_lon[indices]
-        target_lat = Ctarget_lat[indices]
-        o_x        = Co_x[indices]
-        o_y        = Co_y[indices]
-        t_x        = Ct_x[indices]
-        t_y        = Ct_y[indices]
-        cv         = Ccv[indices]
-    else:
-        print("WARNING   : Used reverse 2D confidence interval...")
-        d_x = t_x - o_x
-        d_y = t_y - o_y
-        d_x_m = d_x - np.median(Cd_x)
-        d_y_m = d_y - np.median(Cd_y)     
-        indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
-        dist       = dist[indices]
-        origin_x   = origin_x[indices]
-        origin_y   = origin_y[indices]
-        target_lon = target_lon[indices]
-        target_lat = target_lat[indices]
-        o_x        = o_x[indices]
-        o_y        = o_y[indices]
-        t_x        = t_x[indices]
-        t_y        = t_y[indices]
-        cv         = cv[indices]
-    size3=len(dist)
-    s=3.219
-    d_x = t_x-o_x
-    d_y = t_y-o_y
-    d_x_m = d_x-np.median(d_x)
-    d_y_m = d_y-np.median(d_y)
-    indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
-    dist       = dist[indices]
-    origin_x   = origin_x[indices]
-    origin_y   = origin_y[indices]
-    target_lon = target_lon[indices]
-    target_lat = target_lat[indices]
-    o_x        = o_x[indices]
-    o_y        = o_y[indices]
-    t_x        = t_x[indices]
-    t_y        = t_y[indices]
-    cv         = cv[indices]
-    size4=len(dist)
-    print("GCP status: ("+str(size4)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(size3-size4)+") [OK/OoD/CV/2D/2D]")   
-    gcplist = " "
-    for k in range(len(origin_x)):
-        gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
-    return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
+#def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+#    size0 = len(dist)
+#    indices = np.where(cv>0)[0]
+#    dist       = dist[indices]
+#    origin_x   = origin_x[indices]
+#    origin_y   = origin_y[indices]
+#    target_lon = target_lon[indices]
+#    target_lat = target_lat[indices]
+#    o_x        = o_x[indices]
+#    o_y        = o_y[indices]
+#    t_x        = t_x[indices]
+#    t_y        = t_y[indices]
+#    cv         = cv[indices]
+#    size1=len(dist)
+#    indices     = np.where(cv<=cv_thresh)[0]
+#    Cdist       = dist[indices]
+#    Corigin_x   = origin_x[indices]
+#    Corigin_y   = origin_y[indices]
+#    Ctarget_lon = target_lon[indices]
+#    Ctarget_lat = target_lat[indices]
+#    Co_x        = o_x[indices]
+#    Co_y        = o_y[indices]
+#    Ct_x        = t_x[indices]
+#    Ct_y        = t_y[indices]
+#    Ccv         = cv[indices]
+#    size2=len(Cdist)
+#    if   conf == 95:
+#        s = 5.991
+#    elif conf == 90:
+#        s = 4.605
+#    elif conf == 80:
+#        s = 3.219
+#    elif conf == 75:
+#        s = 2.770
+#    elif conf == 50:
+#        s = 1.388
+#    Cd_x = Ct_x - Co_x
+#    Cd_y = Ct_y - Co_y
+#    Cd_x_m = Cd_x - np.median(Cd_x)
+#    Cd_y_m = Cd_y - np.median(Cd_y)        
+#    indices = ((Cd_x_m/sqrt(np.var(Cd_x_m)))**2 + (Cd_y_m/sqrt(np.var(Cd_y_m)))**2 <= s)   
+#    if len(indices) >= 20:
+#        dist       = Cdist[indices]
+#        origin_x   = Corigin_x[indices]
+#        origin_y   = Corigin_y[indices]
+#        target_lon = Ctarget_lon[indices]
+#        target_lat = Ctarget_lat[indices]
+#        o_x        = Co_x[indices]
+#        o_y        = Co_y[indices]
+#        t_x        = Ct_x[indices]
+#        t_y        = Ct_y[indices]
+#        cv         = Ccv[indices]
+#    else:
+#        print("WARNING   : Used reverse 2D confidence interval...")
+#        d_x = t_x - o_x
+#        d_y = t_y - o_y
+#        d_x_m = d_x - np.median(Cd_x)
+#        d_y_m = d_y - np.median(Cd_y)     
+#        indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
+#        dist       = dist[indices]
+#        origin_x   = origin_x[indices]
+#        origin_y   = origin_y[indices]
+#        target_lon = target_lon[indices]
+#        target_lat = target_lat[indices]
+#        o_x        = o_x[indices]
+#        o_y        = o_y[indices]
+#        t_x        = t_x[indices]
+#        t_y        = t_y[indices]
+#        cv         = cv[indices]
+#    size3=len(dist)
+#    s=3.219
+#    d_x = t_x-o_x
+#    d_y = t_y-o_y
+#    d_x_m = d_x-np.median(d_x)
+#    d_y_m = d_y-np.median(d_y)
+#    indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
+#    dist       = dist[indices]
+#    origin_x   = origin_x[indices]
+#    origin_y   = origin_y[indices]
+#    target_lon = target_lon[indices]
+#    target_lat = target_lat[indices]
+#    o_x        = o_x[indices]
+#    o_y        = o_y[indices]
+#    t_x        = t_x[indices]
+#    t_y        = t_y[indices]
+#    cv         = cv[indices]
+#    size4=len(dist)
+#    print("GCP status: ("+str(size4)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(size3-size4)+") [OK/OoD/CV/2D/2D]")   
+#    gcplist = " "
+#    for k in range(len(origin_x)):
+#        gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
+#    return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
 
-def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+def remove_outliers2(dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+    flag = 0
     size0 = len(dist)
     indices = np.where(cv>0)[0]
     dist       = dist[indices]
@@ -230,7 +237,7 @@ def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targ
     t_y        = t_y[indices]
     cv         = cv[indices]
     size1=len(dist)
-    indices     = np.where(cv<=cv_thresh)[0]
+    indices     = np.where(cv<=4)[0]
     Cdist       = dist[indices]
     Corigin_x   = origin_x[indices]
     Corigin_y   = origin_y[indices]
@@ -259,8 +266,12 @@ def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targ
         Ct_x        = Ct_x[indices]
         Ct_y        = Ct_y[indices]
         Ccv         = Ccv[indices]
+        if np.sum(Cdist-np.median(Cdist)) < 1:
+            flag = 1
+            break
     if len(Cdist) <= 20:
-        print("WARNING   : Using reverse 2D confidence interval...")
+        print("WARNING   : Reverse 2D Confidence Interval applied...")
+        flag = 0
         Cdist       = dist
         Corigin_x   = origin_x
         Corigin_y   = origin_y
@@ -271,9 +282,10 @@ def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targ
         Ct_x        = t_x
         Ct_y        = t_y
         Ccv         = cv
+        size2=len(Cdist)
         for s in slist:
-            Cd_xcv = Ct_x[np.where(Ccv<=cv_thresh)[0]] - Co_x[np.where(Ccv<=cv_thresh)[0]]
-            Cd_ycv = Ct_y[np.where(Ccv<=cv_thresh)[0]] - Co_y[np.where(Ccv<=cv_thresh)[0]]
+            Cd_xcv = Ct_x[np.where(Ccv<=4)[0]] - Co_x[np.where(Ccv<=4)[0]]
+            Cd_ycv = Ct_y[np.where(Ccv<=4)[0]] - Co_y[np.where(Ccv<=4)[0]]
             Cd_x = Ct_x - Co_x
             Cd_y = Ct_y - Co_y
             Cd_x_m = Cd_x - np.median(Cd_xcv)
@@ -289,6 +301,9 @@ def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targ
             Ct_x        = Ct_x[indices]
             Ct_y        = Ct_y[indices]
             Ccv         = Ccv[indices]
+            if np.sum(Cdist-np.median(Cdist)) < 1:
+                flag = 1
+                break
     dist       = Cdist
     origin_x   = Corigin_x
     origin_y   = Corigin_y
@@ -300,8 +315,17 @@ def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targ
     t_y        = Ct_y
     cv         = Ccv
     size3=len(dist)
-    print("GCP status: ("+str(size3)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+") [OK/OoD/CV/2D]")   
+    print("GCP status: ("+str(size3)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(flag)+") [OK/OoD/CV/2D/B]")   
     gcplist = " "
+    distC = dist
+    if len(distC) >= 160:
+        print("WARNING   : GCP Overflow...")
+    while len(distC) >= 160:
+        origin_x = origin_x[::2]
+        origin_y = origin_y[::2]
+        target_lon = target_lon[::2]
+        target_lat = target_lat[::2]
+        distC = distC[::2]
     for k in range(len(origin_x)):
         gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv

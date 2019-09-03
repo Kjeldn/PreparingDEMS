@@ -101,7 +101,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
-    pbar2 = tqdm(total=7,position=0,desc="CannyLines")
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine1")
     # [A] Initial Chains
     edgeChainsA = []    
     for i in range(len(gradientPoints)):
@@ -120,6 +120,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
             edgeChainsA.append(chain) 
             chain = np.array(chain)       
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine2")
     # [B] Splitting orientation shifts
     edgeChainsB = copy.deepcopy(edgeChainsA)
     for i in range(len(edgeChainsB)-1,-1,-1):
@@ -140,6 +142,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
                     del edgeChainsB[i] 
     edgeChainsB = [x for x in edgeChainsB if x != []] 
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine3")
     # [B] Line fitting     
     metaLinesB = []
     lengthB = []
@@ -162,6 +166,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     edgeChainsB = edgeChainsB[indices]
     lengthB = lengthB[indices]   
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine4")
     # [C] Alternative Line merging
 #    theta_s = thMeaningfulLength / 2 
 #    theta_m = 2*tan(2/thMeaningfulLength)
@@ -289,6 +295,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     edgeChainsC.extend(edgeChainsMerged)
     edgeChainsC.extend(edgeChainsNonmerged)
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine5")
     # [C] Line fitting
     metaLinesC = []
     lengthC = []
@@ -311,6 +319,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
     edgeChainsC = edgeChainsC[indices]
     lengthC = lengthC[indices] 
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine6")
     # [D] Remove nonsensical length
     if pixel_size >= 0.5:
         metaLinesD = metaLinesC.tolist()
@@ -335,6 +345,8 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
             for x in edgeChainsD[i]:
                 maskMap2[x[0],x[1]]=1 
     pbar2.update(1)
+    pbar2.close()
+    pbar2 = tqdm(total=1,position=0,desc="CannyLine7")
     # [E] Alternative Extending
     edgeChainsE = copy.deepcopy(edgeChainsD)
     if pixel_size <= 0.05:  
