@@ -5,25 +5,53 @@ import numpy.matlib
 import matplotlib.pyplot as plt
 import os
 from random import randint
+import math
 from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
 import warnings
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
-
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
                 
 def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, edges0C, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0):
+    pixel_size=0.05
+    dst_max=12
     max_dist = int((dst_max)/pixel_size)
-    buffer = 20
-    bound1 = mask_o_0.shape[0]
-    bound2 = mask_o_0.shape[1]
-    s = min(1000,int((min(bound1,bound2)-2*w-2*buffer)/10))
+    xlist = np.where(mask_o_0==0)[0]
+    ylist = np.where(mask_o_0==0)[1]
+    ind1 = np.where(xlist==max(xlist))[0][-1]
+    ind2 = np.where(ylist==max(ylist))[0][0]
+    ind3 = np.where(xlist==min(xlist))[0][0]
+    ind4 = np.where(ylist==min(ylist))[0][-1]
+    polygon = Polygon([(xlist[ind1],ylist[ind1]),(xlist[ind2],ylist[ind2]),(xlist[ind3],ylist[ind3]),(xlist[ind4],ylist[ind4])])
+    polygon = polygon.buffer(-sqrt(w**2+w**2))
+    v=w
+    while polygon.is_empty or len(polygon.exterior.xy[0]) <= 4:
+        v -= 50
+        polygon = Polygon([(xlist[ind1],ylist[ind1]),(xlist[ind2],ylist[ind2]),(xlist[ind3],ylist[ind3]),(xlist[ind4],ylist[ind4])])
+        polygon = polygon.buffer(-sqrt(v**2+v**2))
+    if v != w:
+        print("WARNING   : Patches may overflow...")
+    c_x,c_y = polygon.exterior.xy
+    c_x = [int(round(x)) for x in c_x]
+    c_y = [int(round(y)) for y in c_y] 
+    dist = max((max(c_x)-min(c_x)),(max(c_y)-min(c_y)))
+    s = int(min(1000,dist/10))
     grid = []
-    while len(grid) <= 60 and s > w/100:
-        grid = []
-        for i in range(max_dist+w+buffer,bound1-max_dist-w-buffer,s):
-            for j in range(max_dist+w+buffer,bound2-max_dist-w-buffer,s):
-                if mask_o_0[i,j] == 0:
-                    grid.append((i,j))
+    while len(grid) <= 100 and s > w/100:
+        grid=[]
+        for i in range(len(c_x)-1):
+            j=i+1
+            if c_x[i] > c_x[j]:
+                t = i; i = j; j = t
+            xdiff = abs(c_x[i]-c_x[j])
+            s_a = int(xdiff/(math.ceil(xdiff/s))) 
+            m,b = np.polyfit((c_x[i],c_x[j]),(c_y[i],c_y[j]),1) 
+            for xval in range(c_x[i],c_x[j],s_a):
+                yval = b+m*xval
+                xval = int(round(xval))
+                yval = int(round(yval))
+                grid.append((xval,yval))
         s -= 50
     target_l   = []
     patch_l    = []
@@ -55,9 +83,8 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
         sum_target = np.sum(target)   
         lat_0 = gt_0[3] + gt_0[5]*x_i_0*fact_x_0  
         lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_y_0
-        x_i_0_og = int((lat_0-gt[3])/(gt[5]*fact_x))
-        y_i_0_og = int((lon_0-gt[0])/(gt[1]*fact_y)) 
-        distance = np.sqrt((x_i_0-x_i_0_og)**2+(y_i_0-y_i_0_og)**2)
+        x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fact_x)))
+        y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fact_y))) 
         search_wide = edges1C[x_i_0_og-max_dist-w:x_i_0_og+max_dist+w,y_i_0_og-max_dist-w:y_i_0_og+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
             continue
@@ -110,18 +137,18 @@ def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targe
     t_y        = t_y[indices]
     cv         = cv[indices]
     size1=len(dist)
-    indices    = np.where(cv<=cv_thresh)[0]
-    dist       = dist[indices]
-    origin_x   = origin_x[indices]
-    origin_y   = origin_y[indices]
-    target_lon = target_lon[indices]
-    target_lat = target_lat[indices]
-    o_x        = o_x[indices]
-    o_y        = o_y[indices]
-    t_x        = t_x[indices]
-    t_y        = t_y[indices]
-    cv         = cv[indices]
-    size2=len(dist)
+    indices     = np.where(cv<=cv_thresh)[0]
+    Cdist       = dist[indices]
+    Corigin_x   = origin_x[indices]
+    Corigin_y   = origin_y[indices]
+    Ctarget_lon = target_lon[indices]
+    Ctarget_lat = target_lat[indices]
+    Co_x        = o_x[indices]
+    Co_y        = o_y[indices]
+    Ct_x        = t_x[indices]
+    Ct_y        = t_y[indices]
+    Ccv         = cv[indices]
+    size2=len(Cdist)
     if   conf == 95:
         s = 5.991
     elif conf == 90:
@@ -132,11 +159,46 @@ def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targe
         s = 2.770
     elif conf == 50:
         s = 1.388
-    d_x = t_x - o_x
-    d_y = t_y - o_y
-    d_x_m = d_x - np.median(d_x)
-    d_y_m = d_y - np.median(d_y)        
-    indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s)    
+    Cd_x = Ct_x - Co_x
+    Cd_y = Ct_y - Co_y
+    Cd_x_m = Cd_x - np.median(Cd_x)
+    Cd_y_m = Cd_y - np.median(Cd_y)        
+    indices = ((Cd_x_m/sqrt(np.var(Cd_x_m)))**2 + (Cd_y_m/sqrt(np.var(Cd_y_m)))**2 <= s)   
+    if len(indices) >= 20:
+        dist       = Cdist[indices]
+        origin_x   = Corigin_x[indices]
+        origin_y   = Corigin_y[indices]
+        target_lon = Ctarget_lon[indices]
+        target_lat = Ctarget_lat[indices]
+        o_x        = Co_x[indices]
+        o_y        = Co_y[indices]
+        t_x        = Ct_x[indices]
+        t_y        = Ct_y[indices]
+        cv         = Ccv[indices]
+    else:
+        print("WARNING   : Used reverse 2D confidence interval...")
+        d_x = t_x - o_x
+        d_y = t_y - o_y
+        d_x_m = d_x - np.median(Cd_x)
+        d_y_m = d_y - np.median(Cd_y)     
+        indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
+        dist       = dist[indices]
+        origin_x   = origin_x[indices]
+        origin_y   = origin_y[indices]
+        target_lon = target_lon[indices]
+        target_lat = target_lat[indices]
+        o_x        = o_x[indices]
+        o_y        = o_y[indices]
+        t_x        = t_x[indices]
+        t_y        = t_y[indices]
+        cv         = cv[indices]
+    size3=len(dist)
+    s=3.219
+    d_x = t_x-o_x
+    d_y = t_y-o_y
+    d_x_m = d_x-np.median(d_x)
+    d_y_m = d_y-np.median(d_y)
+    indices = ((d_x_m/sqrt(np.var(d_x_m)))**2 + (d_y_m/sqrt(np.var(d_y_m)))**2 <= s) 
     dist       = dist[indices]
     origin_x   = origin_x[indices]
     origin_y   = origin_y[indices]
@@ -147,6 +209,96 @@ def remove_outliers(conf, cv_thresh, dist, origin_x, origin_y, target_lon, targe
     t_x        = t_x[indices]
     t_y        = t_y[indices]
     cv         = cv[indices]
+    size4=len(dist)
+    print("GCP status: ("+str(size4)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(size3-size4)+") [OK/OoD/CV/2D/2D]")   
+    gcplist = " "
+    for k in range(len(origin_x)):
+        gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
+    return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
+
+def remove_outliers2(conf, cv_thresh, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+    size0 = len(dist)
+    indices = np.where(cv>0)[0]
+    dist       = dist[indices]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    o_x        = o_x[indices]
+    o_y        = o_y[indices]
+    t_x        = t_x[indices]
+    t_y        = t_y[indices]
+    cv         = cv[indices]
+    size1=len(dist)
+    indices     = np.where(cv<=cv_thresh)[0]
+    Cdist       = dist[indices]
+    Corigin_x   = origin_x[indices]
+    Corigin_y   = origin_y[indices]
+    Ctarget_lon = target_lon[indices]
+    Ctarget_lat = target_lat[indices]
+    Co_x        = o_x[indices]
+    Co_y        = o_y[indices]
+    Ct_x        = t_x[indices]
+    Ct_y        = t_y[indices]
+    Ccv         = cv[indices]
+    size2=len(Cdist)
+    slist = list([1.388,2.770,3.219,4.605,5.991])
+    for s in slist:
+        Cd_x = Ct_x - Co_x
+        Cd_y = Ct_y - Co_y
+        Cd_x_m = Cd_x - np.median(Cd_x)
+        Cd_y_m = Cd_y - np.median(Cd_y)        
+        indices = ((Cd_x_m/sqrt(np.var(Cd_x_m)))**2 + (Cd_y_m/sqrt(np.var(Cd_y_m)))**2 <= s)   
+        Cdist       = Cdist[indices]
+        Corigin_x   = Corigin_x[indices]
+        Corigin_y   = Corigin_y[indices]
+        Ctarget_lon = Ctarget_lon[indices]
+        Ctarget_lat = Ctarget_lat[indices]
+        Co_x        = Co_x[indices]
+        Co_y        = Co_y[indices]
+        Ct_x        = Ct_x[indices]
+        Ct_y        = Ct_y[indices]
+        Ccv         = Ccv[indices]
+    if len(Cdist) <= 20:
+        print("WARNING   : Using reverse 2D confidence interval...")
+        Cdist       = dist
+        Corigin_x   = origin_x
+        Corigin_y   = origin_y
+        Ctarget_lon = target_lon
+        Ctarget_lat = target_lat
+        Co_x        = o_x
+        Co_y        = o_y
+        Ct_x        = t_x
+        Ct_y        = t_y
+        Ccv         = cv
+        for s in slist:
+            Cd_xcv = Ct_x[np.where(Ccv<=cv_thresh)[0]] - Co_x[np.where(Ccv<=cv_thresh)[0]]
+            Cd_ycv = Ct_y[np.where(Ccv<=cv_thresh)[0]] - Co_y[np.where(Ccv<=cv_thresh)[0]]
+            Cd_x = Ct_x - Co_x
+            Cd_y = Ct_y - Co_y
+            Cd_x_m = Cd_x - np.median(Cd_xcv)
+            Cd_y_m = Cd_y - np.median(Cd_ycv)
+            indices = ((Cd_x_m/sqrt(np.var(Cd_x_m)))**2 + (Cd_y_m/sqrt(np.var(Cd_y_m)))**2 <= s)   
+            Cdist       = Cdist[indices]
+            Corigin_x   = Corigin_x[indices]
+            Corigin_y   = Corigin_y[indices]
+            Ctarget_lon = Ctarget_lon[indices]
+            Ctarget_lat = Ctarget_lat[indices]
+            Co_x        = Co_x[indices]
+            Co_y        = Co_y[indices]
+            Ct_x        = Ct_x[indices]
+            Ct_y        = Ct_y[indices]
+            Ccv         = Ccv[indices]
+    dist       = Cdist
+    origin_x   = Corigin_x
+    origin_y   = Corigin_y
+    target_lon = Ctarget_lon
+    target_lat = Ctarget_lat
+    o_x        = Co_x
+    o_y        = Co_y
+    t_x        = Ct_x
+    t_y        = Ct_y
+    cv         = Ccv
     size3=len(dist)
     print("GCP status: ("+str(size3)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+") [OK/OoD/CV/2D]")   
     gcplist = " "
@@ -167,6 +319,6 @@ def georeference(wdir,path,file,gcplist):
             os.remove(path2)
         os.system("gdal_translate -a_srs EPSG:4326 -of GTiff"+gcplist+"\""+path+"\" \""+path1+"\"")
         pbar3.update(1)
-        os.system("gdalwarp -r cubicspline -tps -co COMPRESS=NONE \""+path1+"\" \""+path2+"\"")    
+        os.system("gdalwarp -r bilinear -tps -co COMPRESS=NONE \""+path1+"\" \""+path2+"\"")    
         pbar3.update(1)
         pbar3.close()

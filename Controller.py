@@ -11,13 +11,12 @@ path  = META.initialize(wdir,files)
 ps1 = 0.5  #[m]   (0.5)
 ps2 = 0.05 #[m]   (0.05)
 w   = 500  #[pix] (500)
-s   = 500   #[pix] (1000)
-md  = 12   #[m]   (7)
-cvt = 4    #[pix] (1.5)
+md  = 7    #[m]   (7)
+cvt = 4    #[pix] (1.5/4)
 ci  = 50   #[%]   (50/75/80/90/95)
 
 print("[IMAGE 0]")
-img_C0,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa0,fact_x_0,fact_y_0,x_b_0,y_b_0             = META.correct_ortho(ps1,ps2,path[0])
+img_C0,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa0,fact_x_0,fact_y_0,x_b_0,y_b_0            = META.correct_ortho(ps1,ps2,path[0])
 edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C  = CANNY.CannyPF(ps1,img_b_C,mask_b_C)
 edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C         = CANNY.CannyLines(ps1,edgemap_C,gradientMap_C,orientationMap_C,maskMap_C,gradientPoints_C,gradientValues_C)
 
@@ -36,19 +35,19 @@ for i in range(1,len(path)):
     edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
     dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
-    gcplist,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv                 = RECC.remove_outliers(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
+    gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2                 = RECC.remove_outliers2(ci,cvt,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
 #%% [RECC] Image GCP Comparison
-clist = list(np.random.choice(range(256), size=len(dist)))
+clist = list(np.random.choice(range(256), size=len(dist2)))
 plt.subplot(1,2,1)
 plt.title('Orthomosaic 1')
 plt.imshow(img_Fa0)  
-plt.scatter(t_y,t_x,c=clist)
+plt.scatter(t_y2,t_x2,c=clist)
 plt.subplot(1,2,2)
 plt.title('Orthomosaic 2')
 plt.imshow(img_Fa)  
-plt.scatter(o_y,o_x,c=clist)
+plt.scatter(o_y2,o_x2,c=clist)
     
 #%% [RECC] Edgemap GCP Comparison
 clist = list(np.random.choice(range(256), size=len(dist)))
@@ -70,12 +69,10 @@ for i in range(len(o_y)):
     ax.annotate(str(round(cv[i],2)),(o_y[i]+(7/0.05),o_x[i]-(7/0.05)))
 
 #%% [CANNY] IMAGE OVERLAY CHECK
-plt.imshow(edges_0,cmap='gray')
+plt.imshow(img_Fa)
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
-    plt.scatter(chain[:,1],chain[:,0],s=1,c='y')
-plt.scatter(t_y[index],t_x[index],c='r')
-plt.scatter(o_y[index],o_x[index],c='b')
+    plt.scatter(chain[:,1],chain[:,0],s=1,c='r')
     
 #%% [CANNY] EDGEMAP / CHAIN EXTENSION CHECK
 plt.imshow(img_Fa)
@@ -107,4 +104,3 @@ for i in range(len(edgeChainsD_F)):
 for i in range(len(edgeChainsE_F)):    
     chain = np.array(edgeChainsE_F[i])
     plt.scatter(chain[:,1],-1*chain[:,0],s=2)
-    
