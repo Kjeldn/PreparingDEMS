@@ -33,7 +33,7 @@ for i in range(1,len(path)):
     edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F           = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
     dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
-    gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2       = RECC.remove_outliers2(dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
+    gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2       = RECC.remove_outliers2(ps2,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
 #%% [RECC] Image GCP Comparison
