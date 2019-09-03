@@ -266,7 +266,7 @@ def remove_outliers2(dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y,
         Ct_x        = Ct_x[indices]
         Ct_y        = Ct_y[indices]
         Ccv         = Ccv[indices]
-        if np.sum(Cdist-np.median(Cdist)) < 1:
+        if abs(np.sum(Cdist-np.median(Cdist)))/len(Cdist) < 0.1:
             flag = 1
             break
     if len(Cdist) <= 20:
@@ -301,7 +301,7 @@ def remove_outliers2(dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y,
             Ct_x        = Ct_x[indices]
             Ct_y        = Ct_y[indices]
             Ccv         = Ccv[indices]
-            if np.sum(Cdist-np.median(Cdist)) < 1:
+            if abs(np.sum(Cdist-np.median(Cdist)))/len(Cdist) < 0.1:
                 flag = 1
                 break
     dist       = Cdist

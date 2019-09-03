@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 wdir  = r"E:\ORTHODUMP"
-files = ["BR0","BR1"]
+files = ["T1","T2"]
 path  = META.initialize(wdir,files)
 
 ps1 = 0.5   #[m]   (0.5)
@@ -37,15 +37,15 @@ for i in range(1,len(path)):
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
 #%% [RECC] Image GCP Comparison
-clist = list(np.random.choice(range(256), size=len(dist2[::3])))
+clist = list(np.random.choice(range(256), size=len(dist2)))
 plt.subplot(1,2,1)
 plt.title('Orthomosaic 1')
 plt.imshow(img_Fa0)  
-plt.scatter(t_y2[::3],t_x2[::3],c=clist)
+plt.scatter(t_y2,t_x2,c=clist)
 plt.subplot(1,2,2)
 plt.title('Orthomosaic 2')
 plt.imshow(img_Fa)  
-plt.scatter(o_y2[::3],o_x2[::3],c=clist)
+plt.scatter(o_y2,o_x2,c=clist)
     
 #%% [RECC] Edgemap GCP Comparison
 clist = list(np.random.choice(range(256), size=len(dist)))
