@@ -79,7 +79,7 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle[x,y]=1
     circle[circle==0]=np.NaN
-    for i in tqdm(range(len(grid)),position=0,desc="RECC      "):
+    for i in tqdm(range(len(grid)),position=0,miniters=int(len(grid)/10),desc="RECC      "):
         x_i_0 = grid[i][0]
         y_i_0 = grid[i][1]
         target = edges0C[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]

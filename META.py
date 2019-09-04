@@ -8,7 +8,6 @@ import warnings
 import matplotlib.pyplot as plt
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
-import sys
 
 def initialize(wdir,files):
     path = []
@@ -213,52 +212,52 @@ def next2(xSeed,ySeed,rows,cols,residualmap,boe,s):
                     break
     return a, b
 
-def next3(xSeed,ySeed,rows,cols,residualmap,boe,s):
+def next3(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
     if s >= 3:
         if boe == 0:
             # 5
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]
         elif boe == 1:
             # 1
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]
     elif s < 3 and s > 1/3:
         if boe == 0:
             # 6
-            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2, 1,-1, 1, 0, 1]
-            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0,-1, 1, 0, 1, 1]
+            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2]#, 1,-1]#, 1, 0, 1]
+            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0]#,-1, 1]#, 0, 1, 1]
         elif boe == 1:
             # 2
-            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2,-1, 1,-1, 0,-1]
-            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0, 1,-1, 0,-1,-1]
+            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2]#,-1, 1]#,-1, 0,-1]
+            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0]#, 1,-1]#, 0,-1,-1]
     elif s >= -1/3 and s <= 1/3:
         if boe == 0:
             # 7
-            X_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]         
-            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1, 1,-1, 0]
+            X_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]         
+            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1, 1,-1, 0]
         elif boe == 1:
             # 3
-            X_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]         
-            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2, 1,-1,-1, 1, 0]
+            X_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]         
+            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#, 1,-1,-1, 1, 0]
     elif s < -1/3 and s > -3:
         if boe == 0:
             # 8
-            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2, 1,-1, 1, 0, 1]
-            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0, 1,-1, 0,-1,-1]
+            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2]#, 1,-1]#, 1, 0, 1]
+            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0]#, 1,-1]#, 0,-1,-1]
         elif boe == 1:
             # 4
-            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2,-1, 1,-1, 0,-1]
-            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0,-1, 1, 0, 1, 1]
+            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2]#,-1, 1]#,-1, 0,-1]
+            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0]#,-1, 1]#, 0, 1, 1]
     elif s <= -3:
         if boe == 0:
             # 1
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]
         elif boe == 1:
             # 5
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]  
-            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]  
+            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]
     a=-1
     b=-1
     for i in range(len(X_OFFSET)):
@@ -266,12 +265,112 @@ def next3(xSeed,ySeed,rows,cols,residualmap,boe,s):
         if (x >= 0) and (x < rows):
             y = ySeed + Y_OFFSET[i]
             if (y >= 0) and (y < cols):
-                if residualmap[x,y] == 1:
+                if residualmap[x,y] == 1 and (x,y) not in edgeChain:
                     a = x
                     b = y
                     break
     return a, b
 
+def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
+    INNER_RING_X = np.array([ 0, 1, 1, 1, 0,-1,-1,-1])
+    INNER_RING_Y = np.array([ 1, 1, 0,-1,-1,-1, 0, 1])
+    OUTER_RING_X = np.array([ 0, 1, 2, 2, 2, 2, 2, 1, 0,-1,-2,-2,-2,-2,-2,-1])
+    OUTER_RING_Y = np.array([ 2, 2, 2, 1, 0,-1,-2,-2,-2,-2,-2,-1, 0, 1, 2, 2])
+    if boe == 1:
+        if s >= 2:
+            inner = 0
+        elif 0.5 <= s < 2:
+            inner = 1
+        elif -0.5 <= s < 0.5:
+            inner = 2
+        elif -2 <= s < -0.5:
+            inner = 3
+        elif s < -2:
+            inner = 4
+        if s >= 4:
+            outer = 0
+        elif 1.33 <= s < 4:
+            outer = 1
+        elif 0.75 <= s < 1.33:
+            outer = 2
+        elif 0.25 <= s < 0.75:
+            outer = 3
+        elif -0.25 <= s < 0.25:
+            outer = 4
+        elif -0.75 <= s < -0.25:
+            outer = 5
+        elif -1.33 <= s < -0.75:
+            outer = 6
+        elif -4 <= s < -1.33:
+            outer = 7
+        elif s < -4:
+            outer = 8
+    if boe == 0:
+        if s >= 2:
+            inner = 4
+        elif 0.5 <= s < 2:
+            inner = 5
+        elif -0.5 <= s < 0.5:
+            inner = 6
+        elif -2 <= s < -0.5:
+            inner = 7
+        elif s < -2:
+            inner = 0
+        if s >= 4:
+            outer = 8
+        elif 1.33 <= s < 4:
+            outer = 9
+        elif 0.75 <= s < 1.33:
+            outer = 10
+        elif 0.25 <= s < 0.75:
+            outer = 11
+        elif -0.25 <= s < 0.25:
+            outer = 12
+        elif -0.75 <= s < -0.25:
+            outer = 13
+        elif -1.33 <= s < -0.75:
+            outer = 14
+        elif -4 <= s < -1.33:
+            outer = 15
+        elif s < -4:
+            outer = 0
+    randomint = randint(-1,1)
+    while randomint == 0:
+        randomint = randint(-1,1)
+    inner_indices = [inner, inner+randomint, inner-randomint]
+    outer_indices = [outer, outer-randomint, outer+randomint]
+    for i in range(0,3):
+        if inner_indices[i] == -1:
+            inner_indices[i] = 7
+        if inner_indices[i] == 8:
+            inner_indices[i] = 0
+    for i in range(0,3):
+        if outer_indices[i] == -1:
+            outer_indices[i] = 15
+        if outer_indices[i] == 16:
+            outer_indices[i] = 0
+    X_OFFSET = list(INNER_RING_X[inner_indices]) + list(OUTER_RING_X[outer_indices])
+    Y_OFFSET = list(INNER_RING_Y[inner_indices]) + list(OUTER_RING_Y[outer_indices])
+    a=-1
+    b=-1
+    for i in range(len(X_OFFSET)):
+        x = xSeed + X_OFFSET[i]
+        if (x >= 0) and (x < rows):
+            y = ySeed + Y_OFFSET[i]
+            if (y >= 0) and (y < cols):
+                if residualmap[x,y] == 1 and (x,y) not in edgeChain:
+                    a = x
+                    b = y
+                    break
+    return a, b
+
+def rangemaker(num,thMeaningfulLength):
+    span = int(thMeaningfulLength/5)
+    range_array = np.zeros(2*span+1)
+    for i in range(len(range_array)):
+        range_array[i]=int(num-span+i)
+    return range_array
+        
 def moving_average(a, n=3) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
