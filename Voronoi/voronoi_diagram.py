@@ -191,10 +191,3 @@ def clip(vor, convex_hull, dist):
             del vor.regions[i]
                 
     return vor
-
-# =============================================================================
-# vor = Voronoi(util.readable_values(bed)[0])
-# vor = clip(vor, util.get_convex_hull(np.array(util.readable_values(bed)[0])), 0.02)
-# voronoi_plot_2d(vor, show_vertices=True)
-# =============================================================================
-

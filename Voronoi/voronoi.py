@@ -43,13 +43,11 @@ for bed in beds:
     
 pbar = tqdm(total = t, desc="finding missing points")
 
-#for j in range(len(beds)):
-for j in range(1):
+for j in range(len(beds)):
     bed = np.array(beds[j])
 
     overlap = 1000
-    for i in range(1):
-    #for i in range(int(np.ceil(len(bed)/n))):
+    for i in range(int(np.ceil(len(bed)/n))):
         offset = n if (i + 1) * n < len(bed) else len(bed) - i * n
         offset = offset + overlap if i * n + offset + overlap < len(bed) else offset
         plants_i, mean_x_coord, mean_y_coord = util.readable_values(bed[i * n: i * n + offset, :])
@@ -63,40 +61,3 @@ for j in range(1):
         
 missed_points_coord = util.remove_overlapping_points(np.array(missed_points_coord))
 util.write_shape_file(dst, missed_points_coord, src_crs, src_driver, {'geometry': 'Point', 'properties': OrderedDict([('name', 'str')])})
-
-#%%
-points = util.readable_values(bed)
-tri = Delaunay(points[0])
-# =============================================================================
-# plt.triplot(points[0][:,0], points[0][:,1], tri.simplices.copy())
-# plt.scatter(points[0][:,0], points[0][:,1], color='r')
-# plt.show()
-# =============================================================================
-
-from shapely.geometry import LineString
-from scipy.signal import find_peaks
-
-areas = []
-lenghts = []
-for t in tri.simplices:
-    areas.append(Polygon([tri.points[t[0]], tri.points[t[1]], tri.points[t[2]]]).area)
-    lenghts.append(LineString([tri.points[t[0]], tri.points[t[1]]]).length)
-    lenghts.append(LineString([tri.points[t[0]], tri.points[t[2]]]).length)
-    lenghts.append(LineString([tri.points[t[2]], tri.points[t[1]]]).length)
-    
-for i in range(len(lenghts) - 1, -1, -1):
-    if lenghts[i] > 0.5:
-        del lenghts[i]
-        
-hist = np.histogram(lenghts, bins=1000)
-peaks, props = find_peaks(hist[0], distance = 100)
-
-
-# =============================================================================
-# plt.plot(peaks, hist[0][peaks], '*')
-#     
-# plt.plot(hist[0][0:1000])
-# plt.show()
-# =============================================================================
-
-        
