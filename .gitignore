@@ -1,5 +1,3 @@
-*.pyc
-*.tif
-*.aux
-*.xml
-.__pycache__
+/*
+!/.py
+!.gitignore
