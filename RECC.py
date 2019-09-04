@@ -334,14 +334,16 @@ def remove_outliers2(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, 
     print("GCP status: ("+str(size4)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(size2-size3)+"/"+str(size3-size4)+"/"+str(flag)+") [OK/OoD/CV/2D/M/B]")   
     gcplist = " "
     distC = dist
-    if len(distC) >= 160:
-        print("WARNING   : GCP Overflow...")
+    flag = 0
     while len(distC) >= 160:
+        flag = 1
         origin_x = origin_x[::2]
         origin_y = origin_y[::2]
         target_lon = target_lon[::2]
         target_lat = target_lat[::2]
         distC = distC[::2]
+    if flag == 1:
+        print("WARNING   : Reduced GCP from "+str(len(dist))+" to "+str(len(distC)))
     for k in range(len(origin_x)):
         gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv

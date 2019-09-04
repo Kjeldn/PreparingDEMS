@@ -8,6 +8,7 @@ import warnings
 import matplotlib.pyplot as plt
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
+import sys
 
 def initialize(wdir,files):
     path = []

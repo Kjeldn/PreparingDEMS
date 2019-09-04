@@ -1,17 +1,34 @@
 import META
 import CANNY
 import RECC
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-wdir  = r"E:\ORTHODUMP"
-files = ["T1","T2"]
-path  = META.initialize(wdir,files)
+wdir    = r"E:\ORTHODUMP"
+files   = ["T1","T2"]
+path = META.initialize(wdir,files)
 
 ps1 = 0.5   #[m]   (0.5)
 ps2 = 0.05  #[m]   (0.05)
 w   = 500   #[pix] (500)
 md  = 12    #[m]   (12)
+
+class Tee(object):
+    def __init__(self, *files):
+        self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush() # If you want the output to be visible immediately
+    def flush(self) :
+        for f in self.files:
+            f.flush()
+f = open('out.txt', 'w')
+original1 = sys.stdout
+original2 = sys.stderr    
+sys.stdout = Tee(sys.stdout, f)
+sys.stderr = Tee(sys.stderr, f)
 
 print("[IMAGE 0]")
 img_C0,img_g_C,img_b_C,mask_b_C,gt_0,img_Fa0,fact_x_0,fact_y_0,x_b_0,y_b_0            = META.correct_ortho(ps1,ps2,path[0])
@@ -21,6 +38,7 @@ edges0C,edgeChainsA_C,edgeChainsB_C,edgeChainsC_C,edgeChainsD_C,edgeChainsE_C   
 img_F,img_g_F,img_b_F,mask_b_0,mask_o_0                                               = META.switch_correct_ortho(ps1,ps2,img_Fa0,edgeChainsE_C)
 edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(ps2,img_b_F,mask_b_0)
 edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsC_F,edgeChainsD_F,edgeChainsE_F         = CANNY.CannyLines(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
+
 
 for i in range(1,len(path)):
     print("[IMAGE "+str(i)+"]")
@@ -35,6 +53,10 @@ for i in range(1,len(path)):
     dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
     gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2       = RECC.remove_outliers2(ps2,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
+
+sys.stdout = original1
+sys.stderr = original2
+f.close()
 
 #%% [RECC] Image GCP Comparison
 clist = list(np.random.choice(range(256), size=len(dist2)))
