@@ -24,7 +24,8 @@ class Tee(object):
     def flush(self) :
         for f in self.files:
             f.flush()
-f = open('out.txt', 'w')
+logname = "LOG_"+files[0]+".txt"
+f = open(logname, 'w')
 original1 = sys.stdout
 original2 = sys.stderr    
 sys.stdout = Tee(sys.stdout, f)
@@ -39,10 +40,6 @@ img_F,img_g_F,img_b_F,mask_b_0,mask_o_0                                         
 edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F  = CANNY.CannyPF(ps2,img_b_F,mask_b_0)
 edges0F,edgeChainsA_F,edgeChainsB_F,edgeChainsE_F                                     = CANNY.CannyLines2(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
-sys.stdout = original1
-sys.stderr = original2
-f.close()
-
 for i in range(1,len(path)):
     print("[IMAGE "+str(i)+"]")
     img_C,img_g_C,img_b_C,mask_b_C,gt,img_Fa,fact_x,fact_y,x_b,y_b                          = META.correct_ortho(ps1,ps2,path[i])
@@ -54,7 +51,7 @@ for i in range(1,len(path)):
     edges1F,edgeChainsA_F,edgeChainsB_F,edgeChainsE_F                                       = CANNY.CannyLines2(ps2,edgemap_F,gradientMap_F,orientationMap_F,maskMap_F,gradientPoints_F,gradientValues_F)
 
     dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,RECC_m,target_l,patch_l,cv = RECC.patch_match(ps2,w,md,edges1F,gt,fact_x,fact_y,x_b,y_b,edges0F,gt_0,fact_x_0,fact_y_0,x_b_0,y_b_0,mask_o_0)
-    gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2       = RECC.remove_outliers2(ps2,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
+    gcplist,dist2,origin_x2,origin_y2,target_lon2,target_lat2,o_x2,o_y2,t_x2,t_y2,cv2       = RECC.remove_outliers3(ps2,dist,origin_x,origin_y,target_lon,target_lat,o_x,o_y,t_x,t_y,cv)
     RECC.georeference(wdir,path[i],files[i],gcplist)
 
 sys.stdout = original1

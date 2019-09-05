@@ -17,21 +17,16 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
     buffer = 2*w
     edges1Ca = np.zeros((edges1C.shape[0]+buffer*2,edges1C.shape[1]+2*buffer))
     edges1Ca[buffer:-buffer,buffer:-buffer] = edges1C
-    pixel_size=0.05
-    dst_max=12
     max_dist = int((dst_max)/pixel_size)
-    xlist = np.where(mask_o_0==0)[0]
-    ylist = np.where(mask_o_0==0)[1]
-    ind1 = np.where(xlist==max(xlist))[0][-1]
-    ind2 = np.where(ylist==max(ylist))[0][0]
-    ind3 = np.where(xlist==min(xlist))[0][0]
-    ind4 = np.where(ylist==min(ylist))[0][-1]
-    polygon = Polygon([(xlist[ind1],ylist[ind1]),(xlist[ind2],ylist[ind2]),(xlist[ind3],ylist[ind3]),(xlist[ind4],ylist[ind4])])
+    contours,hierarchy = cv2.findContours((1-mask_o_0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
+    biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
+    polygon = Polygon(np.array(biggest_contour[:,0]))
     polygon = polygon.buffer(-sqrt(w**2+w**2))
     v=w
-    while polygon.is_empty or len(polygon.exterior.xy[0]) <= 4:
+    while polygon.is_empty or polygon.geom_type == 'MultiPolygon':
         v -= 50
-        polygon = Polygon([(xlist[ind1],ylist[ind1]),(xlist[ind2],ylist[ind2]),(xlist[ind3],ylist[ind3]),(xlist[ind4],ylist[ind4])])
+        polygon = Polygon(np.array(biggest_contour[:,0]))
         polygon = polygon.buffer(-sqrt(v**2+v**2))
     if v != w:
         print("WARNING   : Polygon-buffer ("+str(v)+") < w...")
@@ -39,7 +34,7 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
     c_x = [int(round(x)) for x in c_x]
     c_y = [int(round(y)) for y in c_y] 
     dist = max((max(c_x)-min(c_x)),(max(c_y)-min(c_y)))
-    s = int(min(1000,dist/10))
+    s = int(min(1000,dist/5))
     grid = []
     while len(grid) <= 100 and s > w/100:
         grid=[]
@@ -48,6 +43,8 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
             if c_x[i] > c_x[j]:
                 t = i; i = j; j = t
             xdiff = abs(c_x[i]-c_x[j])
+            if xdiff == 0:
+                continue
             s_a = int(xdiff/(math.ceil(xdiff/s))) 
             m,b = np.polyfit((c_x[i],c_x[j]),(c_y[i],c_y[j]),1) 
             for xval in range(c_x[i],c_x[j],s_a):
@@ -55,7 +52,7 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
                 xval = int(round(xval))
                 yval = int(round(yval))
                 grid.append((xval,yval))
-        s -= 50
+        s -= 10
     target_l   = []
     patch_l    = []
     cv         = np.zeros(len(grid)) 
@@ -80,8 +77,8 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
                 circle[x,y]=1
     circle[circle==0]=np.NaN
     for i in tqdm(range(len(grid)),position=0,miniters=int(len(grid)/10),desc="RECC      "):
-        x_i_0 = grid[i][0]
-        y_i_0 = grid[i][1]
+        x_i_0 = grid[i][1]
+        y_i_0 = grid[i][0]
         target = edges0C[x_i_0-w:x_i_0+w,y_i_0-w:y_i_0+w]
         if target.shape != (2*w,2*w):
             continue
@@ -249,7 +246,7 @@ def remove_outliers2(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, 
     Ct_y        = t_y[indices]
     Ccv         = cv[indices]
     size2=len(Cdist)
-    slist = list([1.388,2.770,3.219,4.605,5.991])
+    slist = list([1.388])#,2.770,3.219,4.605,5.991])
     for s in slist:
         Cd_x = Ct_x - Co_x
         Cd_y = Ct_y - Co_y
@@ -344,6 +341,66 @@ def remove_outliers2(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, 
         distC = distC[::2]
     if flag == 1:
         print("WARNING   : Reduced GCP from "+str(len(dist))+" to "+str(len(distC)))
+    for k in range(len(origin_x)):
+        gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
+    return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
+
+def remove_outliers3(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv):
+    size0 = len(dist)
+    indices = np.where(cv>0)[0]
+    dist       = dist[indices]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    o_x        = o_x[indices]
+    o_y        = o_y[indices]
+    t_x        = t_x[indices]
+    t_y        = t_y[indices]
+    cv         = cv[indices]
+    size1=len(dist)
+    if len(dist[cv<1.5]) >= 50:
+        ind = np.where(cv<1.5)[0]
+    elif len(dist[cv<4]) >= 50:
+        ind = np.where(cv<4)[0]
+    else:
+        ind = np.where(cv<np.median(cv))[0]
+        print("WARNING   : Not enough points with low CV score.")
+    sub_d_x = t_x[ind]-o_x[ind]
+    sub_d_y = t_y[ind]-o_y[ind]
+    a,b,c = np.histogram2d(sub_d_x,sub_d_y,bins=len(sub_d_x))
+    d,e = np.where(a==np.max(a))
+    x_offset = (b[d]+b[d+1])/2
+    y_offset = (c[e]+c[e+1])/2
+    delta_x = (t_x - o_x) - x_offset
+    delta_y = (t_y - o_y) - y_offset
+    distance = delta_x**2 + delta_y**2
+    radius = (0.15/ps2)**2
+    indices = np.where(distance <= radius)[0]
+    dist       = dist[indices]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    o_x        = o_x[indices]
+    o_y        = o_y[indices]
+    t_x        = t_x[indices]
+    t_y        = t_y[indices]
+    cv         = cv[indices]
+    size2=len(dist)  
+    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")   
+    gcplist = " "
+    distC = dist
+    flag = 0
+    while len(distC) >= 160:
+        flag = 1
+        origin_x = origin_x[::2]
+        origin_y = origin_y[::2]
+        target_lon = target_lon[::2]
+        target_lat = target_lat[::2]
+        distC = distC[::2]
+    if flag == 1:
+        print("WARNING   : Reduced GCP from "+str(len(dist))+" to "+str(len(distC))+".")
     for k in range(len(origin_x)):
         gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
