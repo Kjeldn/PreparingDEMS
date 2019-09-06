@@ -12,6 +12,7 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+from scipy.interpolate import interp1d
                 
 def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, edges0C, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0):
     buffer = 2*w
@@ -30,29 +31,41 @@ def patch_match(pixel_size, w, dst_max, edges1C, gt, fact_x, fact_y, x_b, y_b, e
         polygon = polygon.buffer(-sqrt(v**2+v**2))
     if v != w:
         print("WARNING   : Polygon-buffer ("+str(v)+") < w...")
-    c_x,c_y = polygon.exterior.xy
-    c_x = [int(round(x)) for x in c_x]
-    c_y = [int(round(y)) for y in c_y] 
-    dist = max((max(c_x)-min(c_x)),(max(c_y)-min(c_y)))
-    s = int(min(1000,dist/5))
+        
+    x,y = polygon.exterior.xy
+    
+    distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+    total = np.sum(distance)
+    distance = distance/distance[-1]
+    fx, fy = interp1d( distance, x ), interp1d( distance, y )
+    alpha = np.linspace(0, 1, int(total/w)+1)
+    x_regular, y_regular = fx(alpha), fy(alpha)
     grid = []
-    while len(grid) <= 100 and s > w/100:
-        grid=[]
-        for i in range(len(c_x)-1):
-            j=i+1
-            if c_x[i] > c_x[j]:
-                t = i; i = j; j = t
-            xdiff = abs(c_x[i]-c_x[j])
-            if xdiff == 0:
-                continue
-            s_a = int(xdiff/(math.ceil(xdiff/s))) 
-            m,b = np.polyfit((c_x[i],c_x[j]),(c_y[i],c_y[j]),1) 
-            for xval in range(c_x[i],c_x[j],s_a):
-                yval = b+m*xval
-                xval = int(round(xval))
-                yval = int(round(yval))
-                grid.append((xval,yval))
-        s -= 10
+    for i in range(len(x_regular)):
+        grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))      
+#    c_x,c_y = polygon.exterior.xy
+#    c_x = [int(round(x)) for x in c_x]
+#    c_y = [int(round(y)) for y in c_y] 
+#    dist = max((max(c_x)-min(c_x)),(max(c_y)-min(c_y)))
+#    s = int(min(1000,dist/5))
+#    grid = []
+#    while len(grid) <= 100 and s > w/100:
+#        grid=[]
+#        for i in range(len(c_x)-1):
+#            j=i+1
+#            if c_x[i] > c_x[j]:
+#                t = i; i = j; j = t
+#            xdiff = abs(c_x[i]-c_x[j])
+#            if xdiff == 0:
+#                continue
+#            s_a = int(xdiff/(math.ceil(xdiff/s))) 
+#            m,b = np.polyfit((c_x[i],c_x[j]),(c_y[i],c_y[j]),1) 
+#            for xval in range(c_x[i],c_x[j],s_a):
+#                yval = b+m*xval
+#                xval = int(round(xval))
+#                yval = int(round(yval))
+#                grid.append((xval,yval))
+#        s -= 10
     target_l   = []
     patch_l    = []
     cv         = np.zeros(len(grid)) 
@@ -370,12 +383,23 @@ def remove_outliers3(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, 
     sub_d_y = t_y[ind]-o_y[ind]
     a,b,c = np.histogram2d(sub_d_x,sub_d_y,bins=len(sub_d_x))
     d,e = np.where(a==np.max(a))
+    if len(d) > 1:
+        i = [0,0]
+        binnnn = len(sub_d_x)/10
+        while len(i) > 1:
+            binnnn -= 1 
+            f,g,h = np.histogram2d(sub_d_x,sub_d_y,bins=binnnn)
+            i,j = np.where(f==np.max(f))
+        diff = (b[d]-g[i])**2 + (c[e]-h[j])**2
+        ind = np.where(diff == np.min(diff))[0]
+        d = d[ind]
+        e = e[ind]    
     x_offset = (b[d]+b[d+1])/2
     y_offset = (c[e]+c[e+1])/2
     delta_x = (t_x - o_x) - x_offset
     delta_y = (t_y - o_y) - y_offset
     distance = delta_x**2 + delta_y**2
-    radius = (0.15/ps2)**2
+    radius = (2/ps2)**2
     indices = np.where(distance <= radius)[0]
     dist       = dist[indices]
     origin_x   = origin_x[indices]
@@ -389,18 +413,16 @@ def remove_outliers3(ps2,dist, origin_x, origin_y, target_lon, target_lat, o_x, 
     cv         = cv[indices]
     size2=len(dist)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")   
+    if len(dist) >= 100:
+        cv_cap = np.partition(cv.flatten(),100)[100]
+        indices = np.where(cv < cv_cap)[0]
+        origin_x = origin_x[indices]
+        origin_y = origin_y[indices]
+        target_lon = target_lon[indices]
+        target_lat = target_lat[indices]
+        dist = dist[indices]
+        print("WARNING   : Reduced gcplist from "+str(size2)+" to "+str(len(dist))+".")
     gcplist = " "
-    distC = dist
-    flag = 0
-    while len(distC) >= 160:
-        flag = 1
-        origin_x = origin_x[::2]
-        origin_y = origin_y[::2]
-        target_lon = target_lon[::2]
-        target_lat = target_lat[::2]
-        distC = distC[::2]
-    if flag == 1:
-        print("WARNING   : Reduced GCP from "+str(len(dist))+" to "+str(len(distC))+".")
     for k in range(len(origin_x)):
         gcplist = gcplist+"-gcp "+str(origin_y[k])+" "+str(origin_x[k])+" "+str(target_lon[k])+" "+str(target_lat[k])+" "        
     return gcplist, dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv
