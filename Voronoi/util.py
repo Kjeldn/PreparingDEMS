@@ -1,8 +1,7 @@
-from shapely.geometry import Point, Polygon, LinearRing
+from shapely.geometry import Point, Polygon, LinearRing, LineString
 import numpy as np
 import fiona
 from tqdm import trange
-import scipy.stats as st
 from pyqtree import Index
 from collections import OrderedDict
 
@@ -64,6 +63,90 @@ def find_points_in_line(ps, ci, vor):
         points.append(line)
     return points
 
+#%%
+def ci_slopes(p, q, slope_mean, delta):
+    _, dist = get_slope_and_dist(p, q)
+    return (slope_mean - np.arctan(delta/dist), slope_mean + np.arctan(delta/dist))
+
+def find_points_in_line2(ps, ci, vor):
+    ci_mean = (ci[1] + ci[0])/2
+    coords = [vor.points[np.where(vor.point_region == p.id)[0][0]] for p in ps]
+    points = [np.where(vor.point_region == p.id)[0][0] for p in ps]
+    lines = []
+    for p in points:
+        closest_slope_p = None
+        closest_slope = 0
+        for q in points:
+            if p != q:
+                if not closest_slope_p:
+                    closest_slope_p = q
+                    closest_slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
+                else:
+                    slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
+                    if abs(ci_mean - slope) < abs(ci_mean - closest_slope):
+                        closest_slope_p = q
+                        closest_slope = slope
+                        
+        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], ci_mean, 0.01)
+        
+        if closest_slope > ci_s[0] and closest_slope < ci_s[1]:
+            lines.append([p, closest_slope_p])
+        
+    for i in range(len(lines)):
+        found = False
+        for j in range(len(lines)):
+            for k in range(len(lines)):
+                if k != j and any(p in lines[j] for p in lines[k]):
+                    newline = list(set(lines[j] + lines[k]))
+                    if j < k:
+                        del lines[k]
+                        del lines[j]
+                    else:
+                        del lines[j]
+                        del lines[k]
+                    lines.append(newline)
+                    found = True
+                    break
+            if found:
+                break
+            
+    for i in range(len(lines)):
+        found = False
+        for j in range(len(lines)):
+            for k in range(len(lines)):
+                if j !=k:
+                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], ci_mean, 0.05)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], ci_mean, 0.05)[1] for q in lines[k]) for p in lines[j]):                            
+                        newline = list(set(lines[j] + lines[k]))
+                        if j < k:
+                            del lines[k]
+                            del lines[j]
+                        else:
+                            del lines[j]
+                            del lines[k]
+                        lines.append(newline)
+                        found = True
+                        break
+            if found:
+                break
+    
+    lines_coord = []
+    for line in lines:
+        lines_coord.append(sorted([coords[points.index(p)] for p in line], key=lambda a: a[0]))
+    return lines_coord
+
+# =============================================================================
+# amr = list(adjacent_missed_regions[63])
+# lines = find_points_in_line2(amr, ci_s, vor)
+# for line in lines:
+#     if len(line) > 1:
+#         line  = np.array(line)
+#         plt.plot(line[:,0], line[:,1])
+#     
+# points = np.array([vor.points[(np.where(vor.point_region == vp.id))[0][0]] for vp in amr])
+# plt.scatter(points[:,0], points[:,1])
+# =============================================================================
+
+#%%
 def fill_points_in_line(p, q, n, spindex, d):
     ret = []
     is_on_top_of_point = []
@@ -85,12 +168,9 @@ def get_convex_hull(plants):
     polygon = Polygon(poly_line.coords)
     return polygon
 
-def get_confidence_interval_areas(a):
+def get_confidence_interval(a):
     iqr = np.abs(np.percentile(a, 75) - np.percentile(a, 25))
     return (np.percentile(a,25) - 1.5 * iqr, np.percentile(a, 75) + 1.5 * iqr)
-
-def get_confidence_interval_slopes(slopes, conf):
-    return st.t.interval(conf, len(slopes) - 1, loc=np.median(slopes), scale = np.std(slopes))
 
 def readable_values(plants):
     f = 10000
@@ -104,9 +184,12 @@ def readable_values(plants):
 def readable_values_inv(plants, mean_x_coord, mean_y_coord):
     f = 10000
     plants_i = np.zeros(plants.shape)
-    plants_i[:,0] = plants[:,0] / f + mean_x_coord
-    plants_i[:,1] = plants[:,1] / f + mean_y_coord
-    return plants_i
+    try:
+        plants_i[:,0] = plants[:,0] / f + mean_x_coord
+        plants_i[:,1] = plants[:,1] / f + mean_y_coord
+        return plants_i
+    except:
+        return np.array([])
 
 def open_shape_file(path):
     with fiona.open(path) as src:
