@@ -4,12 +4,7 @@ import numpy as np
 from pyqtree import Index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
-def get_convex_hull(plants):
-    poly = Polygon(zip(plants[:,0], plants[:,1]))
-    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-    polygon = Polygon(poly_line.coords)
-    return polygon
+import util
 
 def fill_points_in_line(p, q, n):
     ret = []
@@ -27,12 +22,12 @@ def divide(plants, plot=False):
 
     convex_hulls = []
     
-    n = 2000
-    overlap = 200
+    n = 5000
+    overlap = 500
     for i in range(int(np.ceil(len(plants)/n))):
         offset = n if (i + 1) * n < len(plants) else len(plants) - i * n
         offset = offset + overlap if i * n + offset + overlap < len(plants) else offset
-        convex_hulls.append(get_convex_hull(plants[i * n: i * n + offset, :]))
+        convex_hulls.append(util.get_convex_hull(plants[i * n: i * n + offset, :]))
         
     convex_hull = convex_hulls[0]
     for i in range(1, len(convex_hulls)):
