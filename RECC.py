@@ -118,6 +118,10 @@ def init_match(ps1,w,md,edges1C,gt,fx_C,fy_C,xb_C,yb_C,edges0C,gt_0,fx_C0,fy_C0,
     y_offset = (c[e]+c[e+1])/2
     x_offset = x_offset[0]
     y_offset = y_offset[0]
+    o_x = o_x[cv<4]
+    o_y = o_y[cv<4]
+    t_x = t_x[cv<4]
+    t_y = t_y[cv<4]
     return x_offset,y_offset,o_x, o_y, t_x, t_y
     
 def patch_match(ps1, ps2, w, md, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0, x_offset, y_offset):
@@ -125,7 +129,7 @@ def patch_match(ps1, ps2, w, md, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F,
     buffer = 2*w
     edges1Fa = np.zeros((edges1F.shape[0]+buffer*2,edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = edges1F
-    max_dist = int((md)/(ps2*2))
+    max_dist = int((md)/(ps2*4))
     contours,hierarchy = cv2.findContours((1-mask_o_0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
