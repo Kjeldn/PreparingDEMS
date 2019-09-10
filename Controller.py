@@ -4,8 +4,8 @@ import RECC
 import numpy as np
 import matplotlib.pyplot as plt
 
-wdir    = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Verdonk - Wever Oost"
-files   = ["3","1"]
+wdir    = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Tulips Full"
+files   = ["TF4","TF0","TF1","TF2","TF3"]
 path    = META.initialize(wdir,files)
 
 ps1 = 0.5   #[m]  (0.5)  <First pixelsize>

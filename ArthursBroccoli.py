@@ -9,15 +9,17 @@ import warnings
 import matplotlib.pyplot as plt
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 # 0 1 2 22 26 27 30 34 43 50 56
-path = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Arthur - Broccoli\broc_0.png"
+path = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Arthur - Broccoli\broc_2.png"
 
 # Arthur's Broccoli
 file                               = gdal.Open(path)
 gt                                 = file.GetGeoTransform()
-R                                  = file.GetRasterBand(1).ReadAsArray()
+R                                  = file.GetRasterBand(3).ReadAsArray()
 G                                  = file.GetRasterBand(2).ReadAsArray()
-B                                  = file.GetRasterBand(3).ReadAsArray()
+B                                  = file.GetRasterBand(1).ReadAsArray()
 img                              = np.zeros([B.shape[0],B.shape[1],3], np.uint8)
 img[:,:,0]                       = B
 img[:,:,1]                       = G
@@ -36,9 +38,7 @@ img_cielab_eq[:,:,0]             = L_eq
 img_eq                           = cv2.cvtColor(img_cielab_eq, cv2.COLOR_Lab2BGR)
 img_g                              = cv2.cvtColor(img_eq, cv2.COLOR_BGR2GRAY)
 
-
-img_b                              = cv2.bilateralFilter(L_eq,25,200,50)
-img_b = img_g # No bilateral filter
+img_b                              = cv2.bilateralFilter(L_eq,5,50,10)
 
 rows = img_b.shape[0]
 cols = img_b.shape[1]
@@ -129,24 +129,59 @@ for i in range(len(gradientPoints)):
             maskMap[x,y] = 2
     if len(chain) >= thMeaningfulLength:
         edgeChainsA.append(chain) 
-        chain = np.array(chain)       
-        
+        chain = np.array(chain)  
+# Chainmpa
+edgechainmap = np.zeros(edgemap.shape)
+for chain in edgeChainsA:
+    for point in chain:    
+        edgechainmap[point[0],point[1]]=1        
+           
+c=cv2.HoughCircles(edgechainmap.astype(np.uint8),cv2.HOUGH_GRADIENT,1,minDist=100,param1=0.9,param2=1.1,minRadius=0,maxRadius=25)
+
 plt.close()
 plt.subplot(2,3,1)
 plt.imshow(img)
 plt.subplot(2,3,2)
 plt.imshow(img_eq)
 plt.subplot(2,3,3)
-plt.imshow(img_g,cmap='gray')     
+plt.imshow(img_g,cmap='gray')  
 plt.subplot(2,3,4)
-plt.imshow(edgemap)
+plt.imshow(img_b,cmap='gray')  
 plt.subplot(2,3,5)
 plt.imshow(edgemap)
-for chain in edgeChainsA:
-    chain = np.array(chain)
-    plt.scatter(chain[:,1],chain[:,0],c='r')
 plt.subplot(2,3,6)
-plt.imshow(img)
-for chain in edgeChainsA:
-    chain = np.array(chain)
-    plt.scatter(chain[:,1],chain[:,0],c='r')
+plt.imshow(edgechainmap)
+if c[0].all() != None:
+    for circle in c[0]:
+        point = Point(circle[0],circle[1])
+        circ = point.buffer(circle[2])
+        x,y = circ.exterior.xy
+        plt.plot(x,y)
+        
+        
+## META.py:
+def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
+    X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
+    Y_OFFSET = [1, 0,-1, 0, 1, 1,-1,-1]
+    direction = orientationMap[xSeed,ySeed]
+    direction0 = direction-1
+    if direction0 < 0:
+        direction0 = 15
+    direction1 = direction
+    direction2 = direction + 1
+    if direction2 == 16:
+        direction2 = 0 
+    a=-1
+    b=-1
+    for i in range(0,8):
+        x = xSeed + X_OFFSET[i]
+        if (x >= 0) and (x < rows):
+            y = ySeed + Y_OFFSET[i]
+            if (y >= 0) and (y < cols):
+                if maskMap[x,y] == 1:
+                    directionTemp = orientationMap[x,y]
+                    if (directionTemp == direction1) or (directionTemp == direction0) or (directionTemp == direction2):
+                        a = x
+                        b = y
+                        break
+    return a, b
