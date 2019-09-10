@@ -4,14 +4,14 @@ import RECC
 import numpy as np
 import matplotlib.pyplot as plt
 
-wdir    = r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Extra"
-files   = ["E0","E1"]
+wdir    = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Verdonk - Wever Oost"
+files   = ["3","1"]
 path    = META.initialize(wdir,files)
 
-ps1 = 0.5   #[m]   (0.5)  First pixelsize
-ps2 = 0.05  #[m]   (0.05) Second pixelsize
-w   = 25    #[m]   (25)   Radius template
-md  = 12    #[m]   (12)   Max displacement
+ps1 = 0.5   #[m]  (0.5)  <First pixelsize>
+ps2 = 0.05  #[m]  (0.05) <Second pixelsize>
+w   = 25    #[m]  (25)   <Radius template>
+md  = 12    #[m]  (12)   <Max displacement>
 
 print("[IMAGE 0]")
 gt_0,img_C0,img_b_C0,mask_b_C0,fx_C0,fy_C0,xb_C0,yb_C0,img_F0,fx_F0,fy_F0,xb_F0,yb_F0 = META.correct_ortho(ps1,ps2,path[0])
@@ -64,6 +64,7 @@ plt.subplot(1,2,1)
 plt.title('Orthomosaic 1')
 plt.imshow(edges0C)  
 plt.scatter(t_yC,t_xC,c=clist)
+#plt.scatter(t_yC+y_offset,t_xC+x_offset,c='r')
 plt.subplot(1,2,2)
 plt.title('Orthomosaic 2')
 plt.imshow(edges1C)  

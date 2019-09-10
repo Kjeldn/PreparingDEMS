@@ -9,8 +9,9 @@ import util
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
-path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Voronoi\Plant_count_final_merged_merged.shp"
-dst = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Voronoi\Plant_count_final_merged_merged_missed.shp"
+path = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\20190819_Voronoi_points\DW-4\Plant_count_final_merged_merged.shp"
+dst = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\20190819_Voronoi_points\DW-4\Plant_count_final_merged_merged_missed.shp"
+
 clip_voronoi = True
     
 def get_missing_points(plants, plot=False):

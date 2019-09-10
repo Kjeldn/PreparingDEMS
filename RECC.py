@@ -124,13 +124,13 @@ def init_match(ps1,w,md,edges1C,gt,fx_C,fy_C,xb_C,yb_C,edges0C,gt_0,fx_C0,fy_C0,
     t_y = t_y[cv<4]
     return x_offset,y_offset,o_x, o_y, t_x, t_y
     
-def patch_match(ps1, ps2, w, md, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F, gt_0, fact_x_0, fact_y_0, x_b_0, y_b_0, mask_o_0, x_offset, y_offset):
+def patch_match(ps1, ps2, w, md, edges1F, gt, fx_F, fy_F, xb_F, yb_F, edges0F, gt_0, fx_F0, fy_F0, xb_F0, yb_F0, contour_F0, x_offset, y_offset):
     w = int(w/ps2)
     buffer = 2*w
     edges1Fa = np.zeros((edges1F.shape[0]+buffer*2,edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = edges1F
     max_dist = int((md)/(ps2*4))
-    contours,hierarchy = cv2.findContours((1-mask_o_0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours,hierarchy = cv2.findContours((1-contour_F0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
     polygon = Polygon(np.array(biggest_contour[:,0]))
@@ -186,10 +186,10 @@ def patch_match(ps1, ps2, w, md, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F,
         if target.shape != (2*w,2*w):
             continue
         sum_target = np.sum(target)   
-        lat_0 = gt_0[3] + gt_0[5]*x_i_0*fact_x_0  
-        lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_y_0
-        x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fact_x) + (x_offset/ps2)*ps1))
-        y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fact_y) + (y_offset/ps2)*ps1)) 
+        lat_0 = gt_0[3] + gt_0[5]*x_i_0*fx_F0  
+        lon_0 = gt_0[0] + gt_0[1]*y_i_0*fy_F0
+        x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fx_F) + (x_offset/ps2)*ps1))
+        y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fy_F) + (y_offset/ps2)*ps1)) 
         search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
         search_wide = edges1Fa[buffer+x_i_0_og-max_dist-w:buffer+x_i_0_og+max_dist+w,buffer+y_i_0_og-max_dist-w:buffer+y_i_0_og+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
@@ -209,22 +209,25 @@ def patch_match(ps1, ps2, w, md, edges1F, gt, fact_x, fact_y, x_b, y_b, edges0F,
         y_n      = np.where(RECC_total >= max_n)[1][0:-1]
         x_n      = np.where(RECC_total >= max_n)[0][0:-1]
         cv[i] = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))/4
-        lon = gt[0] + gt[1]*y_i*fact_y + gt[2]*x_i*fact_x
-        lat = gt[3] + gt[4]*y_i*fact_y + gt[5]*x_i*fact_x
-        lon_0 = gt_0[0] + gt_0[1]*y_i_0*fact_y_0 + gt_0[2]*x_i_0*fact_x_0
-        lat_0 = gt_0[3] + gt_0[4]*y_i_0*fact_y_0 + gt_0[5]*x_i_0*fact_x_0
+        lon = gt[0] + gt[1]*y_i*fy_F + gt[2]*x_i*fx_F
+        lat = gt[3] + gt[4]*y_i*fy_F + gt[5]*x_i*fx_F
+        lon_0 = gt_0[0] + gt_0[1]*y_i_0*fy_F0 + gt_0[2]*x_i_0*fx_F0
+        lat_0 = gt_0[3] + gt_0[4]*y_i_0*fy_F0 + gt_0[5]*x_i_0*fx_F0
         dist[i] = META.calc_distance(lat,lon,lat_0,lon_0)
         dist_lon[i] = lon_0-lon
         dist_lat[i] = lat_0-lat
         target_l.append(target)
-        patch_l.append(edges1F[x_i-w:x_i+w,y_i-w:y_i+w]*circle1)  
+        if edges1Fa[x_i-w:x_i+w,y_i-w:y_i+w].shape != (2*w,2*w):
+            patch_l.append(circle1)
+        else:
+            patch_l.append(edges1Fa[x_i-w:x_i+w,y_i-w:y_i+w]*circle1)  
         o_x[i] = x_i
         o_y[i] = y_i
         t_x[i] = x_i_0
         t_y[i] = y_i_0
         # For referencing:
-        origin_x[i] = x_i*fact_x
-        origin_y[i] = y_i*fact_y
+        origin_x[i] = x_i*fx_F
+        origin_y[i] = y_i*fy_F
         target_lon[i] = lon_0
         target_lat[i] = lat_0
     return dist, origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, RECC_over, target_l, patch_l, cv
