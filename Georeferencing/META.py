@@ -26,10 +26,6 @@ def correct_ortho(ps1,ps2,path):
     R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
-    fact_x_ps1                         = B.shape[0]/B_s.shape[0]
-    fact_y_ps1                         = B.shape[1]/B_s.shape[1]
-    x_b_ps1                            = B_s.shape[0]
-    y_b_ps1                            = B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -58,13 +54,13 @@ def correct_ortho(ps1,ps2,path):
     img_s2[:,:,0]                      = B_s
     img_s2[:,:,1]                      = G_s
     img_s2[:,:,2]                      = R_s
-    fact_x_ps2                         = B.shape[0]/B_s.shape[0]
-    fact_y_ps2                         = B.shape[1]/B_s.shape[1]
-    x_b_ps2                            = B_s.shape[0]
-    y_b_ps2                            = B_s.shape[1]
+    fact_x = B.shape[0]/B_s.shape[0]
+    fact_y = B.shape[1]/B_s.shape[1]
+    x_b    = B_s.shape[0]
+    y_b    = B_s.shape[1]
     pbar1.update(1)
     pbar1.close()
-    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1, x_b_ps1, y_b_ps1, img_s2, fact_x_ps2, fact_y_ps2, x_b_ps2, y_b_ps2
+    return img_s, img_g, img_b, mask_b, gt, img_s2, fact_x, fact_y, x_b, y_b
 
 def switch_correct_ortho(ps1,ps2,img_s2,edgeChainsE):
     pbar2 = tqdm(total=1,position=0,desc="Switching ")
@@ -97,7 +93,7 @@ def switch_correct_ortho(ps1,ps2,img_s2,edgeChainsE):
     mask_n                             = 1 - mask_n
     pbar2.update(1)
     pbar2.close()
-    return img_b, mask_n, mask_o
+    return img_s_eq, img_g, img_b, mask_n, mask_o
 
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
