@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 
 wdir    = r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Extra"
 files   = ["E0","E1"]
-path = META.initialize(wdir,files)
+path    = META.initialize(wdir,files)
 
-ps1 = 0.5   #[m]   (0.5)
-ps2 = 0.05  #[m]   (0.05)
-w   = 25    #[m]   (25)
-md  = 12    #[m]   (12)
+ps1 = 0.5   #[m]   (0.5)  First pixelsize
+ps2 = 0.05  #[m]   (0.05) Second pixelsize
+w   = 25    #[m]   (25)   Radius template
+md  = 12    #[m]   (12)   Max displacement
 
 print("[IMAGE 0]")
 gt_0,img_C0,img_b_C0,mask_b_C0,fx_C0,fy_C0,xb_C0,yb_C0,img_F0,fx_F0,fy_F0,xb_F0,yb_F0 = META.correct_ortho(ps1,ps2,path[0])
