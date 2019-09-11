@@ -31,44 +31,11 @@ def get_slope_and_dist(p, q):
     [p, q] = sorted([p, q], key=lambda v : v[0])
     return np.arctan((p[1] - q[1])/ (p[0] - q[0])), np.sqrt((p[1] - q[1])**2 + (p[0] - q[0])**2)
 
-def find_points_in_line(ps, ci, vor):
-    lines = []
-    lines.append([ps[0]])
-    for i in range(1, len(ps)):
-        p = vor.points[(np.where(vor.point_region == ps[i].id))[0][0]]
-        added = False
-        for j in range(len(lines)):
-            inline = []
-            for poly in lines[j]:
-                q = vor.points[(np.where(vor.point_region == poly.id))[0][0]]
-                slope, dist = get_slope_and_dist(p, q)
-                if slope > ci[0] and slope < ci[1]:
-                    inline.append(True)
-                else:
-                    inline.append(False)
-                    
-            if sum(inline) == len(lines[j]):
-                lines[j].append(ps[i])
-                added = True
-                
-        if not added:
-            lines.append([ps[i]])
-            
-    points = []
-    for i in range(len(lines)):
-        line = []
-        for j in range(len(lines[i])):
-            line.append(vor.points[(np.where(vor.point_region == lines[i][j].id))[0][0]])
-        line = sorted(line, key = lambda p : p[0])
-        points.append(line)
-    return points
-
-#%%
 def ci_slopes(p, q, slope_mean, delta):
     _, dist = get_slope_and_dist(p, q)
     return (slope_mean - np.arctan(delta/dist), slope_mean + np.arctan(delta/dist))
 
-def find_points_in_line2(ps, ci, vor):
+def find_points_in_line(ps, ci, vor):
     ci_mean = (ci[1] + ci[0])/2
     coords = [vor.points[np.where(vor.point_region == p.id)[0][0]] for p in ps]
     points = [np.where(vor.point_region == p.id)[0][0] for p in ps]
@@ -134,19 +101,6 @@ def find_points_in_line2(ps, ci, vor):
         lines_coord.append(sorted([coords[points.index(p)] for p in line], key=lambda a: a[0]))
     return lines_coord
 
-# =============================================================================
-# amr = list(adjacent_missed_regions[63])
-# lines = find_points_in_line2(amr, ci_s, vor)
-# for line in lines:
-#     if len(line) > 1:
-#         line  = np.array(line)
-#         plt.plot(line[:,0], line[:,1])
-#     
-# points = np.array([vor.points[(np.where(vor.point_region == vp.id))[0][0]] for vp in amr])
-# plt.scatter(points[:,0], points[:,1])
-# =============================================================================
-
-#%%
 def fill_points_in_line(p, q, n, spindex, d):
     ret = []
     is_on_top_of_point = []

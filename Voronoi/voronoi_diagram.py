@@ -3,7 +3,6 @@ import numpy as np
 import util
 from scipy.spatial import voronoi_plot_2d, Voronoi
 import matplotlib.pyplot as plt
-from tqdm import trange
 
 class Voronoi_polygon:
     def __init__(self, id, vi, vc):
@@ -132,7 +131,7 @@ def get_large_and_small_regions(vor, convex_hull, ci, lengths, clipped):
                     small_regions.append(Voronoi_polygon(i, vor.regions[i], [list(vor.vertices[k]) for k in vor.regions[i]]))
     return missed_regions, small_regions
 
-def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, ci_s, dists):
+def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, ci_s, dists, first_it=True, mean_dist=None):
     missed_points = []
     for s in adjacent_missed_regions:
         if len(s) == 2:
@@ -140,9 +139,15 @@ def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, ci_s,
             p1 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             p2 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             slope, dist = util.get_slope_and_dist(p1, p2)
-            n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
-            if slope > ci_s[0] and slope < ci_s[1] and n_p > 0:
-                missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
+            try:
+                if first_it:
+                    n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
+                else:
+                    n_p = int(dist/(mean_dist/2) + 0.5) - 1
+                if slope > ci_s[0] and slope < ci_s[1] and n_p > 0:
+                    missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
+            except:
+                print(mean_dist, dist)
     return missed_points
 
 def get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions):
@@ -163,18 +168,24 @@ def get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regi
             del slopes[i]
     return slopes, dists
 
-def find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex):
+def find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex, first_it=False, mean_dist=None):
     missed_points = []
     for i in range(len(adjacent_missed_regions)):
         if len(adjacent_missed_regions[i]) != 2:
             l = list(adjacent_missed_regions[i])
-            lines = util.find_points_in_line2(l, ci_s, vor)
+            lines = util.find_points_in_line(l, ci_s, vor)
             for line in lines:
                 for c in range(len(line) - 1):
                     dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
-                    n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
+                    if first_it:
+                        n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
+                    else:
+                        n_p = int(dist/(mean_dist/2) + 0.5) - 1
                     if n_p > 0:
-                        mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, np.mean(dists)/4)
+                        if first_it:
+                            mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, np.median(dists)/4)
+                        else:
+                            mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, mean_dist/4)
                         for mp in mps:
                             if mp not in missed_points:
                                 missed_points.append(mp)
@@ -215,47 +226,3 @@ def plot_voronoi_diagram(vor, plot_points, missed_regions, small_regions, show_v
         plt.fill(*zip(*r.vc), color="g", alpha = 1)
         
     plt.show()
-    
-def clip(vor, convex_hull, dist):
-    initial_index = len(vor.vertices)
-        
-    clipped_ridges = []    
-    for i in trange(len(vor.ridge_vertices), desc='clip ridges'):
-        [v1, v2] = vor.ridge_vertices[i]
-        if -1 not in [v1, v2] and Point(vor.vertices[v1]).within(convex_hull) != Point(vor.vertices[v2]).within(convex_hull):
-            x = convex_hull.exterior.intersection(LineString([vor.vertices[v1], vor.vertices[v2]]))
-            vor.vertices = np.append(vor.vertices, [[x.x, x.y]], axis=0)
-            if Point(vor.vertices[v1]).within(convex_hull):
-                vor.ridge_vertices[i] = [v1, len(vor.vertices) - 1]
-            else:
-                vor.ridge_vertices[i] = [len(vor.vertices) - 1, v2]
-            clipped_ridges.append({'src': [v1, v2], 'dest': vor.ridge_vertices[i]})
-    
-    clipped_ridges = np.array(clipped_ridges)
-    for i in trange(len(vor.regions) -1, -1, -1, desc='amend regions'):
-        vs = vor.regions[i]
-        if -1 not in vs and not all(Point(vor.vertices[v]).within(convex_hull) for v in vs):
-            for j in range(len(vs)):
-                for r in clipped_ridges:
-                    if r['src'] == [vs[j], vs[(j + 1) % len(vs)]] or r['src'] == [vs[(j + 1) % len(vs)], vs[j]]:
-                        if r['src'][0] == r['dest'][0]:
-                            src = r['src'][1]
-                            dst = r['dest'][1]
-                        else:
-                            src = r['src'][0]
-                            dst = r['dest'][0]
-                            
-                        if vs[j] == src:
-                            vs[j] = dst
-                        else:
-                            vs[(j + 1) % len(vs)] = dst
-                        vor.ridge_vertices = np.append(vor.ridge_vertices, [[vs[j], vs[(j + 1) % len(vs)]]], axis=0)
-                        break
-            for j in range(len(vs) -1, -1, -1):
-                if vs[j] < initial_index and not Point(vor.vertices[vs[j]]).within(convex_hull):
-                        del vs[j]
-            vor.regions[i] = vs
-        else:
-            del vor.regions[i]
-                
-    return vor
