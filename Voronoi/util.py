@@ -1,40 +1,106 @@
-from shapely.geometry import Point, Polygon, LinearRing, LineString
+from shapely.geometry import Point, Polygon, LinearRing
 import numpy as np
 import fiona
 from tqdm import trange
 from pyqtree import Index
 from collections import OrderedDict
 
+"""
+Get the areas and lengths of all Voronoi_polygons inside convex_hull.
+
+Parameters
+-----------
+vor : Voronoi_diagram
+    the Voronoi diagram which describes all Voronoi_polygons and points
+convex_hull : shapely Polygon
+    Convex hull of Voronoi points to determine if Voronoi polygon is on border, if on border it is ignored
+
+Returns
+-----------
+areas : list of float
+    Areas of all Voronoi_polygons in the Voronoi diagram
+lengths : list of float
+    Circumference of all Voronoi_polygons in the Voronoi diagram
+"""
 def get_areas_and_lengths(vor, convex_hull):
-    a = []
+    areas = []
     lengths = []
     for i in range(len(vor.regions)):
-        if -1 not in vor.regions[i] and vor.regions[i] and len(vor.regions[i]) > 2:
-            vs = []
-            on_border = False
-            for j in vor.regions[i]:
-                vs.append((vor.vertices[j][0], vor.vertices[j][1]))
-                if not Point(vor.vertices[j][0], vor.vertices[j][1]).within(convex_hull):
-                    on_border = True
-                
-            if vs:
-                if not on_border:
-                    poly = Polygon(vs)
-                    a.append(poly.area)
-                    lengths.append(poly.length)
+        if -1 not in vor.regions[i] and vor.regions[i] and len(vor.regions[i]) > 2 and all(Point(vor.vertices[j]).within(convex_hull) for j in vor.regions[i]):
+            poly = Polygon([(vor.vertices[j][0], vor.vertices[j][1]) for j in vor.regions[i]])
+            areas.append(poly.area)
+            lengths.append(poly.length)
             
-    return a, lengths
+    return areas, lengths
 
+"""
+Get slope (in radians) and dist between two points.
+
+Parameters
+-----------
+p,q : coordinates
+    The two points for which the slope and dist is determined
+    
+Returns
+-----------
+slope : float
+    The slope between p and q
+dist : float
+    The distance between p and q
+"""
 def get_slope_and_dist(p, q):
     if p[0] == q[0] and p[1] == q[1]:
         return 0, 0
     [p, q] = sorted([p, q], key=lambda v : v[0])
     return np.arctan((p[1] - q[1])/ (p[0] - q[0])), np.sqrt((p[1] - q[1])**2 + (p[0] - q[0])**2)
 
-def ci_slopes(p, q, slope_mean, delta):
-    _, dist = get_slope_and_dist(p, q)
-    return (slope_mean - np.arctan(delta/dist), slope_mean + np.arctan(delta/dist))
+"""
+Get the confidence interval for the slope. This interval is used to determine if Voronoi points are in the same line.
+The interval is dependent on the distance between points p and q. When a straight triangle is drawn from the line between
+p and q and a line with slope slope_mean from p the third line is maximum delta.
 
+     .p
+    /|
+   / |
+  .--.q
+   delta
+   
+Parameters
+-----------
+p, q : coordinates
+    The two points for which the confidence interval is computed
+slope_field : float
+    The slope of the field
+delta : float
+    The length of opposite side of p in a straight triangle
+
+Returns
+-----------
+confidence_interval : tuple(len=2) of float
+    Confidence interval for the slope
+"""
+def ci_slopes(p, q, slope_field, delta):
+    _, dist = get_slope_and_dist(p, q)
+    return (slope_field - np.arctan(delta/dist), slope_field + np.arctan(delta/dist))
+
+"""
+Group all Voronoi points in a set of Voronoi_polygons which are in the same line dependent on
+the slope of the field.
+   
+Parameters
+-----------
+ps : set of Voronoi_polygons
+    All Voronoi_polygons for which the points inside have to be grouped
+slope_field : float
+    The slope of the field
+vor : Voronoi_diagram
+    The Voronoi diagram describing it all
+
+Returns
+-----------
+lines_coord : list of list of coordinates
+    List of all Voronoi_points in the same line in the set of Voronoi_polygons grouped together
+"""
 def find_points_in_line(ps, slope_field, vor):
     coords = [vor.points[np.where(vor.point_region == p.id)[0][0]] for p in ps]
     points = [np.where(vor.point_region == p.id)[0][0] for p in ps]
@@ -53,7 +119,7 @@ def find_points_in_line(ps, slope_field, vor):
                         closest_slope_p = q
                         closest_slope = slope
                         
-        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], slope_field, 0.01)
+        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], slope_field, 0.02)
         
         if closest_slope > ci_s[0] and closest_slope < ci_s[1]:
             lines.append([p, closest_slope_p])
@@ -100,6 +166,26 @@ def find_points_in_line(ps, slope_field, vor):
         lines_coord.append(sorted([coords[points.index(p)] for p in line], key=lambda a: a[0]))
     return lines_coord
 
+"""
+Returns n equally spaced points in the line between p and q.
+If one of these points has distance smaller thatn d to a Voronoi point an empty list is returned.
+   
+Parameters
+-----------
+p,q : coordinates
+    The points where in between points are filled
+n : int
+    The number of points which have to be filled in
+spindex : pyqtree Index
+    Quad tree to determine if one the missed points is too close to already existing points
+d : float
+    The max distance the returned points can have to already existing points
+
+Returns
+-----------
+ret : list(len=n) of coordinates
+    The points filled in the line between p and q
+"""
 def fill_points_in_line(p, q, n, spindex, d):
     ret = []
     is_on_top_of_point = []
@@ -114,17 +200,60 @@ def fill_points_in_line(p, q, n, spindex, d):
         return ret
     else:
         return []
-    
+ 
+"""
+Gets a convex hull around points.
+   
+Parameters
+-----------
+plants : numpy array of coordinates
+    The points around which a convex hull is given
+
+Returns
+-----------
+polygon : shapely Polygon
+    The convex hull around plants
+"""
 def get_convex_hull(plants):
     poly = Polygon(zip(plants[:,0], plants[:,1]))
     poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
     polygon = Polygon(poly_line.coords)
     return polygon
 
+"""
+Get confidence interval of list of values determined by the whiskers in a boxplot.
+   
+Parameters
+-----------
+a : list of float
+    List of values for which the confidence interval is determined
+
+Returns
+-----------
+confidence_interval : tuple(len=2) of float
+    Whiskers based on values of a.
+"""
 def get_confidence_interval(a):
     iqr = np.abs(np.percentile(a, 75) - np.percentile(a, 25))
-    return (np.percentile(a,25) - 1.5 * iqr, np.percentile(a, 75) + 1.5 * iqr)
+    return (np.percentile(a, 25) - 1.5 * iqr, np.percentile(a, 75) + 1.5 * iqr)
 
+"""
+Scipy Voronoi could not handle the original coordinates, this transforms the values to more readable values.
+   
+Parameters
+-----------
+plants : numpy array of coordinates
+    List of coordinates
+
+Returns
+-----------
+plants_i : numy array of coordinates
+    List of more readable coordinates
+mean_x_coord : float
+    The mean of x of the original coordinates, used for inverse of this function
+mean_y_coord : float
+    The mean of y of the original coordinates, used for inverse of this function
+"""
 def readable_values(plants):
     f = 10000
     mean_x_coord = np.mean(plants[:,0])
@@ -134,6 +263,23 @@ def readable_values(plants):
     plants_i[:,1] = f*(plants[:,1] - mean_y_coord)
     return plants_i, mean_x_coord, mean_y_coord
 
+"""
+Inverse of readable_values. Returns the coordinates of the readable variant of points.
+   
+Parameters
+-----------
+plants : numpy array of coordinates
+    List of coordinates
+mean_x_coord : float
+    The mean of x of the original coordinates
+mean_y_coord : float
+    The mean of y of the original coordinates
+
+Returns
+-----------
+plants_i : numy array of coordinates
+    List of coordinates
+"""
 def readable_values_inv(plants, mean_x_coord, mean_y_coord):
     f = 10000
     plants_i = np.zeros(plants.shape)
@@ -144,6 +290,25 @@ def readable_values_inv(plants, mean_x_coord, mean_y_coord):
     except:
         return np.array([])
 
+"""
+Get the points in a shape file.
+   
+Parameters
+-----------
+path : string
+    Path of the shape file to open.
+
+Returns
+-----------
+plants : list of coordinates
+    The coordinates of the points in the shape file
+src_driver : ESRI Shapefile
+    The driver of the shapefile, used for writing the shapefile of missed points
+src_crs : string
+    The CRS of the shapefile, used for writing the shapefile of missed points
+src_schema : OrderedDict
+    The schema of the shapefile, used for writing the shapefile of missed points
+"""
 def open_shape_file(path):
     with fiona.open(path) as src:
         plants = []
@@ -158,6 +323,22 @@ def open_shape_file(path):
                     plants.append([src[i]['geometry']['coordinates'][0], src[i]['geometry']['coordinates'][1]])
     return plants, src_driver, src_crs, src_schema
 
+"""
+Write a new shapefile.
+   
+Parameters
+-----------
+path : string
+    Path of the shape file to write.
+missed_points_coord : list of coordinates
+    List of points to write in new shapefile
+crs : string
+    The CRS of the new shapefile
+driver : ESRI Shapefile
+    The driver of the new shapefile
+schema : OrderedDict
+    The schema of the new shapefile
+"""
 def write_shape_file(path, missed_points_coord, crs, driver, schema):
     with fiona.open(path, 'w', crs = crs, driver =driver, schema =schema) as dst:
         for i in trange(len(missed_points_coord), desc='writing new shapefile'):
@@ -169,6 +350,19 @@ def write_shape_file(path, missed_points_coord, crs, driver, schema):
                     'properties': OrderedDict([('name', 'missed point')])
                     })
 
+"""
+Returned a trimmed list of missed points where missed points which have a distance smaller that 0.25 meters are removed.
+   
+Parameters
+-----------
+missed_points_coord : list of coordinates
+    Missed points which have to be checked for overlapping points
+    
+Returns
+-----------
+missed_points_coord : list of coordinates
+    Missed points where overlapping points are removed
+"""
 def remove_overlapping_points(missed_points_coord):
     missed_points_qtree = Index(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
     d_y = 1/444444.0 ## 0.25 meters

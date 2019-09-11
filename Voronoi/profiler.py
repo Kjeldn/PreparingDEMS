@@ -23,8 +23,23 @@ for j in range(len(beds)):
             offset = offset + overlap if i * n + offset + overlap < len(bed) else offset
             batches.append(bed[i * n: i * n + offset, :])
             
-plants_i, mean_x_coord, mean_y_coord = util.readable_values(batches[0])
+plants_i, mean_x_coord, mean_y_coord = util.readable_values(batches[22])
 spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
 for plant in plants_i:
     spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
-missed_points, a, ci, adjacent_missed_regions, slopes, dists, ci_s, vor = voronoi.get_missing_points(plants_i, spindex)
+missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = voronoi.get_missing_points(plants_i, spindex, plot=True)
+
+plants_i  = np.concatenate((plants_i, missed_points))
+missed_points_coord = []
+spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
+for plant in plants_i:
+    spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
+missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = voronoi.get_missing_points(plants_i, spindex, plot=True, first_it=False, mean_dist=np.median(dists))
+
+#%%
+import matplotlib.pyplot as plt
+points = np.array([vor.points[(np.where(vor.point_region == poly.id))[0][0]] for poly in adjacent_missed_regions[22]])
+lines = util.find_points_in_line(list(adjacent_missed_regions[22]), 0.5842593210109179, vor)
+plt.scatter(points[:,0], points[:,1])
+for line in lines:
+    plt.plot([p[0] for p in line],[p[1] for p in line])

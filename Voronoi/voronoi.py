@@ -25,12 +25,13 @@ def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=Non
     convex_hull = util.get_convex_hull(np.array(plants))
     vor = vd.Voronoi_diagram(plants)
     a, lengths = util.get_areas_and_lengths(vor, convex_hull)
+    if clip_voronoi:        
+        vor.clip_regions(convex_hull.buffer(0.03))
     ci = util.get_confidence_interval(a)
-    missed_regions, small_regions = vd.get_large_and_small_regions(vor, convex_hull, ci, lengths, clip_voronoi)         
+    missed_regions, small_regions = vd.get_large_and_small_regions(vor, convex_hull, ci, clip_voronoi)         
     adjacent_missed_regions = vd.find_adjacent_polygons(missed_regions)
     slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
-    if clip_voronoi:        
-        vor.clip_regions(convex_hull.buffer(0.04))
+    
     missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, dists, first_it, mean_dist)
     missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dists, spindex, first_it, mean_dist)
     if plot:
