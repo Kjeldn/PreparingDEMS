@@ -5,10 +5,13 @@ from scipy.spatial import voronoi_plot_2d, Voronoi
 import matplotlib.pyplot as plt
 
 class Voronoi_polygon:
-    def __init__(self, id, vi, vc):
-        self.id = id
+    def __init__(self, index, vi, vc):
+        self.id = index
         self.vi = vi
         self.vc = vc
+        
+    def __key(self):
+        return (self.id, len(self.vi))
         
     def __eq__(self, other):
         if self.id != other.id:
@@ -18,7 +21,7 @@ class Voronoi_polygon:
         return True
     
     def __hash__(self):
-        return self.id * sum(self.vi)
+        return hash(self.__key())
     
     def is_adjacent(self, other):
         for i in self.vi:
@@ -131,7 +134,7 @@ def get_large_and_small_regions(vor, convex_hull, ci, lengths, clipped):
                     small_regions.append(Voronoi_polygon(i, vor.regions[i], [list(vor.vertices[k]) for k in vor.regions[i]]))
     return missed_regions, small_regions
 
-def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, ci_s, dists, first_it=True, mean_dist=None):
+def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, dists, first_it=True, mean_dist=None):
     missed_points = []
     for s in adjacent_missed_regions:
         if len(s) == 2:
@@ -139,15 +142,13 @@ def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, ci_s,
             p1 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             p2 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             slope, dist = util.get_slope_and_dist(p1, p2)
-            try:
-                if first_it:
-                    n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
-                else:
-                    n_p = int(dist/(mean_dist/2) + 0.5) - 1
-                if slope > ci_s[0] and slope < ci_s[1] and n_p > 0:
-                    missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
-            except:
-                print(mean_dist, dist)
+
+            if first_it:
+                n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
+            else:
+                n_p = int(dist/(mean_dist/2) + 0.5) - 1
+            if abs(slope - slope_field) < 0.03 and n_p > 0:
+                missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
     return missed_points
 
 def get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions):
@@ -168,12 +169,12 @@ def get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regi
             del slopes[i]
     return slopes, dists
 
-def find_missed_points_in_regions(adjacent_missed_regions, vor, ci_s, dists, spindex, first_it=False, mean_dist=None):
+def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dists, spindex, first_it=False, mean_dist=None):
     missed_points = []
     for i in range(len(adjacent_missed_regions)):
         if len(adjacent_missed_regions[i]) != 2:
             l = list(adjacent_missed_regions[i])
-            lines = util.find_points_in_line(l, ci_s, vor)
+            lines = util.find_points_in_line(l, slope_field, vor)
             for line in lines:
                 for c in range(len(line) - 1):
                     dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)

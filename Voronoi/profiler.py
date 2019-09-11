@@ -23,9 +23,8 @@ for j in range(len(beds)):
             offset = offset + overlap if i * n + offset + overlap < len(bed) else offset
             batches.append(bed[i * n: i * n + offset, :])
             
-plants_i, mean_x_coord, mean_y_coord = util.readable_values(batches[16])
+plants_i, mean_x_coord, mean_y_coord = util.readable_values(batches[0])
 spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
 for plant in plants_i:
     spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
-missed_points, a, ci, adjacent_missed_regions, slopes, dists, ci_s, vor = voronoi.get_missing_points(plants_i, spindex, plot = True)
-
+missed_points, a, ci, adjacent_missed_regions, slopes, dists, ci_s, vor = voronoi.get_missing_points(plants_i, spindex)

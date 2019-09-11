@@ -35,8 +35,7 @@ def ci_slopes(p, q, slope_mean, delta):
     _, dist = get_slope_and_dist(p, q)
     return (slope_mean - np.arctan(delta/dist), slope_mean + np.arctan(delta/dist))
 
-def find_points_in_line(ps, ci, vor):
-    ci_mean = (ci[1] + ci[0])/2
+def find_points_in_line(ps, slope_field, vor):
     coords = [vor.points[np.where(vor.point_region == p.id)[0][0]] for p in ps]
     points = [np.where(vor.point_region == p.id)[0][0] for p in ps]
     lines = []
@@ -50,11 +49,11 @@ def find_points_in_line(ps, ci, vor):
                     closest_slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
                 else:
                     slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
-                    if abs(ci_mean - slope) < abs(ci_mean - closest_slope):
+                    if abs(slope_field - slope) < abs(slope_field - closest_slope):
                         closest_slope_p = q
                         closest_slope = slope
                         
-        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], ci_mean, 0.01)
+        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], slope_field, 0.01)
         
         if closest_slope > ci_s[0] and closest_slope < ci_s[1]:
             lines.append([p, closest_slope_p])
@@ -82,7 +81,7 @@ def find_points_in_line(ps, ci, vor):
         for j in range(len(lines)):
             for k in range(len(lines)):
                 if j !=k:
-                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], ci_mean, 0.05)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], ci_mean, 0.05)[1] for q in lines[k]) for p in lines[j]):                            
+                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[1] for q in lines[k]) for p in lines[j]):                            
                         newline = list(set(lines[j] + lines[k]))
                         if j < k:
                             del lines[k]
