@@ -25,7 +25,7 @@ class Voronoi_polygon:
         return True
     
     def __hash__(self):
-        return hash(self.__key())
+        return self.id
     
     def is_adjacent(self, other):
         for i in self.vi:
