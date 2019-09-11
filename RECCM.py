@@ -1,4 +1,3 @@
-import META
 import cv2
 import numpy as np
 import numpy.matlib
@@ -167,8 +166,12 @@ def SinglMatch(ps1,w,md,edges1C,gt,fx_C,fy_C,edges0C,gt_0,fx_C0,fy_C0,mask_b_C0)
     RECC_total.fill(np.NaN)
     RECC_total[x_i_0_og-max_dist:x_i_0_og+max_dist,y_i_0_og-max_dist:y_i_0_og+max_dist] = RECC_area
     max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
+    max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
     y_i      = np.where(RECC_total >= max_one)[1][0]  
     x_i      = np.where(RECC_total >= max_one)[0][0]
+    y_n      = np.where(RECC_total >= max_n)[1][0:-1]
+    x_n      = np.where(RECC_total >= max_n)[0][0:-1]
+    CV       = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))/4
     x_offset = (x_i-x_i_0_og)*ps1
     y_offset = (y_i-y_i_0_og)*ps1
     o_x = x_i
@@ -176,6 +179,8 @@ def SinglMatch(ps1,w,md,edges1C,gt,fx_C,fy_C,edges0C,gt_0,fx_C0,fy_C0,mask_b_C0)
     t_x = x_i_0
     t_y = y_i_0
     pbar.update(1)
+    pbar.close()
+    print("Status    : ("+str(x_offset)+"m,"+str(y_offset)+"m), CV: "+str(CV))  
     return x_offset,y_offset,o_x, o_y, t_x, t_y
     
 def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0, contour_F0, x_offset, y_offset):
@@ -282,7 +287,7 @@ def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0,
         target_lat[i] = lat_0
     return origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv, dx, dy, RECC_over
 
-def RemOutliers(origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv, dx, dy):
+def RemOutlier(origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, cv, dx, dy):
     size0 = len(o_x)
     indices = np.where(cv>0)[0]
     origin_x   = origin_x[indices]
