@@ -12,8 +12,9 @@ import time
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
-path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Schol\20190726_count_merged.shp"
-dst = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Schol\20190726_count_merged_missed.shp"
+path = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\20190819_Voronoi_points\DW-4\Plant_count_final_merged_merged.shp"
+dst = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\20190819_Voronoi_points\DW-4\Plant_count_final_merged_merged_missed.shp"
+
 clip_voronoi = True
 slope_field_mice = -0.7143475337058449
 slope_field = 0.5842593210109179
