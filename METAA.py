@@ -602,7 +602,7 @@ def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB
     #ax.scatter(Y1Fb,X1Fb,c='r')
     #for i in range(len(X1Fb)):
     #    ax.annotate(str(round(CVb[i],2)),(Y1Fb[i]+(7/0.05),X1Fb[i]-(7/0.05)))
-    plt.close("all")
+    #plt.close("all")
     pbar3.update(1)
     pbar3.close()
 

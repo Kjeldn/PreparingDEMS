@@ -59,9 +59,11 @@ def SinglMatch(psC,w,md,EdgesC1C,gt1,fx1C,fy1C,EdgesC0C,gt0,fx0C,fy0C,MaskB0C):
     max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
     y_i      = np.where(RECC_total >= max_one)[1][0]  
     x_i      = np.where(RECC_total >= max_one)[0][0]
+    y_2      = np.where(RECC_total >= max_n)[1][1]  
+    x_2      = np.where(RECC_total >= max_n)[0][1]
     y_n      = np.where(RECC_total >= max_n)[1][0:-1]
     x_n      = np.where(RECC_total >= max_n)[0][0:-1]
-    CV       = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))/4
+    CV1      = sum(np.sqrt(np.square(x_i-x_n)+np.square(y_i-y_n)))/4
     x_offset = (x_i-x_i_0_og)*psC
     y_offset = (y_i-y_i_0_og)*psC
     o_x = x_i
@@ -70,15 +72,21 @@ def SinglMatch(psC,w,md,EdgesC1C,gt1,fx1C,fy1C,EdgesC0C,gt0,fx0C,fy0C,MaskB0C):
     t_y = y_i_0
     pbar.update(1)
     pbar.close()
-    print("Status    : ("+str(x_offset)+"m,"+str(y_offset)+"m), CV: "+str(CV))  
-    return x_offset,y_offset,o_x, o_y, t_x, t_y
+    print("Status    : ("+str(x_offset)+"m,"+str(y_offset)+"m), CV: "+str(CV1))  
+    return x_offset,y_offset,o_x, o_y, t_x, t_y,CV1
     
-def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0, contour_F0, x_offset, y_offset):
+def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0, contour_F0, x_offset, y_offset,CV1):
     w = int(w/ps2)
     buffer = 2*w
     edges1Fa = np.zeros((edges1F.shape[0]+buffer*2,edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = edges1F
-    max_dist = int((md)/(ps2*4))
+    if CV1>4:
+        md = md/2
+    elif CV1>1.5:
+        md = md/3
+    else:
+        md = md/4
+    max_dist = int((md)/(ps2))
     contours,hierarchy = cv2.findContours((1-contour_F0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
@@ -217,7 +225,7 @@ def RemOutlier(origin_x, origin_y, target_lon, target_lat, o_x, o_y, t_x, t_y, c
     delta_x = dx - x_offset
     delta_y = dy - y_offset
     distance = delta_x**2 + delta_y**2
-    radius = 0.15
+    radius = 1
     indices = np.where(distance <= radius)[0]
     origin_x   = origin_x[indices]
     origin_y   = origin_y[indices]
