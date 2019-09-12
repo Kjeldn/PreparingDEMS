@@ -81,7 +81,10 @@ confidence_interval : tuple(len=2) of float
 """
 def ci_slopes(p, q, slope_field, delta):
     _, dist = get_slope_and_dist(p, q)
-    return (slope_field - np.arctan(delta/dist), slope_field + np.arctan(delta/dist))
+    if dist != 0:
+        return (slope_field - np.arctan(delta/dist), slope_field + np.arctan(delta/dist))
+    else:
+        return (0,0)
 
 """
 Group all Voronoi points in a set of Voronoi_polygons which are in the same line dependent on
@@ -316,7 +319,7 @@ def open_shape_file(path):
         src_crs = src.crs
         src_schema = src.schema
         for i in trange(len(src), desc='opening plants'):
-            if src[i]['geometry']:
+            if src[i] and src[i]['geometry']:
                 if src[i]['geometry']['type'] == 'MultiPoint':
                     plants.append([src[i]['geometry']['coordinates'][0][0], src[i]['geometry']['coordinates'][0][1]])
                 elif src[i]['geometry']['type'] == 'Point':
@@ -330,7 +333,7 @@ Parameters
 -----------
 path : string
     Path of the shape file to write.
-missed_points_coord : list of coordinates
+points : list of coordinates
     List of points to write in new shapefile
 crs : string
     The CRS of the new shapefile
@@ -339,15 +342,15 @@ driver : ESRI Shapefile
 schema : OrderedDict
     The schema of the new shapefile
 """
-def write_shape_file(path, missed_points_coord, crs, driver, schema):
+def write_shape_file(path, points, crs, driver, schema, name):
     with fiona.open(path, 'w', crs = crs, driver =driver, schema =schema) as dst:
-        for i in trange(len(missed_points_coord), desc='writing new shapefile'):
+        for i in trange(len(points), desc='writing new shapefile'):
             dst.write({
                     'geometry': {
                             'type': 'Point',
-                            'coordinates': (missed_points_coord[i][0], missed_points_coord[i][1])
+                            'coordinates': (points[i][0], points[i][1])
                             },
-                    'properties': OrderedDict([('name', 'missed point')])
+                    'properties': OrderedDict([('name', name)])
                     })
 
 """
