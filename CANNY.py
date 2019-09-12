@@ -1,5 +1,4 @@
-import META
-import gdal
+import METAA
 import cv2
 import numpy as np
 import numpy.matlib
@@ -12,7 +11,7 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 warnings.filterwarnings("ignore")
 from tqdm import tqdm
 
-def CannyPF(pixel_size,img_b,mask_b):
+def CannyPFree(pixel_size,img_b,mask_b):
     if pixel_size == 0.05:
         size=6
     else:
@@ -108,9 +107,9 @@ def CannyPF(pixel_size,img_b,mask_b):
                         edgemap[x,y] = 0
         pbar1.update(1)
     pbar1.close()
-    return edgemap, gradientMap, orientationMap, maskMap, gradientPoints, gradientValues
+    return edgemap, orientationMap, maskMap, gradientPoints
 
-def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoints,gradientValues):
+def CannyLines(pixel_size,edgemap,orientationMap,maskMap,gradientPoints):
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
@@ -125,7 +124,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
         chain = []
         chain.append((x,y))
         while x >= 0 and y >= 0:
-            x,y = META.next1(x,y,rows,cols,maskMap,orientationMap)
+            x,y = METAA.next1(x,y,rows,cols,maskMap,orientationMap)
             if x >= 0 and y >= 0:
                 chain.append((x,y))
                 maskMap[x,y] = 2
@@ -140,7 +139,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
             orientationchain = []
             for x in edgeChainsB[i]:
                 orientationchain.append(orientationMap[x[0],x[1]])
-            av = META.moving_average(orientationchain, n=7)
+            av = METAA.moving_average(orientationchain, n=7)
             avchain = np.zeros(len(orientationchain))
             avchain[0:3] = av[0]
             avchain[3:-3] = av
@@ -212,7 +211,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
         b_x = chain[begin_i,0]
         b_y = chain[begin_i,1]
         while b_x >= 0 and b_y >= 0:
-            b_x,b_y = META.next4(b_x,b_y,rows,cols,edgemap_s,0,s,edgeChainsE[i])
+            b_x,b_y = METAA.next4(b_x,b_y,rows,cols,edgemap_s,0,s,edgeChainsE[i])
             if b_x >= 0 and b_y >= 0 and residualmap[b_x,b_y] == 1:            # Extend chain with residual pixel
                 edgeChainsE[i].append((b_x,b_y))
                 residualmap[b_x,b_y] = 0
@@ -223,7 +222,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
                         Ts       = metaLinesE[j][2]
                         Tbegin   = Tchain[0,0]
                         Tend     = Tchain[-1,0]
-                        erange   = META.rangemaker(Tend,thMeaningfulLength)
+                        erange   = METAA.rangemaker(Tend,thMeaningfulLength)
                         if b_x in erange:                                      # Appropriate connection 
                             edgeChainsE[i].extend(edgeChainsE[j])
                             if Ts >= 0:
@@ -250,7 +249,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
         e_x = chain[end_i,0]
         e_y = chain[end_i,1]
         while e_x >= 0 and e_y >= 0:
-            e_x,e_y = META.next4(e_x,e_y,rows,cols,edgemap_s,1,s,edgeChainsE[i])
+            e_x,e_y = METAA.next4(e_x,e_y,rows,cols,edgemap_s,1,s,edgeChainsE[i])
             if e_x >= 0 and e_y >= 0 and residualmap[e_x,e_y] == 1:
                 edgeChainsE[i].append((e_x,e_y))
                 residualmap[e_x,e_y] = 0
@@ -261,7 +260,7 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
                         Ts       = metaLinesE[j][2]
                         Tbegin   = Tchain[0,0]
                         Tend     = Tchain[-1,0]
-                        brange   = META.rangemaker(Tbegin,thMeaningfulLength)
+                        brange   = METAA.rangemaker(Tbegin,thMeaningfulLength)
                         if e_x in brange:                    
                             edgeChainsE[i].extend(edgeChainsE[j])
                             if Ts >= 0:
@@ -309,10 +308,18 @@ def CannyLines(pixel_size,edgemap,gradientMap,orientationMap,maskMap,gradientPoi
         if lengthE[i] < thMeaningfulLength:
             del edgeChainsF[i]
     # FINALIZE
-    edgechainmap = np.zeros(edgemap.shape)
+    mapA = np.zeros(edgemap.shape)
+    for chain in edgeChainsA:
+       for point in chain:    
+           mapA[point[0],point[1]]=1
+    mapE = np.zeros(edgemap.shape)
+    for chain in edgeChainsE:
+       for point in chain:    
+           mapE[point[0],point[1]]=1           
+    mapF = np.zeros(edgemap.shape)
     for chain in edgeChainsF:
         for point in chain:    
-            edgechainmap[point[0],point[1]]=1
+            mapF[point[0],point[1]]=1
     pbar2.update(1)
     pbar2.close()
-    return edgechainmap,edgeChainsA,edgeChainsB,edgeChainsE
+    return mapA,mapE,mapF,edgeChainsE
