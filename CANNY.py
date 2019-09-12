@@ -1,5 +1,4 @@
 import METAA
-import gdal
 import cv2
 import numpy as np
 import numpy.matlib
