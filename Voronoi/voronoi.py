@@ -10,13 +10,16 @@ import time
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
-path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Schol\20190726_count_merged.shp"
-dst = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Schol\20190726_count_merged_missed.shp"
+path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\20190717_count.shp"
+dst = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\20190717_count.shp"
 
 clip_voronoi = True
 slope_field_mice = -0.7143475337058449
-slope_field = 0.5842593210109179
-n_ints = 2
+slope_field_schol = 0.5842593210109179
+slope_field_weveroost = -0.8818719406757523
+slope_field_jokevisser = -0.17467219546157892
+slope_field = -0.8818719406757523
+n_ints = 1
 n_processes = 4
 batch_size = 5000
 overlap = 1000
@@ -47,7 +50,7 @@ def worker(batch, first_it, mean_dist, i, total):
     for plant in plants_i:
         spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
     if first_it:
-        missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex)
+        missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex, mean_dist = mean_dist)
     else:
         missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex, first_it = False, mean_dist = mean_dist)
     missed_points_coord = missed_points_coord + list(util.readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))
@@ -55,7 +58,7 @@ def worker(batch, first_it, mean_dist, i, total):
     print("batch", i, "/", total, "done by", mp.current_process(), "in", time.time() - start, "seconds")
     return missed_points_coord, np.nanmedian(slopes), np.nanmedian(dists)
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     plants, src_driver, src_crs, src_schema = util.open_shape_file(path)
     missed_points_coord = []
     slope_means = []
@@ -71,14 +74,18 @@ if __name__ == "__main__":
                 for i in range(int(np.ceil(len(bed)/batch_size))):
                     offset = batch_size if (i + 1) * batch_size < len(bed) else len(bed) - i * batch_size
                     offset = offset + overlap if i * batch_size + offset + overlap < len(bed) else offset
-                    batches.append(bed[i * batch_size: i * batch_size + offset, :])
+                    if offset > 500:
+                        batches.append(bed[i * batch_size: i * batch_size + offset, :])
         
         time1= time.time()
         results = [p.apply_async(worker, (batches[i], z == 0, np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
         
         new_missed_points = []
         for res in results:
-            new_missed_points += res.get()[0]
+            try:
+                new_missed_points += res.get()[0]
+            except:
+                print(res.get()[0])
             if z == 0:
                 slope_means.append(res.get()[1])
                 dists_means.append(res.get()[2])
@@ -88,4 +95,4 @@ if __name__ == "__main__":
         p.close()
         p = None
 
-    util.write_shape_file(dst, missed_points_coord, src_crs, src_driver, {'geometry': 'Point', 'properties': OrderedDict([('name', 'str')])})
+    util.write_shape_file(dst, missed_points_coord, src_crs, src_driver, {'geometry': 'Point', 'properties': OrderedDict([('name', 'str')])}, 'missed point')

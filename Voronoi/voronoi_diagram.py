@@ -13,10 +13,7 @@ class Voronoi_polygon:
         self.id = index
         self.vi = vi
         self.vc = vc
-        
-    def __key(self):
-        return (self.id, len(self.vi))
-        
+
     def __eq__(self, other):
         if self.id != other.id:
             return False
@@ -323,7 +320,12 @@ def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dis
                 for c in range(len(line) - 1):
                     dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
                     if first_it:
-                        n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
+                        if dists:
+                            n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
+                        elif mean_dist:
+                            n_p = int(dist/(mean_dist/2) + 0.5) - 1
+                        else:
+                            n_p = 0
                     else:
                         n_p = int(dist/(mean_dist/2) + 0.5) - 1
                     if n_p > 0:
