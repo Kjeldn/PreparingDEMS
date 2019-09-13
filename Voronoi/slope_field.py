@@ -11,7 +11,6 @@ batch_size = 5000
 overlap = 1000
 n_processes = 4
 
-
 def get_slopes(plants, index, size):
     plants_i, mean_x_coord, mean_y_coord = util.readable_values(plants)
     convex_hull = util.get_convex_hull(np.array(plants_i))

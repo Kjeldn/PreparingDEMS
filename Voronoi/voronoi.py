@@ -48,6 +48,7 @@ def worker(batch, first_it, mean_dist, i, total):
     
     plants_i, mean_x_coord, mean_y_coord = util.readable_values(batch)
     plants_i, _ = ro.remove_outliers(plants_i, slope_field)
+    plants_i = np.array(plants_i)
     spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
     for plant in plants_i:
         spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))

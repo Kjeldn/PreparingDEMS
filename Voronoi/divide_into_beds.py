@@ -12,9 +12,38 @@ def fill_points_in_line(p, q, n):
         point_to_add = [(i*p[0] + (n + 1 -i) * q[0])*(1/(n+1)), (i*p[1] + (n + 1 -i) * q[1])*(1/(n+1))]
         ret.append(point_to_add)
     return ret
-            
-def divide(plants, plot=False):
-    plants = np.array(sorted(sorted(plants, key=lambda a : a[0]), key = lambda a: a[1]))
+
+"""
+Divide list of points into beds. This is done with the following steps:
+    1. 5000 equidistant points on the exterior of the convex hull of plants are made. For each point the distance
+        to the closest point in plants is calculated.
+    2. Points on the exterior of the convex hull with large distance to plants are grouped together if in the same neighbourhood.
+    3. The point with the largest distance to plants in each group is calculated
+    4. For each pair of points found in step 3 the line between them is evaluated. If points on this line have large distance to plants
+        the likeliness of it being a line on a rijpad is large
+    5. For each line with likeliness > 0.95 the points are split
+
+Works better for wider rijpads.
+
+Parameters
+-----------
+plants : list or numpy array of coordinates
+    The plants that have to be divided into beds
+plot : Boolean
+    If True it plots the divided beds, the splitting lines and the points on the convex hull with large distance to plants
+orentation : String
+    If The orientation of the crop field is more North-South than East-West set this to North-South
+    
+Returns
+-----------
+beds : list of numpy arrays
+    plants divided in beds
+"""
+def divide(plants, plot=False, orientation='East-West'):
+    if orientation == 'North-South':
+        plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
+    else:    
+        plants = np.array(sorted(sorted(plants, key=lambda a : a[0]), key = lambda a: a[1]))
     
     spindex = Index(bbox=(np.amin(plants[:,0]), np.amin(plants[:,1]), np.amax(plants[:,0]), np.amax(plants[:,1])))
     for plant in plants:
