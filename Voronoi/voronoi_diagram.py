@@ -5,7 +5,7 @@ from scipy.spatial import voronoi_plot_2d, Voronoi
 import matplotlib.pyplot as plt
 
 """
-Extending of Voronoi regions found in the Voronoi diagram,
+Extension of Voronoi regions found in the Voronoi diagram,
 Needs custom hash code functions to be used in sets and equals function to compare them.
 """
 class Voronoi_polygon:
