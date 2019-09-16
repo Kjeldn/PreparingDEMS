@@ -13,22 +13,24 @@ import matplotlib.pyplot as plt
 
 gdal.UseExceptions()
 
-wd = r"C:/Users/wytze/OneDrive/Documents/vanBoven/Broccoli"
+wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Hollandbean - Jos Schelling"
 #paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["c01_verdonk-Wever oost-201907170731_DEM-GR"]
-path_ahn = "m_19fn2.tif"
+paths = ["1_DEM", "2_DEM", "3_DEM", "8_DEM", "9_DEM", "10_DEM"]
+path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False
 
 #%% plants
-plants = []
-    
-with fiona.open(wd + "/20190717_count.shp") as src:
-    for s in src:
-        plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
-        src_driver = src.driver
-        src_crs = src.crs
-        src_schema = src.schema
+# =============================================================================
+# plants = []
+#     
+# with fiona.open(wd + "/20190717_count.shp") as src:
+#     for s in src:
+#         plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
+#         src_driver = src.driver
+#         src_crs = src.crs
+#         src_schema = src.schema
+# =============================================================================
     
 #%% reproject AHN Model
 if path_ahn:
@@ -66,20 +68,6 @@ for a in range(len(paths)):
     gt = file.GetGeoTransform()
     xsize = band.XSize
     ysize = band.YSize
-    
-    x_plants = []
-    y_plants = []
-    values = []
-    
-    plane = util.Plane(array, gt)
-    for p in plants:
-        if p:
-            xc_plant, yc_plant = plane.getIndicesByCoord(p[1], p[0])
-            x_plants.append(xc_plant)
-            y_plants.append(yc_plant)
-    poly = Polygon(zip(x_plants, y_plants))
-    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-    polygon = Polygon(poly_line.buffer(100).exterior.coords)
         
     if use_ridges:
         if load_ridges:
@@ -90,7 +78,6 @@ for a in range(len(paths)):
             file = None
         else:
             ridges_array = dt.get_ridges_array(array).astype(np.uint8)
-    #ridges_array = createMask.getMask(array, plants, gt)
     
     ##Remove all non-values from array
     array[array == np.amin(array)] = 0
@@ -109,7 +96,7 @@ for a in range(len(paths)):
             data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j] if path_ahn else array[step * i, step * j]
             x[i][j] = step * i
             y[i][j] = step * j
-            if array[step * i, step * j] == 0 or not polygon.contains(Point(step * i, step * j)):
+            if array[step * i, step * j] == 0:
                 mask[i][j] = True
             if use_ridges and ridges_array[step * i, step * j] != 0:
                 mask[i][j] = True
