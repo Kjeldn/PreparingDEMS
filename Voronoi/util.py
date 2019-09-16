@@ -88,7 +88,12 @@ def ci_slopes(p, q, slope_field, delta):
 
 """
 Group all Voronoi points in a set of Voronoi_polygons which are in the same line dependent on
-the slope of the field.
+the slope of the field. This is done in three steps:
+    1. For each Voronoi point find the Voronoi point which has the slope closest to slope_field and
+        pair them together if the slope between them is not too far from the ci_slopes(with delta=0.02).
+    2. For each pair check if there is overlap with other pairs and merge them together if there is
+    3. Now the groups of points are checked with other groups of points, if all points of both groups have slopes within
+        ci_slopes(delta=0.05) interval the groups are merged
    
 Parameters
 -----------
@@ -313,6 +318,7 @@ src_schema : OrderedDict
     The schema of the shapefile, used for writing the shapefile of missed points
 """
 def open_shape_file(path):
+    n = 0
     with fiona.open(path) as src:
         plants = []
         src_driver = src.driver
@@ -324,6 +330,8 @@ def open_shape_file(path):
                     plants.append([src[i]['geometry']['coordinates'][0][0], src[i]['geometry']['coordinates'][0][1]])
                 elif src[i]['geometry']['type'] == 'Point':
                     plants.append([src[i]['geometry']['coordinates'][0], src[i]['geometry']['coordinates'][1]])
+            else:
+                n+=1
     return plants, src_driver, src_crs, src_schema
 
 """

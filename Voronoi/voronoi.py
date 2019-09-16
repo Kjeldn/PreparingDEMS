@@ -7,6 +7,7 @@ import voronoi_diagram as vd
 import util
 import multiprocessing as mp
 import time
+import remove_outliers as ro
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
@@ -18,7 +19,7 @@ slope_field_mice = -0.7143475337058449
 slope_field_schol = 0.5842593210109179
 slope_field_weveroost = -0.8818719406757523
 slope_field_jokevisser = -0.17404523952846995
-slope_field = -0.8818719406757523
+slope_field = -0.7143475337058449
 n_ints = 1
 n_processes = 4
 batch_size = 5000
@@ -49,6 +50,8 @@ def worker(batch, first_it, mean_dist, i, total):
     spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
     for plant in plants_i:
         spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
+    plants_i, _ = ro.remove_outliers(plants_i, slope_field)
+    plants_i = np.array(plants_i)
     if first_it:
         missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex, mean_dist = mean_dist)
     else:
