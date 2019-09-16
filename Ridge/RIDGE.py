@@ -3,6 +3,10 @@ import numpy as np
 import METAA
 import gdal
 import cv2
+import matplotlib.pyplot as plt
+
+
+path = r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Hollandbean - Jos Schelling\2_DEM.tif"
 
 def DemOpening(psF,path):
     file                               = gdal.Open(path)
@@ -30,7 +34,7 @@ def DemOpening(psF,path):
     
     temp1 = np.zeros(ridges.shape)
     temp2 = np.zeros(ridges.shape)
-    temp1[ridges<-0.02]=1
-    temp2[ridges>-0.14]=1
+    temp1[ridges<-0.01]=1
+    temp2[ridges>-0.11]=1
     temp = (temp1*temp2).astype(np.uint8)    
     return temp, gt, fx, fy, mask
