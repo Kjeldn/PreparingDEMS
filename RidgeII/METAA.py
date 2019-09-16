@@ -14,41 +14,49 @@ import os
 from tkinter import filedialog
 from tkinter import *
 
-def Initialize():
-    psC = 0.5   #[m]  (0.5)  <First pixelsize>
-    psF = 0.05  #[m]  (0.05) <Second pixelsize>
-    w   = 25    #[m]  (25)   <Radius template>
-    md  = 12    #[m]  (12)   <Max displacement>
-    return psC,psF,w,md
+def SelectFiles():
+    root = Tk()
+    root.withdraw()
+    #
+    root.filename =  filedialog.askopenfilename(initialdir = "/" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    #
+    base = root.filename
+    temp = base[::-1]
+    temp2 = temp[temp.find("/")+1:]
+    wdir = temp2[::-1]
+    root = Tk()
+    root.withdraw()
+    #
+    root.filename2 =  filedialog.askopenfilename(multiple=True,initialdir = wdir,title = "Select Orthomosaics for Georegistration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    #
+    path = []
+    path.append(base)
+    path.extend(root.filename2)
+    return path
 
-def LogStarter(l,i,files):
-    orig = sys.stdout
-    if l == 1:
-        folder = files[i].strip(".tif") + "_georeg"
-        logname = folder+"/Z_log.txt"
-        if os.path.isfile(logname.replace("\\","/")):
-            os.remove(logname)
-        if not os.path.exists(folder.replace("\\","/")):
-            os.makedirs(folder)
-        orig = sys.stdout
-        class Tee(object):
-            def __init__(self, *files):
-                self.files = files
-            def write(self, obj):
-                for f in self.files:
-                    f.write(obj)
-                    f.flush() # If you want the output to be visible immediately
-            def flush(self) :
-                for f in self.files:
-                    f.flush()
-        f = open(logname, 'w')
-        sys.stdout = Tee(sys.stdout, f)
-    return(orig)
+def calc_distance(lat1, lon1, lat2, lon2):
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    m = 1000 * 6371 * c
+    return m
 
-def LogStopper(orig):
-    sys.stdout = orig 
-
-def OrthOpenin(ps1,path):
+def calc_pixsize(array,gt):
+    lon1 = gt[0] 
+    lat1 = gt[3] 
+    lon2 = gt[0] + gt[1]*array.shape[0]
+    lat2 = gt[3] + gt[4]*array.shape[0]
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    ysize = dist/array.shape[0]  
+    lon2 = gt[0] + gt[2]*array.shape[1]
+    lat2 = gt[3] + gt[5]*array.shape[1]
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    xsize = dist/array.shape[1]
+    return xsize, ysize   
+    
+def OrtOpening(path):
     pbar1 = tqdm(total=1,position=0,desc="Opening   ")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
@@ -56,6 +64,7 @@ def OrthOpenin(ps1,path):
     G                                  = file.GetRasterBand(2).ReadAsArray()
     R                                  = file.GetRasterBand(3).ReadAsArray()
     x_s, y_s                           = calc_pixsize(R,gt)
+    ps1 = 0.5
     R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
@@ -84,72 +93,42 @@ def OrthOpenin(ps1,path):
     img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
     pbar1.update(1)
     pbar1.close()
-    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1
+    return img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
-def OrthSwitch(ps2,ps1,img_s2,edgeChainsE):
-    pbar2 = tqdm(total=1,position=0,desc="Switching ")
-    ratio                              = int(ps1/ps2)
-    mask_o                             = np.zeros(img_s2[:,:,0].shape)
-    mask_o[img_s2[:,:,0]==255]  = 1
-    mask_o_b                           = cv2.GaussianBlur(mask_o,(5,5),0) 
-    mask_n                             = np.zeros(img_s2[:,:,0].shape)
-    for chain in edgeChainsE:
-        for point in chain:
-            mask_n[(point[0]-1)*ratio:(point[0]+2)*ratio,(point[1]-1)*ratio:(point[1]+2)*ratio]=1
-    mask_n[mask_o_b>=10**-10]          = 0
-    img_s3                             = np.zeros(img_s2.shape,np.uint8)
-    img_s3[:,:,0]                      = img_s2[:,:,0]*mask_n
-    img_s3[:,:,1]                      = img_s2[:,:,1]*mask_n
-    img_s3[:,:,2]                      = img_s2[:,:,2]*mask_n
-    img_s3_cielab                      = cv2.cvtColor(img_s3,cv2.COLOR_BGR2Lab)
-    L                                  = img_s3_cielab[:,:,0]
-    hist                               = np.histogram(L[mask_n==1],bins=256)[0]
-    cdf                                = hist.cumsum()
-    cdf_m                              = np.ma.masked_equal(cdf,0)
-    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
-    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
-    L_eq                               = cdf[L] 
-    img_s_cielab_eq                    = img_s3_cielab.copy()
-    img_s_cielab_eq[:,:,0]             = L_eq   
-    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
-    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)    
-    img_b                              = img_g
-    mask_n                             = 1 - mask_n
-    pbar2.update(1)
-    pbar2.close()
-    return img_b, mask_n, mask_o
-
-def calc_distance(lat1, lon1, lat2, lon2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    m = 1000 * 6371 * c
-    return m
-
-def calc_pixsize(array,gt):
-    lon1 = gt[0] 
-    lat1 = gt[3] 
-    lon2 = gt[0] + gt[1]*array.shape[0]
-    lat2 = gt[3] + gt[4]*array.shape[0]
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    ysize = dist/array.shape[0]  
-    lon2 = gt[0] + gt[2]*array.shape[1]
-    lat2 = gt[3] + gt[5]*array.shape[1]
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    xsize = dist/array.shape[1]
-    return xsize, ysize
-
-def intersect(a1, a2, b1, b2):
-    s = np.vstack([a1,a2,b1,b2])        # s for stacked
-    h = np.hstack((s, np.ones((4, 1)))) # h for homogeneous
-    l1 = np.cross(h[0], h[1])           # get first line
-    l2 = np.cross(h[2], h[3])           # get second line
-    x, y, z = np.cross(l1, l2)          # point of intersection
-    if z == 0:                          # lines are parallel
-        return (float('inf'), float('inf'))
-    return (x/z, y/z)
+def DemOpening(path,ps):
+    temp = path.strip(".tif")+"_DEM.tif"
+    file                               = gdal.Open(temp)
+    gt                                 = file.GetGeoTransform()
+    dem_o                              = file.GetRasterBand(1).ReadAsArray()
+    x_s, y_s                           = calc_pixsize(dem_o,gt)
+    mask                               = np.zeros(dem_o.shape)
+    mask[dem_o==np.min(dem_o)]         = 1
+    if ps == 0:
+        psF = max(x_s,y_s)
+    else:
+        psF = ps
+    dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
+    mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
+    fx                                 = dem_o.shape[0]/dem.shape[0]
+    fy                                 = dem_o.shape[1]/dem.shape[1]
+    dem[dem == np.amin(dem)] = 0
+    dem[dem > 10] = 0  
+    kernel = np.ones((8,1),np.float32)/8
+    filtered_dem = cv2.filter2D(dem,-1,kernel)
+    for i in range(2):
+        filtered_dem = cv2.filter2D(filtered_dem,-1,kernel)  
+    n=int(75/(psF/0.01))
+    kernel = np.ones((n,n),np.float32)/(n**2)
+    smooth = cv2.filter2D(dem,-1,kernel)
+    ridges = (filtered_dem-smooth)
+    mask_b = cv2.GaussianBlur(mask,(51,51),0)  
+    ridges[mask_b>10**-10]=0  
+    temp1 = np.zeros(ridges.shape)
+    temp2 = np.zeros(ridges.shape)
+    temp1[ridges<-0.01]=1
+    temp2[ridges>-0.11]=1
+    ridges = (temp1*temp2).astype(np.uint8)    
+    return psF,gt,fx,fy,mask_b,ridges
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -388,183 +367,14 @@ def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
                     break
     return a, b
 
+def moving_average(a, n=3) :
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
+
 def rangemaker(num,thMeaningfulLength):
     span = int(thMeaningfulLength/5)
     range_array = np.zeros(2*span+1)
     for i in range(len(range_array)):
         range_array[i]=int(num-span+i)
     return range_array
-        
-def moving_average(a, n=3) :
-    ret = np.cumsum(a, dtype=float)
-    ret[n:] = ret[n:] - ret[:-n]
-    return ret[n - 1:] / n
-
-def overlay(img):
-    temp = copy.deepcopy(img)
-    temp[temp==0]=np.NaN
-    return temp
-
-def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,EdgesA0C,EdgesB0C,EdgesC0C,EdgesA1C,EdgesB1C,EdgesC1C,X0C,Y0C,X1C,Y1C,X0Fa,Y0Fa,X1Fa,Y1Fa,X0Fb,Y0Fb,X1Fb,Y1Fb,CVb,Ridges0,Ridges1):
-    pbar3 = tqdm(total=1,position=0,desc="LogFigures")
-    folder = files[i].strip(".tif") + "_georeg"
-    if not os.path.exists(folder.replace("\\","/")):
-        os.makedirs(folder)
-    plt.close("all")
-    # [CANNY] (Coarse) Edge Check
-    ind = min(np.where(CVb==min(CVb))[0])
-    x = X0Fb[ind]/(psC/psF)
-    y = Y0Fb[ind]/(psC/psF)
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(ImgB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    if logi == 1:
-        plt.savefig(folder+"\\A_Edges0_max.png",dpi = 500)
-    plt.figure()
-    ind = min(np.where(CVb==max(CVb))[0])
-    x = X0Fb[ind]/(psC/psF)
-    y = Y0Fb[ind]/(psC/psF)
-    plt.subplot(1,2,1)
-    plt.imshow(ImgB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    if logi == 1:
-        plt.savefig(folder+"\\B_Edges0_min.png",dpi = 500)
-    # [CANNY] (Coarse) Edge Check
-    ind = min(np.where(CVb==min(CVb))[0])
-    x = X0Fb[ind]/(psC/psF)
-    y = Y0Fb[ind]/(psC/psF)
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(ImgB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')  
-    if logi == 1:
-        plt.savefig(folder+"\\C_Edges1_max.png",dpi = 500)
-    ind = min(np.where(CVb==max(CVb))[0])
-    x = X0Fb[ind]/(psC/psF)
-    y = Y0Fb[ind]/(psC/psF)
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(ImgB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray') 
-    if logi == 1:
-        plt.savefig(folder+"\\D_Edges1_min.png",dpi = 500)
-    # [RECC] (Coarse) GCP
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(Img0C)  
-    plt.imshow(overlay(EdgesA0C),cmap='gist_rainbow')
-    plt.scatter(Y0C,X0C,c='b',s=2)
-    plt.subplot(1,2,2)
-    plt.imshow(Img1C)  
-    plt.imshow(overlay(EdgesA1C),cmap='gist_rainbow')
-    plt.plot([Y0C,Y1C],[X0C,X1C],c='y',lw=0.5)
-    plt.scatter(Y1C,X1C,c='b',s=2)  
-    if logi == 1:
-        plt.savefig(folder+"\\E_SingleMatch.png",dpi = 500)
-    # [CANNY] (Fine) Edge Check
-    ind = max(np.where(CVb==min(CVb))[0])
-    x = X0Fb[ind]
-    y = Y0Fb[ind]
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(Img0C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(Ridges0[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
-    if logi == 1:
-        plt.savefig(folder+"\\F_Ridges0_max",dpi = 500) 
-    ind = min(np.where(CVb==max(CVb))[0])
-    x = X0Fb[ind]
-    y = Y0Fb[ind]
-    plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(Img0C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(Ridges0[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
-    if logi == 1:
-        plt.savefig(folder+"\\G_Ridges0_min",dpi = 500)
-    # [CANNY] (Fine) Edge Check
-    ind = max(np.where(CVb==min(CVb))[0])
-    x = X0Fb[ind]
-    y = Y0Fb[ind]
-    plt.subplot(1,2,1)
-    plt.imshow(Img1C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(Ridges1[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
-    if logi == 1:
-        plt.savefig(folder+"\\H_Ridges1_max",dpi = 500)
-    ind = min(np.where(CVb==max(CVb))[0])
-    x = X0Fb[ind]
-    y = Y0Fb[ind]
-    plt.subplot(1,2,1)
-    plt.imshow(Img1C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
-    plt.subplot(1,2,2)
-    plt.imshow(Ridges1[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')   
-    if logi == 1:
-        plt.savefig(folder+"\\I_Ridges1_min",dpi = 500)
-    # [RECC] (Fine) GCP original
-    plt.figure()
-    clist = list(np.random.choice(range(256), size=len(X0Fa)))
-    plt.subplot(1,2,1)
-    plt.title('Orthomosaic 0')
-    plt.imshow(Img0C)  
-    plt.scatter(Y0Fa/10,X0Fa/10,c=clist,s=5)
-    plt.subplot(1,2,2)
-    plt.title('Orthomosaic 1')
-    plt.imshow(Img1C)  
-    plt.scatter(Y1Fa/10,X1Fa/10,c=clist,s=5)  
-    if logi == 1:
-        plt.savefig(folder+"\\J_RECCa",dpi = 500)
-    # [RECC] (Fine) GCP outlier
-    plt.figure()
-    clist = list(np.random.choice(range(256), size=len(X0Fb)))
-    plt.subplot(1,2,1)
-    plt.title('Orthomosaic 0')
-    plt.imshow(Img0C)  
-    plt.scatter(Y0Fb/10,X0Fb/10,c=clist,s=5)
-    plt.subplot(1,2,2)
-    plt.title('Orthomosaic 1')
-    plt.imshow(Img1C)  
-    plt.scatter(Y1Fb/10,X1Fb/10,c=clist,s=5)
-    if logi == 1:
-        plt.savefig(folder+"\\K_RECCb",dpi = 500)
-    # [RECC] RECC check
-    #fig,ax = plt.subplots()
-    #plt.imshow(RECC_over,cmap='gray')
-    #ax.scatter(Y1Fb,X1Fb,c='r')
-    #for i in range(len(X1Fb)):
-    #    ax.annotate(str(round(CVb[i],2)),(Y1Fb[i]+(7/0.05),X1Fb[i]-(7/0.05)))
-    if logi == 1:
-        plt.close("all")
-    pbar3.update(1)
-    pbar3.close()
-
-def SelectBase(base):
-    root = Tk()
-    root.withdraw()
-    temp = base[::-1]
-    temp2 = temp[temp.find("/")+1:]
-    wdir = temp2[::-1]
-    #
-    root.filename =  filedialog.askopenfilename(initialdir = wdir,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
-    return root.filename
-
-def SelectFiles(base):  
-    root = Tk()
-    root.withdraw()
-    temp = base[::-1]
-    temp2 = temp[temp.find("/")+1:]
-    wdir = temp2[::-1]
-    #
-    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = wdir,title = "Select Orthomosaics for Georegistration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
-    return root.filename
-
-def DEMonize(path):
-    temp = path.strip(".tif")+"_DEM.tif"
-    return(temp)
