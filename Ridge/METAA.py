@@ -593,11 +593,14 @@ def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB
     pbar3.update(1)
     pbar3.close()
 
-def SelectBase(): 
+def SelectBase(base):
     root = Tk()
     root.withdraw()
+    temp = base[::-1]
+    temp2 = temp[temp.find("/")+1:]
+    wdir = temp2[::-1]
     #
-    root.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    root.filename =  filedialog.askopenfilename(initialdir = wdir,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
     return root.filename
 

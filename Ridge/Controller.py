@@ -5,10 +5,10 @@ import RECCM
 import gdal
 
 l             = 0
-base          = METAA.SelectBase()
+base          = METAA.SelectBase("/")
 files         = METAA.SelectFiles(base)
-baseR         = METAA.SelectBase()
-filesR        = METAA.SelectFiles(baseR)
+baseR         = METAA.SelectBase(base)
+filesR        = METAA.SelectFiles(base)
 psC,psF,w,md  = METAA.Initialize()
 
 print("[BASE]")
