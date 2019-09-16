@@ -75,11 +75,17 @@ def SinglMatch(psC,w,md,EdgesC1C,gt1,fx1C,fy1C,EdgesC0C,gt0,fx0C,fy0C,MaskB0C):
     print("Status    : ("+str(x_offset)+"m,"+str(y_offset)+"m), CV: "+str(CV1))  
     return x_offset,y_offset,o_x, o_y, t_x, t_y,CV1
     
-def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0, contour_F0):
+def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0, contour_F0,x_offset,y_offset,CV1):
     w = int(w/ps2)
     buffer = 2*w
     edges1Fa = np.zeros((edges1F.shape[0]+buffer*2,edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = edges1F
+    if CV1>4:
+        md = md/2
+    elif CV1>1.5:
+        md = md/3
+    else:
+        md = md/4
     max_dist = int((md)/(ps2))
     contours,hierarchy = cv2.findContours((1-contour_F0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -139,8 +145,8 @@ def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0,
         sum_target = np.sum(target)   
         lat_0 = gt_0[3] + gt_0[5]*x_i_0*fx_F0  
         lon_0 = gt_0[0] + gt_0[1]*y_i_0*fy_F0
-        x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fx_F)))
-        y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fy_F)))
+        x_i_0_og = int(round((lat_0-gt[3])/(gt[5]*fx_F) + (x_offset/ps2)))
+        y_i_0_og = int(round((lon_0-gt[0])/(gt[1]*fy_F) + (y_offset/ps2)))
         search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
         search_wide = edges1Fa[buffer+x_i_0_og-max_dist-w:buffer+x_i_0_og+max_dist+w,buffer+y_i_0_og-max_dist-w:buffer+y_i_0_og+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):

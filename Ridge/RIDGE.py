@@ -4,8 +4,8 @@ import METAA
 import gdal
 import cv2
 
-def DemOpening(psF,base):
-    file                               = gdal.Open(base)
+def DemOpening(psF,path):
+    file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     dem_o                              = file.GetRasterBand(1).ReadAsArray()
     x_s, y_s                           = METAA.calc_pixsize(dem_o,gt)
@@ -30,7 +30,7 @@ def DemOpening(psF,base):
     
     temp1 = np.zeros(ridges.shape)
     temp2 = np.zeros(ridges.shape)
-    temp1[ridges<0]=1
-    temp2[ridges>-0.3]=1
+    temp1[ridges<-0.02]=1
+    temp2[ridges>-0.14]=1
     temp = (temp1*temp2).astype(np.uint8)    
     return temp, gt, fx, fy, mask

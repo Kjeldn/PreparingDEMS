@@ -48,7 +48,7 @@ def LogStarter(l,i,files):
 def LogStopper(orig):
     sys.stdout = orig 
 
-def OrthOpenin(ps1,ps2,path):
+def OrthOpenin(ps1,path):
     pbar1 = tqdm(total=1,position=0,desc="Opening   ")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
@@ -61,8 +61,6 @@ def OrthOpenin(ps1,ps2,path):
     B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     fact_x_ps1                         = B.shape[0]/B_s.shape[0]
     fact_y_ps1                         = B.shape[1]/B_s.shape[1]
-    #x_b_ps1                            = B_s.shape[0]
-    #y_b_ps1                            = B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -84,20 +82,9 @@ def OrthOpenin(ps1,ps2,path):
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
     fsize                              = int(np.ceil((1.05/ps1))//2*2+1)
     img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
-    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    img_s2                             = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
-    img_s2[:,:,0]                      = B_s
-    img_s2[:,:,1]                      = G_s
-    img_s2[:,:,2]                      = R_s
-    fact_x_ps2                         = B.shape[0]/B_s.shape[0]
-    fact_y_ps2                         = B.shape[1]/B_s.shape[1]
-    #x_b_ps2                            = B_s.shape[0]
-    #y_b_ps2                            = B_s.shape[1]
     pbar1.update(1)
     pbar1.close()
-    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1, img_s2, fact_x_ps2, fact_y_ps2
+    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1
 
 def OrthSwitch(ps2,ps1,img_s2,edgeChainsE):
     pbar2 = tqdm(total=1,position=0,desc="Switching ")
@@ -418,7 +405,7 @@ def overlay(img):
     temp[temp==0]=np.NaN
     return temp
 
-def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB0F,ImgB1F,EdgesA0C,EdgesB0C,EdgesC0C,EdgesA1C,EdgesB1C,EdgesC1C,EdgesA0F,EdgesB0F,EdgesC0F,EdgesA1F,EdgesB1F,EdgesC1F,X0C,Y0C,X1C,Y1C,X0Fa,Y0Fa,X1Fa,Y1Fa,X0Fb,Y0Fb,X1Fb,Y1Fb,CVb):
+def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,EdgesA0C,EdgesB0C,EdgesC0C,EdgesA1C,EdgesB1C,EdgesC1C,X0C,Y0C,X1C,Y1C,X0Fa,Y0Fa,X1Fa,Y1Fa,X0Fb,Y0Fb,X1Fb,Y1Fb,CVb,Ridges0,Ridges1):
     pbar3 = tqdm(total=1,position=0,desc="LogFigures")
     folder = files[i].strip(".tif") + "_georeg"
     if not os.path.exists(folder.replace("\\","/")):
@@ -429,67 +416,43 @@ def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB
     x = X0Fb[ind]/(psC/psF)
     y = Y0Fb[ind]/(psC/psF)
     plt.figure()
-    plt.subplot(2,2,1)
+    plt.subplot(1,2,1)
     plt.imshow(ImgB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(2,2,2)
+    plt.subplot(1,2,2)
     plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='winter')
-    plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
     if logi == 1:
-        plt.savefig(folder+"\\A_Edges0C_a.png",dpi = 500)
+        plt.savefig(folder+"\\A_Edges0_max.png",dpi = 500)
     plt.figure()
     ind = min(np.where(CVb==max(CVb))[0])
     x = X0Fb[ind]/(psC/psF)
     y = Y0Fb[ind]/(psC/psF)
-    plt.subplot(2,2,1)
+    plt.subplot(1,2,1)
     plt.imshow(ImgB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(2,2,2)
+    plt.subplot(1,2,2)
     plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='winter')
-    plt.imshow(overlay(EdgesA0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC0C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
     if logi == 1:
-        plt.savefig(folder+"\\A_Edges0C_b.png",dpi = 500)
+        plt.savefig(folder+"\\B_Edges0_min.png",dpi = 500)
     # [CANNY] (Coarse) Edge Check
     ind = min(np.where(CVb==min(CVb))[0])
     x = X0Fb[ind]/(psC/psF)
     y = Y0Fb[ind]/(psC/psF)
     plt.figure()
-    plt.subplot(2,2,1)
+    plt.subplot(1,2,1)
     plt.imshow(ImgB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='winter')
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')    
+    plt.subplot(1,2,2)
+    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')  
     if logi == 1:
-        plt.savefig(folder+"\\B_Edges1C_a.png",dpi = 500)
+        plt.savefig(folder+"\\C_Edges1_max.png",dpi = 500)
     ind = min(np.where(CVb==max(CVb))[0])
     x = X0Fb[ind]/(psC/psF)
     y = Y0Fb[ind]/(psC/psF)
     plt.figure()
-    plt.subplot(2,2,1)
+    plt.subplot(1,2,1)
     plt.imshow(ImgB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='winter')
-    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray') 
+    plt.subplot(1,2,2)
+    plt.imshow(overlay(EdgesA1C[int(x-w/psC):int(x+w/psC),int(y-w/psC):int(y+w/psC)]),cmap='gray') 
     if logi == 1:
-        plt.savefig(folder+"\\B_Edges1C_b.png",dpi = 500)
+        plt.savefig(folder+"\\D_Edges1_min.png",dpi = 500)
     # [RECC] (Coarse) GCP
     plt.figure()
     plt.subplot(1,2,1)
@@ -502,99 +465,73 @@ def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB
     plt.plot([Y0C,Y1C],[X0C,X1C],c='y',lw=0.5)
     plt.scatter(Y1C,X1C,c='b',s=2)  
     if logi == 1:
-        plt.savefig(folder+"\\C_SingleMatch.png",dpi = 500)
+        plt.savefig(folder+"\\E_SingleMatch.png",dpi = 500)
     # [CANNY] (Fine) Edge Check
-    ind = min(np.where(CVb==min(CVb))[0])
+    ind = max(np.where(CVb==min(CVb))[0])
     x = X0Fb[ind]
     y = Y0Fb[ind]
     plt.figure()
-    plt.subplot(2,2,1)
-    plt.imshow(ImgB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='winter')
-    plt.imshow(overlay(EdgesA0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
+    plt.subplot(1,2,1)
+    plt.imshow(Img0C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Ridges0[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
     if logi == 1:
-        plt.savefig(folder+"\\D_Edges0F_a",dpi = 500) 
+        plt.savefig(folder+"\\F_Ridges0_max",dpi = 500) 
     ind = min(np.where(CVb==max(CVb))[0])
     x = X0Fb[ind]
     y = Y0Fb[ind]
     plt.figure()
-    plt.subplot(2,2,1)
-    plt.imshow(ImgB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='winter')
-    plt.imshow(overlay(EdgesA0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC0F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
+    plt.subplot(1,2,1)
+    plt.imshow(Img0C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Ridges0[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
     if logi == 1:
-        plt.savefig(folder+"\\D_Edges0F_b",dpi = 500)
+        plt.savefig(folder+"\\G_Ridges0_min",dpi = 500)
     # [CANNY] (Fine) Edge Check
-    ind = min(np.where(CVb==min(CVb))[0])
+    ind = max(np.where(CVb==min(CVb))[0])
     x = X0Fb[ind]
     y = Y0Fb[ind]
-    plt.figure()
-    plt.subplot(2,2,1)
-    plt.imshow(ImgB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='winter')
-    plt.imshow(overlay(EdgesA1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
+    plt.subplot(1,2,1)
+    plt.imshow(Img1C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Ridges1[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')
     if logi == 1:
-        plt.savefig(folder+"\\E_Edges1F_a",dpi = 500)
+        plt.savefig(folder+"\\H_Ridges1_max",dpi = 500)
     ind = min(np.where(CVb==max(CVb))[0])
     x = X0Fb[ind]
     y = Y0Fb[ind]
-    plt.figure()
-    plt.subplot(2,2,1)
-    plt.imshow(ImgB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)],cmap='gray')
-    plt.subplot(2,2,2)
-    plt.imshow(overlay(EdgesA1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,3)
-    plt.imshow(overlay(EdgesB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='winter')
-    plt.imshow(overlay(EdgesA1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
-    plt.subplot(2,2,4)
-    plt.imshow(overlay(EdgesB1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gist_rainbow')
-    plt.imshow(overlay(EdgesC1F[int(x-w/psF):int(x+w/psF),int(y-w/psF):int(y+w/psF)]),cmap='gray')
+    plt.subplot(1,2,1)
+    plt.imshow(Img1C[int((x-w/psF)/10):int((x+w/psF)/10),int((y-w/psF)/10):int((y+w/psF)/10)],cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Ridges1[int((x-w/psF)):int((x+w/psF)),int((y-w/psF)):int((y+w/psF))],cmap='gray')   
     if logi == 1:
-        plt.savefig(folder+"\\E_Edges1F_b",dpi = 500)
+        plt.savefig(folder+"\\I_Ridges1_min",dpi = 500)
     # [RECC] (Fine) GCP original
     plt.figure()
     clist = list(np.random.choice(range(256), size=len(X0Fa)))
     plt.subplot(1,2,1)
     plt.title('Orthomosaic 0')
-    plt.imshow(Img0F)  
-    plt.scatter(Y0Fa,X0Fa,c=clist,s=5)
+    plt.imshow(Img0C)  
+    plt.scatter(Y0Fa/10,X0Fa/10,c=clist,s=5)
     plt.subplot(1,2,2)
     plt.title('Orthomosaic 1')
-    plt.imshow(Img1F)  
-    plt.scatter(Y1Fa,X1Fa,c=clist,s=5)  
+    plt.imshow(Img1C)  
+    plt.scatter(Y1Fa/10,X1Fa/10,c=clist,s=5)  
     if logi == 1:
-        plt.savefig(folder+"\\F_RECCa",dpi = 500)
+        plt.savefig(folder+"\\J_RECCa",dpi = 500)
     # [RECC] (Fine) GCP outlier
     plt.figure()
     clist = list(np.random.choice(range(256), size=len(X0Fb)))
     plt.subplot(1,2,1)
     plt.title('Orthomosaic 0')
-    plt.imshow(Img0F)  
-    plt.scatter(Y0Fb,X0Fb,c=clist,s=5)
+    plt.imshow(Img0C)  
+    plt.scatter(Y0Fb/10,X0Fb/10,c=clist,s=5)
     plt.subplot(1,2,2)
     plt.title('Orthomosaic 1')
-    plt.imshow(Img1F)  
-    plt.scatter(Y1Fb,X1Fb,c=clist,s=5)
+    plt.imshow(Img1C)  
+    plt.scatter(Y1Fb/10,X1Fb/10,c=clist,s=5)
     if logi == 1:
-        plt.savefig(folder+"\\G_RECCb",dpi = 500)
+        plt.savefig(folder+"\\K_RECCb",dpi = 500)
     # [RECC] RECC check
     #fig,ax = plt.subplots()
     #plt.imshow(RECC_over,cmap='gray')
@@ -606,11 +543,14 @@ def CreateFigs(logi,i,files,psC,psF,w,Img0C,Img1C,ImgB0C,ImgB1C,Img0F,Img1F,ImgB
     pbar3.update(1)
     pbar3.close()
 
-def SelectBase(): 
+def SelectBase(base):
     root = Tk()
     root.withdraw()
+    temp = base[::-1]
+    temp2 = temp[temp.find("/")+1:]
+    wdir = temp2[::-1]
     #
-    root.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    root.filename =  filedialog.askopenfilename(initialdir = wdir,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
     return root.filename
 
