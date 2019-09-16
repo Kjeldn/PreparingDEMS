@@ -2,6 +2,7 @@ from typing import List
 import gdal
 import numpy as np
 import util
+from shapely.geometry import Polygon, LinearRing
 
 class Plane:
     def __init__(self, array, gt):
@@ -49,6 +50,13 @@ def create_tiff(array, gt, projection, dest: str, gdt_type = gdal.GDT_Float32):
     tiff.GetRasterBand(1).WriteArray(array)
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
+    
+def get_convex_hull(plants):
+    poly = Polygon(zip(plants[:,0], plants[:,1]))
+    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
+    polygon = Polygon(poly_line.coords)
+    return polygon
+
     
 def getMask(array, plants, gt, k_size = 45):
     mask = np.zeros(array.shape)

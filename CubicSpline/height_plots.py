@@ -5,7 +5,7 @@ import fiona
 import matplotlib.pyplot as plt
 import divide_into_beds as dib
 
-wd = ""
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
          "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR_cubic",
          "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR_cubic",
@@ -27,11 +27,11 @@ with fiona.open(wd + "/" + plants_count_path + ".shp") as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
-                planes.append(s['geometry']['coordinates'])
+                plants.append(s['geometry']['coordinates'])
             elif s['geometry']['type'] == 'MultiPoint':
-                planes.append(s['geometry']['coordinates'][0])
+                plants.append(s['geometry']['coordinates'][0])
 
-heights = np.array((len(plants), len(paths)))
+heights = np.zeros((len(plants), len(paths)))
 for i in range(len(plants)):
     heights[i,:] = np.array([plane.getMaxValueAt(plants[i][1], plants[i][0]) for plane in planes])
     
@@ -41,12 +41,12 @@ for i in range(len(plants)):
 # plt.show()
 # =============================================================================
 
-beds = dib.divide(plants)
+beds,_ = dib.divide(np.array(plants))
 heights_beds = []
 for bed in beds:
-    heights_array = np.array((len(bed), len(paths)))
+    heights_array = np.zeros((len(bed), len(paths)))
     for i in range(len(bed)):
-        heights[i,:] = np.array([plane.getMaxValueAt(bed[i][1], bed[i][0]) for plane in planes])
+        heights_array[i,:] = np.array([plane.getMaxValueAt(bed[i][1], bed[i][0]) for plane in planes])
     heights_beds.append(heights_array)
     
 for heights_bed in heights_beds:
