@@ -80,6 +80,12 @@ def PatchMatch(ps2, w, md, edges1F, gt, fx_F, fy_F, edges0F, gt_0, fx_F0, fy_F0,
     buffer = 2*w
     edges1Fa = np.zeros((edges1F.shape[0]+buffer*2,edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = edges1F
+    if CV1>4:
+        md = md/2
+    elif CV1>1.5:
+        md = md/3
+    else:
+        md = md/4
     max_dist = int((md)/(ps2))
     contours,hierarchy = cv2.findContours((1-contour_F0).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]

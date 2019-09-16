@@ -48,7 +48,7 @@ def LogStarter(l,i,files):
 def LogStopper(orig):
     sys.stdout = orig 
 
-def OrthOpenin(ps1,ps2,path):
+def OrthOpenin(ps1,path):
     pbar1 = tqdm(total=1,position=0,desc="Opening   ")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
@@ -61,8 +61,6 @@ def OrthOpenin(ps1,ps2,path):
     B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
     fact_x_ps1                         = B.shape[0]/B_s.shape[0]
     fact_y_ps1                         = B.shape[1]/B_s.shape[1]
-    #x_b_ps1                            = B_s.shape[0]
-    #y_b_ps1                            = B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -84,20 +82,9 @@ def OrthOpenin(ps1,ps2,path):
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
     fsize                              = int(np.ceil((1.05/ps1))//2*2+1)
     img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
-    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps2)), int(B.shape[0]*(x_s/ps2))),interpolation = cv2.INTER_AREA)
-    img_s2                             = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
-    img_s2[:,:,0]                      = B_s
-    img_s2[:,:,1]                      = G_s
-    img_s2[:,:,2]                      = R_s
-    fact_x_ps2                         = B.shape[0]/B_s.shape[0]
-    fact_y_ps2                         = B.shape[1]/B_s.shape[1]
-    #x_b_ps2                            = B_s.shape[0]
-    #y_b_ps2                            = B_s.shape[1]
     pbar1.update(1)
     pbar1.close()
-    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1, img_s2, fact_x_ps2, fact_y_ps2
+    return gt, img_s, img_b, mask_b, fact_x_ps1, fact_y_ps1
 
 def OrthSwitch(ps2,ps1,img_s2,edgeChainsE):
     pbar2 = tqdm(total=1,position=0,desc="Switching ")
