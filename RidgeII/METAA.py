@@ -15,6 +15,7 @@ from tkinter import filedialog
 from tkinter import *
 
 def SelectFiles():
+    plt.close("all")
     root = Tk()
     root.withdraw()
     #
@@ -126,12 +127,11 @@ def DemOpening(path,Img0C):
     temp1[ridges<-0.01]=1
     temp2[ridges>-0.11]=1
     ridges = (temp1*temp2).astype(np.uint8)  
-    temp = copy.deepcopy(ridges)
-    temp = temp.astype(float)
-    temp[temp==0]=np.NaN
     plt.figure()
-    plt.imshow(cv2.resize(Img0C,(Img0C.shape[1]*10,Img0C.shape[0]*10),interpolation = cv2.INTER_AREA))
-    plt.imshow(temp,cmap='spring')
+    plt.title('Ridges 0.05m')
+    plt.imshow(ridges,cmap='Greys')
+    manager = plt.get_current_fig_manager()
+    manager.window.showMaximized()
     pbar1.update(1)
     pbar1.close()
     return gt,fx,fy,mask_b,ridges
