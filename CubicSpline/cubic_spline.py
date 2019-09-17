@@ -15,7 +15,7 @@ gdal.UseExceptions()
 
 wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 #paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR", "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR", "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR"]
+paths = ["c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR"]
 path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False

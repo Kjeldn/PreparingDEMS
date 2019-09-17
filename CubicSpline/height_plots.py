@@ -5,6 +5,7 @@ import fiona
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import divide_into_beds as dib
+from shapely.geometry import Polygon, Point
 
 wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
@@ -55,11 +56,28 @@ plt.show()
 # =============================================================================
 
 z = heights[:,1] - heights[:,0]
-plt.scatter(np.array(plants)[:,0], np.array(plants)[:,1], c=z, camp="reds")
+plt.scatter(np.array(plants)[:,0], np.array(plants)[:,1], c=z, cmap="Reds")
 plt.show()
 
 plt.hist(heights[:,0],bins=1000)
 plt.hist(heights[:,1],bins=1000)
 plt.hist(heights[:,2],bins=1000)
 plt.show()
+
+beds = []
+
+with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
+    for s in src:
+        beds.append(Polygon(s['geometry']['coordinates'][0]))
+        
+height_beds = [[] for i in range(len(beds))]
+for i, plant in enumerate(plants):
+    for j, bed in enumerate(beds):
+        if Point(plant).within(bed):
+            height_beds[j].append(heights[i,1] - heights[i,0])
+            
+for i, bed in enumerate(beds):
+    plt.fill(*bed.exterior.xy, c=np.mean(height_beds[i]))
+plt.show()
+
 
