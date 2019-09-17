@@ -33,7 +33,9 @@ def SelectFiles():
     path = []
     path.append(base)
     path.extend(root.filename2)
-    return path
+    plist = []
+    plt.ioff()
+    return path,plist
 
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
@@ -57,7 +59,7 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize   
     
-def OrtOpening(path):
+def OrtOpening(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
@@ -94,9 +96,9 @@ def OrtOpening(path):
     img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
     pbar1.update(1)
     pbar1.close()
-    return img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
+    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
-def DemOpening(path,Img0C):
+def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     temp = path.strip(".tif")+"_DEM.tif"
     psF=0.05
@@ -126,15 +128,15 @@ def DemOpening(path,Img0C):
     temp2 = np.zeros(ridges.shape)
     temp1[ridges<-0.01]=1
     temp2[ridges>-0.11]=1
-    ridges = (temp1*temp2).astype(np.uint8)  
-    plt.figure()
+    ridges = (temp1*temp2).astype(np.uint8) 
+    p = plt.figure()
     plt.title('Ridges 0.05m')
     plt.imshow(ridges,cmap='Greys')
-    manager = plt.get_current_fig_manager()
-    manager.window.showMaximized()
     pbar1.update(1)
     pbar1.close()
-    return gt,fx,fy,mask_b,ridges
+    plt.close()
+    plist.append(p)
+    return plist,gt,fx,fy,mask_b,ridges
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -388,23 +390,18 @@ def rangemaker(num,thMeaningfulLength):
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
-def CapFigures(i,path):
+def CapFigures(i,path,plist):
     dpiset = 1000
-    filename = path[i].strip('.tif') + ('.pdf')
+    filename = path[i].strip('.tif') + ('_LOG.pdf')
     if os.path.exists(filename.replace("\\","/")):
-        os.remove(filename)
+        os.remove(filename)   
     pp = PdfPages(filename)
-    figs = [plt.figure(n) for n in plt.get_fignums()]
-    for fig in figs:
+    for fig in plist:
         fig.savefig(pp, format='pdf',dpi=dpiset)
+    plist = np.array(plist)
+    plist = plist[0:2]
+    plist = list(plist)
     pp.close()
-    plt.close(3)
-    plt.close(4)
-    plt.close(5)
-    plt.close(6)
-    plt.close(7)
-    plt.close(8)
+    return plist
     
-def Finalize():
-    plt.close(1)
-    plt.close(2)
+    

@@ -15,7 +15,7 @@ from scipy.interpolate import interp1d
 from tempfile import mkstemp
 from shutil import move
 
-def SinglMatch(Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
+def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     psC = 0.5
     md = 12
     pbar = tqdm(total=1,position=0,desc="RECC(c)   ")
@@ -70,26 +70,26 @@ def SinglMatch(Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     y_off = (y1-yog)*psC
     pbar.update(1)
     pbar.close()
-    plt.figure()
+    p = plt.figure()
     plt.figtext(.8, .8, "[R] Origin \n[G] Other Grid \n[B] Offset")
     plt.subplot(1,2,1)
     plt.title("Offset: ("+str(x_off)+","+str(y_off)+") m")
     plt.imshow(Edges0C,cmap='Greys')
     plt.scatter(y0,x0,c='r',s=3)
     plt.subplot(1,2,2)
-    plt.title("CV: "+str(CV1))
+    plt.title("CV: "+str(round(CV1,2)))
     plt.imshow(Edges1C,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=3)
-    plt.plot([y0,yog],[x0,xog],c='g',lw=0.5)
-    plt.scatter(yog,xog,c='g',s=3)
-    plt.plot([yog,y1],[xog,x1],c='b',lw=0.5)
-    plt.scatter(y1,x1,c='b',s=2) 
-    manager = plt.get_current_fig_manager()
-    manager.window.showMaximized()
-    print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(CV1))  
-    return x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
+    plt.scatter(y0,x0,c='r',s=1)
+    plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
+    plt.scatter(yog,xog,c='g',s=1)
+    plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
+    plt.scatter(y1,x1,c='b',s=1) 
+    plt.close()
+    plist.append(p)
+    print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
+    return plist,x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
-def PatchMatch(Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
+def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
     ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
@@ -184,43 +184,42 @@ def PatchMatch(Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_o
         origin_y[i] = y1[i]*fy1F
         dx = (x1-xof)*ps0F
         dy = (y1-yof)*ps0F 
-    plt.figure()
-    plt.title("Patch Match")
+    p = plt.figure()
     plt.subplot(1,2,1)
+    plt.title("Patch")
     plt.imshow(Edges0F,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=3)
+    plt.scatter(y0,x0,c='r',s=1)
     plt.subplot(1,2,2)
+    plt.title("Match")
     plt.imshow(Edges1F,cmap='Greys')
     plt.figtext(.8, 0.8, "[R] Origin \n[G] Other Grid \n[B] Offset \n[Y] Patch Match")
-    plt.scatter(y0,x0,c='r',s=3)
+    plt.scatter(y0,x0,c='r',s=1)
     for i in range(len(y1)):
-        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.1)
-    plt.scatter(yog,xog,c='g',s=3)
+        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.1,alpha=0.5)
+    plt.scatter(yog,xog,c='g',s=1)
     for i in range(len(y1)):
-        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.1)
-    plt.scatter(yof,xof,c='b',s=3)
+        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.1,alpha=0.5)
+    plt.scatter(yof,xof,c='b',s=1)
     for i in range(len(y1)):
         if x1[i] != 0 and y1[i] != 0:
-            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1)
+            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
     ind = np.where(x1!=0)
-    plt.scatter(y1[ind],x1[ind],c='y',s=3)   
-    manager = plt.get_current_fig_manager()
-    manager.window.showMaximized()
-    plt.figure(7)
-    plt.title("GCP Original")
+    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
+    plt.close()
+    plist.append(p)
+    plt.figure(257)
     plt.subplot(1,2,1)
     plt.imshow(Edges0F,cmap='Greys')
     plt.subplot(1,2,2)
     plt.imshow(Edges1F,cmap='Greys')
-    plt.figure(8)
-    plt.title("GCP w/o Outliers")
+    plt.figure(258)
     plt.subplot(1,2,1)
     plt.imshow(Edges0F,cmap='Greys')
     plt.subplot(1,2,2)
     plt.imshow(Edges1F,cmap='Greys')
-    return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
+def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
     origin_x   = origin_x[indices]
@@ -236,13 +235,15 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     dy        = dy[indices]
     size1=len(x0)
     clist = list(np.random.choice(range(256), size=len(x0)))
-    plt.figure(7)
+    p=plt.figure(257)
     plt.subplot(1,2,1)
-    plt.scatter(y0,x0,s=5,c=clist)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
-    plt.scatter(y1,x1,s=5,c=clist)
-    manager = plt.get_current_fig_manager()
-    manager.window.showMaximized()
+    plt.title(str(size1)+" in-domain")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(257)
+    plist.append(p)
     clist = np.array(clist)
     if len(x0[CVa<1.5]) >= 50:
         ind = np.where(CVa<1.5)[0]
@@ -292,14 +293,16 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     for k in range(len(origin_x)): 
         gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
     clist = list(clist)
-    plt.figure(8)
+    p = plt.figure(258)
     plt.subplot(1,2,1)
-    plt.scatter(y0,x0,s=5,c=clist)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
-    plt.scatter(y1,x1,s=5,c=clist)
-    manager = plt.get_current_fig_manager()
-    manager.window.showMaximized()
-    return origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist
+    plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(258)
+    plist.append(p)
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist
 
 def Georegistr(i,files,gcplist):
     pbar3 = tqdm(total=1,position=0,desc="Georeg    ")
