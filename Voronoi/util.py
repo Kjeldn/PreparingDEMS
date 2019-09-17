@@ -196,18 +196,11 @@ ret : list(len=n) of coordinates
 """
 def fill_points_in_line(p, q, n, spindex, d):
     ret = []
-    is_on_top_of_point = []
     for i in range(1, n + 1):
         point_to_add = [(i*p[0] + (n + 1 -i) * q[0])*(1/(n+1)), (i*p[1] + (n + 1 -i) * q[1])*(1/(n+1))]
-        ret.append(point_to_add)
         if len(spindex.intersect((point_to_add[0] - d, point_to_add[1] - d, point_to_add[0] + d, point_to_add[1] + d))) == 0:
-            is_on_top_of_point.append(False)
-        else:
-            is_on_top_of_point.append(True)
-    if sum(is_on_top_of_point) == 0:
-        return ret
-    else:
-        return []
+            ret.append(point_to_add)
+    return ret
  
 """
 Gets a convex hull around points.
