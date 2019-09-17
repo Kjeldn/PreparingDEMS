@@ -220,7 +220,7 @@ def PatchMatch(Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_o
     plt.imshow(Edges1F,cmap='Greys')
     return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,i):
+def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
     origin_x   = origin_x[indices]
@@ -285,7 +285,7 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     clist     = clist[indices]
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
-    gto = gdal.Open(files[i]).GetGeoTransform()
+    gto = gdal.Open(files[iiii]).GetGeoTransform()
     origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
     origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
     gcplist = []

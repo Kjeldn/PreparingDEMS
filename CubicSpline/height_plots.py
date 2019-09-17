@@ -4,8 +4,11 @@ import numpy as np
 import fiona
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
+import matplotlib
 import divide_into_beds as dib
 from shapely.geometry import Polygon, Point
+import colorsys
 
 wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
@@ -76,8 +79,17 @@ for i, plant in enumerate(plants):
         if Point(plant).within(bed):
             height_beds[j].append(heights[i,1] - heights[i,0])
             
+max_mean = 0
+min_mean = 100
+for bed in height_beds:
+    if np.mean(bed) > max_mean:
+        max_mean = np.mean(bed)
+    if np.mean(bed) < min_mean:
+        min_mean = np.mean(bed)
+    
+fig = plt.figure()
 for i, bed in enumerate(beds):
-    plt.fill(*bed.exterior.xy, c=np.mean(height_beds[i]))
-plt.show()
+    plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
+fig.show()
 
 
