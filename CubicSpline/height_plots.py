@@ -2,15 +2,12 @@ import gdal
 import util
 import numpy as np
 import fiona
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from matplotlib import cm
-import matplotlib
-import divide_into_beds as dib
 from shapely.geometry import Polygon, Point
-import colorsys
+from scipy.spatial import Delaunay
+from scipy.interpolate import interp1d
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
+wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
          "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR_cubic",
          "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR_cubic",
@@ -72,7 +69,7 @@ beds = []
 with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
     for s in src:
         beds.append(Polygon(s['geometry']['coordinates'][0]))
-        
+
 height_beds = [[] for i in range(len(beds))]
 for i, plant in enumerate(plants):
     for j, bed in enumerate(beds):
@@ -86,10 +83,31 @@ for bed in height_beds:
         max_mean = np.mean(bed)
     if np.mean(bed) < min_mean:
         min_mean = np.mean(bed)
+
     
 fig = plt.figure()
 for i, bed in enumerate(beds):
     plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
 fig.show()
 
-
+for bed in beds:
+    if bed:
+        x,y = bed.exterior.xy   
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 50)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        tri = Delaunay(np.array([x_regular, y_regular]).T)
+        
+        tri_values = [[] for i in range(len(tri.simplices))]
+        for i, plant in enumerate(plants):
+            for j, s in enumerate(tri.simplices):
+                if Point(plant).within(Polygon(tri.points[s])):
+                    tri_values[j].append(heights[i][1] - heights[i][0])
+        
+        min_mean = min([np.mean(v) if v else 100 for v in tri_values])
+        max_mean = max([np.mean(v) if v else -100 for v in tri_values])
+        for i,s in enumerate(tri.simplices):
+            if tri_values[i]:
+                plt.fill(tri.points[s][:,0], tri.points[s][:,1], c=((np.mean(tri_values[i]) - min_mean)/(max_mean-min_mean), 0, 0))
