@@ -18,7 +18,7 @@ from shutil import move
 def SinglMatch(Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     psC = 0.5
     md = 12
-    pbar = tqdm(total=1,position=0,desc="RECC      ")
+    pbar = tqdm(total=1,position=0,desc="RECC(c)   ")
     max_dist = int((md)/psC)
     contours,hierarchy = cv2.findContours((1-MaskB0C).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -70,10 +70,21 @@ def SinglMatch(Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     y_off = (y1-yog)*psC
     pbar.update(1)
     pbar.close()
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0C,cmap='gray')
+    plt.scatter(y0,x0,c='r',s=3)
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1C,cmap='gray')
+    plt.scatter(y0,x0,c='r',s=3)
+    plt.plot([y0,yog],[x0,xog],c='g',lw=0.5)
+    plt.plot([yog,y1],[xog,x1],c='b',lw=0.5)
+    plt.scatter(y1,x1,c='b',s=2)
     print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(CV1))  
     return x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
-def PatchMatch(ps0F,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
+def PatchMatch(Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
+    ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
@@ -102,7 +113,7 @@ def PatchMatch(ps0F,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0
     distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
     distance = distance/distance[-1]
     fx, fy = interp1d( distance, x ), interp1d( distance, y )
-    alpha = np.linspace(0, 1, 20)
+    alpha = np.linspace(0, 1, 200)
     x_regular, y_regular = fx(alpha), fy(alpha)
     grid = []
     for i in range(len(x_regular)):
@@ -132,7 +143,7 @@ def PatchMatch(ps0F,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    for i in tqdm(range(len(grid)),position=0,miniters=int(len(grid)/10),desc="RECC      "):
+    for i in tqdm(range(len(grid)),position=0,miniters=int(len(grid)/10),desc="RECC(f)   "):
         x0[i] = grid[i][1]
         y0[i] = grid[i][0]
         target_lon[i] = gt0F[0] + gt0F[1]*y0[i]*fy0F
@@ -166,7 +177,33 @@ def PatchMatch(ps0F,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0
         origin_x[i] = x1[i]*fx1F
         origin_y[i] = y1[i]*fy1F
         dx = (x1-xof)*ps0F
-        dy = (y1-yof)*ps0F        
+        dy = (y1-yof)*ps0F 
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='gray')
+    plt.scatter(y0,x0,c='r',s=3)
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='gray')
+    plt.scatter(y0,x0,c='r',s=3)
+    plt.scatter(yog,xog,c='g',s=3)
+    plt.scatter(yof,xof,c='b',s=3)
+    ind = np.where(x1!=0)
+    plt.scatter(y1[ind],x1[ind],c='y',s=3)
+    for i in range(len(y1)):
+        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.5)
+        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.5)
+        if x1[i] != 0 and y1[i] != 0:
+            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.5)        
+    plt.figure(7)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='gray')
+    plt.figure(8)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='gray')
     return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
 def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,i):
@@ -181,7 +218,16 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     x1        = x1[indices]
     y1        = y1[indices]
     CVa       = CVa[indices]
+    dx        = dx[indices]
+    dy        = dy[indices]
     size1=len(x0)
+    clist = list(np.random.choice(range(256), size=len(x0)))
+    plt.figure(7)
+    plt.subplot(1,2,1)
+    plt.scatter(y0,x0,s=5,c=clist)
+    plt.subplot(1,2,2)
+    plt.scatter(y1,x1,s=5,c=clist)
+    clist = np.array(clist)
     if len(x0[CVa<1.5]) >= 50:
         ind = np.where(CVa<1.5)[0]
     elif len(x0[CVa<4]) >= 50:
@@ -220,6 +266,7 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     x1        = x1[indices]
     y1        = y1[indices]
     CVa       = CVa[indices]
+    clist     = clist[indices]
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
     gto = gdal.Open(files[i]).GetGeoTransform()
@@ -228,6 +275,12 @@ def RemOutlier(origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1
     gcplist = []
     for k in range(len(origin_x)): 
         gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
+    clist = list(clist)
+    plt.figure(8)
+    plt.subplot(1,2,1)
+    plt.scatter(y0,x0,s=5,c=clist)
+    plt.subplot(1,2,2)
+    plt.scatter(y1,x1,s=5,c=clist)
     return origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist
 
 def Georegistr(i,files,gcplist):
