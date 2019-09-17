@@ -9,8 +9,8 @@ import rasterio
 from rasterio import Affine as A
 from rasterio.warp import reproject, Resampling
 
-wd = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli"
-path = "c01_verdonk-Wever oost-201908041528_DEM-GR"
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
+path = "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR"
 path_ahn = None #"m_19fn2.tif"
 plants = []
 
@@ -37,9 +37,13 @@ if path_ahn:
             
     source = None
 
-with fiona.open(wd + "/20190717_count.shp") as src:
+with fiona.open(wd + "/20190709_count.shp") as src:
     for s in src:
-        plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
+        if s['geometry']:
+            if s['geometry']['type'] == 'Point':
+                plants.append(s['geometry']['coordinates'] if s['geometry'] else None)
+            if s['geometry']['type'] == 'MultiPoint':
+                plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
         src_driver = src.driver
         src_crs = src.crs
         src_schema = src.schema
@@ -94,4 +98,4 @@ for i in range(0, a.shape[0], 20):
             e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
 mask = None
 
-util.create_tiff(a - np.mean(e), gt, proj, wd + "\\" + path + "cubic_dense.tif")
+util.create_tiff(a - np.mean(e), gt, proj, wd + "\\" + path + "cubic.tif")

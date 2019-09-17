@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 
 gdal.UseExceptions()
 
-wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\ORTHODUMP\Hollandbean - Jos Schelling"
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 #paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["1_DEM", "2_DEM", "3_DEM", "8_DEM", "9_DEM", "10_DEM"]
+paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR", "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR", "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR"]
 path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False
@@ -23,9 +23,13 @@ load_ridges = False
 #%% plants
 plants = []
     
-with fiona.open(wd + "/20190717_count.shp") as src:
+with fiona.open(wd + "/20190709_count.shp") as src:
     for s in src:
-        plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
+        if s['geometry']:
+            if s['geometry']['type'] == 'Point':
+                plants.append(s['geometry']['coordinates'] if s['geometry'] else None)
+            if s['geometry']['type'] == 'MultiPoint':
+                plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
         src_driver = src.driver
         src_crs = src.crs
         src_schema = src.schema
