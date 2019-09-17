@@ -323,6 +323,9 @@ def CannyLines(Img0C,img_b,mask_b):
     temp = copy.deepcopy(mapA)
     temp[temp==0]=np.NaN
     plt.figure()
+    plt.title('Edges 0.5m')
     plt.imshow(Img0C)
     plt.imshow(temp,cmap='spring')
+    manager = plt.get_current_fig_manager()
+    manager.window.showMaximized()
     return mapA
