@@ -11,7 +11,7 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 warnings.filterwarnings("ignore")
 from tqdm import tqdm
 
-def CannyLines(img_b,mask_b):
+def CannyLines(Img0C,img_b,mask_b):
     pixel_size = 0.5
     if pixel_size == 0.05:
         size=6
@@ -320,4 +320,9 @@ def CannyLines(img_b,mask_b):
             mapF[point[0],point[1]]=1
     pbar2.update(1)
     pbar2.close()
+    temp = copy.deepcopy(mapA)
+    temp[temp==0]=np.NaN
+    plt.figure()
+    plt.imshow(Img0C)
+    plt.imshow(temp,cmap='spring')
     return mapA

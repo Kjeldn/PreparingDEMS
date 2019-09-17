@@ -57,7 +57,7 @@ def calc_pixsize(array,gt):
     return xsize, ysize   
     
 def OrtOpening(path):
-    pbar1 = tqdm(total=1,position=0,desc="Opening   ")
+    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     B                                  = file.GetRasterBand(1).ReadAsArray()
@@ -95,18 +95,16 @@ def OrtOpening(path):
     pbar1.close()
     return img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
-def DemOpening(path,ps):
+def DemOpening(path,Img0C):
+    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     temp = path.strip(".tif")+"_DEM.tif"
+    psF=0.05
     file                               = gdal.Open(temp)
     gt                                 = file.GetGeoTransform()
     dem_o                              = file.GetRasterBand(1).ReadAsArray()
     x_s, y_s                           = calc_pixsize(dem_o,gt)
     mask                               = np.zeros(dem_o.shape)
     mask[dem_o==np.min(dem_o)]         = 1
-    if ps == 0:
-        psF = max(x_s,y_s)
-    else:
-        psF = ps
     dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
     mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
     fx                                 = dem_o.shape[0]/dem.shape[0]
@@ -127,8 +125,16 @@ def DemOpening(path,ps):
     temp2 = np.zeros(ridges.shape)
     temp1[ridges<-0.01]=1
     temp2[ridges>-0.11]=1
-    ridges = (temp1*temp2).astype(np.uint8)    
-    return psF,gt,fx,fy,mask_b,ridges
+    ridges = (temp1*temp2).astype(np.uint8)  
+    temp = copy.deepcopy(ridges)
+    temp = temp.astype(float)
+    temp[temp==0]=np.NaN
+    plt.figure()
+    plt.imshow(cv2.resize(Img0C,(Img0C.shape[1]*10,Img0C.shape[0]*10),interpolation = cv2.INTER_AREA))
+    plt.imshow(temp,cmap='spring')
+    pbar1.update(1)
+    pbar1.close()
+    return gt,fx,fy,mask_b,ridges
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -378,3 +384,27 @@ def rangemaker(num,thMeaningfulLength):
     for i in range(len(range_array)):
         range_array[i]=int(num-span+i)
     return range_array
+
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+
+def CapFigures(i,path):
+    dpiset = 1000
+    filename = path[i].strip('.tif') + ('.pdf')
+    if os.path.exists(filename.replace("\\","/")):
+        os.remove(filename)
+    pp = PdfPages(filename)
+    figs = [plt.figure(n) for n in plt.get_fignums()]
+    for fig in figs:
+        fig.savefig(pp, format='pdf',dpi=dpiset)
+    pp.close()
+    plt.close(3)
+    plt.close(4)
+    plt.close(5)
+    plt.close(6)
+    plt.close(7)
+    plt.close(8)
+    
+def Finalize():
+    plt.close(1)
+    plt.close(2)
