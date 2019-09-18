@@ -11,6 +11,7 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+from shapely.ops import triangulate
 from scipy.interpolate import interp1d
 from tempfile import mkstemp
 from shutil import move
@@ -123,7 +124,17 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
     x_regular, y_regular = fx(alpha), fy(alpha)
     grid = []
     for i in range(len(x_regular)):
-        grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))  
+        grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+    if polygon.buffer(-2*w).is_empty == False:
+        polygon = polygon.buffer(-2*w)
+        x,y = polygon.exterior.xy   
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 100)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        for i in range(len(x_regular)):
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
     CVa        = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
