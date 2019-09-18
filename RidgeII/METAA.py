@@ -107,7 +107,10 @@ def DemOpening(plist,path,Img0C):
     dem_o                              = file.GetRasterBand(1).ReadAsArray()
     x_s, y_s                           = calc_pixsize(dem_o,gt)
     mask                               = np.zeros(dem_o.shape)
-    mask[dem_o==np.min(dem_o)]         = 1
+    if np.sum(dem_o==0) > np.sum(dem_o==np.min(dem_o)):
+        mask[dem_o == 0]               = 1
+    else:
+        mask[dem_o == np.min(dem_o)]   = 1
     dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
     mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
     fx                                 = dem_o.shape[0]/dem.shape[0]

@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, Point
 from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
+from tqdm import trange
+from pyqtree import Index
 
-wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
          "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR_cubic",
          "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR_cubic",
@@ -55,9 +57,11 @@ plt.show()
 # plt.show()
 # =============================================================================
 
-z = heights[:,1] - heights[:,0]
-plt.scatter(np.array(plants)[:,0], np.array(plants)[:,1], c=z, cmap="Reds")
-plt.show()
+# =============================================================================
+# z = heights[:,1] - heights[:,0]
+# plt.scatter(np.array(plants)[:,0], np.array(plants)[:,1], c=z, cmap="Reds")
+# plt.show()
+# =============================================================================
 
 plt.hist(heights[:,0],bins=1000)
 plt.hist(heights[:,1],bins=1000)
@@ -84,14 +88,20 @@ for bed in height_beds:
     if np.mean(bed) < min_mean:
         min_mean = np.mean(bed)
 
+
+spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:,1]), np.amax(np.array(plants)[:,0]), np.amax(np.array(plants)[:,1])))
+for i,plant in enumerate(plants):
+    spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
+
     
 fig = plt.figure()
 for i, bed in enumerate(beds):
     plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
 fig.show()
 
-for bed in beds:
-    if bed:
+for k in trange(len(beds), desc="driehoeken", position=0):
+    bed = beds[k]
+    if bed.exterior:
         x,y = bed.exterior.xy   
         distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
         distance = distance/distance[-1]
@@ -101,10 +111,10 @@ for bed in beds:
         tri = Delaunay(np.array([x_regular, y_regular]).T)
         
         tri_values = [[] for i in range(len(tri.simplices))]
-        for i, plant in enumerate(plants):
-            for j, s in enumerate(tri.simplices):
-                if Point(plant).within(Polygon(tri.points[s])):
-                    tri_values[j].append(heights[i][1] - heights[i][0])
+        for j, s in enumerate(tri.simplices):
+            for plant in spindex.intersect(Polygon(tri.points[s]).bounds):
+                if Point(plant['obj']).within(Polygon(tri.points[s])):
+                    tri_values[j].append(heights[plant['index']][1] - heights[plant['index']][0])
         
         min_mean = min([np.mean(v) if v else 100 for v in tri_values])
         max_mean = max([np.mean(v) if v else -100 for v in tri_values])
