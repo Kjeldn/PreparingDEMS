@@ -8,6 +8,8 @@ from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
 from tqdm import trange
 from pyqtree import Index
+from matplotlib import cm
+from matplotlib.colors import Normalize
 
 wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
@@ -175,5 +177,10 @@ min_mean = min([np.mean(v) if v else 100 for v in poly_values])
 max_mean = max([np.mean(v) if v else -100 for v in poly_values])
 
 for i, poly in enumerate(allpolys):
-    if poly_values[i]:
-        plt.fill(*poly.exterior.xy, c=((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean), 0, 0))
+    if poly.values[i]:
+        plt.fill(*poly.exterior.xy, c=cm.get_cmap('viridis')((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean)))
+        
+sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap="viridis")
+sm.set_array([])
+plt.colorbar(sm)
+plt.show()
