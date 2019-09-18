@@ -3,10 +3,9 @@ import util
 import numpy as np
 import fiona
 import matplotlib.pyplot as plt
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, LineString, LinearRing
 from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
-from tqdm import trange
 from pyqtree import Index
 from matplotlib import cm
 from matplotlib.colors import Normalize
@@ -18,6 +17,7 @@ paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic",
          "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GRcubic"]
 plants_count_path = "20190709_count"
 planes = []
+colormap = "viridis"
 
 for path in paths:
     file = gdal.Open(wd + "/" + path + ".tif")
@@ -104,8 +104,8 @@ for i,plant in enumerate(plants):
 #     plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
 # fig.show()
 # =============================================================================
-
-for k in trange(len(beds), desc="driehoeken", position=0):
+allsimplices = []
+for k in range(len(beds)):
     bed = beds[k]
     if bed.exterior:
         x,y = bed.exterior.xy   
@@ -115,21 +115,25 @@ for k in trange(len(beds), desc="driehoeken", position=0):
         alpha = np.linspace(0, 1, 50)
         x_regular, y_regular = fx(alpha), fy(alpha)
         tri = Delaunay(np.array([x_regular, y_regular]).T)
+        allsimplices += [Polygon(tri.points[s]) for s in tri.simplices]
         
-        tri_values = [[] for i in range(len(tri.simplices))]
-        for j, s in enumerate(tri.simplices):
-            for plant in spindex.intersect(Polygon(tri.points[s]).bounds):
-                if Point(plant['obj']).within(Polygon(tri.points[s])):
-                    tri_values[j].append(heights[plant['index']][1] - heights[plant['index']][0])
+tri_values = [[] for i in range(len(allsimplices))]
+for j, s in enumerate(allsimplices):
+    for plant in spindex.intersect(Polygon(tri.points[s]).bounds):
+        if Point(plant['obj']).within(Polygon(tri.points[s])):
+            tri_values[j].append(heights[plant['index']][1] - heights[plant['index']][0])
+
+min_mean = min([np.mean(v) if v else 100 for v in tri_values])
+max_mean = max([np.mean(v) if v else -100 for v in tri_values])
+for i, s in enumerate(allsimplices):
+    if tri_values[i]:
+        plt.fill(*s.exterior.xy, c=cm.get_cmap(colormap)((np.mean(tri_values[i]) - min_mean)/(max_mean-min_mean)))
         
-        min_mean = min([np.mean(v) if v else 100 for v in tri_values])
-        max_mean = max([np.mean(v) if v else -100 for v in tri_values])
-        for i,s in enumerate(tri.simplices):
-            if tri_values[i]:
-                plt.fill(tri.points[s][:,0], tri.points[s][:,1], c=((np.mean(tri_values[i]) - min_mean)/(max_mean-min_mean), 0, 0))
+sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
+sm.set_array([])
+plt.colorbar(sm)
+plt.show()
                 
-#%%
-from shapely.geometry import LineString, LinearRing
 allpolys = []
 for bed in beds:
     if bed.exterior:
@@ -178,9 +182,9 @@ max_mean = max([np.mean(v) if v else -100 for v in poly_values])
 
 for i, poly in enumerate(allpolys):
     if poly.values[i]:
-        plt.fill(*poly.exterior.xy, c=cm.get_cmap('viridis')((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean)))
+        plt.fill(*poly.exterior.xy, c=cm.get_cmap(colormap)((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean)))
         
-sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap="viridis")
+sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
 sm.set_array([])
 plt.colorbar(sm)
 plt.show()
