@@ -4,6 +4,7 @@ import numpy as np
 import fiona
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, Point, LineString, LinearRing
+from shapely.ops import linemerge, unary_union, polygonize
 from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
 from pyqtree import Index
@@ -40,12 +41,33 @@ with fiona.open(wd + "/" + plants_count_path + ".shp") as src:
 heights = np.zeros((len(plants), len(paths)))
 for i in range(len(plants)):
     heights[i,:] = np.array([plane.getMaxValueAt(plants[i][1], plants[i][0], k_size=15) for plane in planes])
+    
+beds = []
+
+with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
+    for s in src:
+        beds.append(Polygon(s['geometry']['coordinates'][0]))
+
+height_beds = [[] for i in range(len(beds))]
+for i, plant in enumerate(plants):
+    for j, bed in enumerate(beds):
+        if Point(plant).within(bed):
+            height_beds[j].append(heights[i,1] - heights[i,0])
+            
+min_mean = min([np.mean(v) if v else 100 for v in height_beds])
+max_mean = max([np.mean(v) if v else -100 for v in height_beds])
+
+spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:,1]), np.amax(np.array(plants)[:,0]), np.amax(np.array(plants)[:,1])))
+for i,plant in enumerate(plants):
+    spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
+#%%
 # =============================================================================
 #     
 # plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
 # plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
 # plt.show()
 # =============================================================================
+#%%
 # =============================================================================
 # 
 # beds,_ = dib.divide(np.array(plants))
@@ -60,50 +82,29 @@ for i in range(len(plants)):
 #     plt.plot(np.arange(len(planes)), [np.median(heights_bed[:,i]) for i in range(len(planes))])
 # plt.show()
 # =============================================================================
-
+#%%
 # =============================================================================
 # z = heights[:,1] - heights[:,0]
 # plt.scatter(np.array(plants)[:,0], np.array(plants)[:,1], c=z, cmap="Reds")
 # plt.show()
 # =============================================================================
-
+#%%
 # =============================================================================
 # plt.hist(heights[:,0],bins=1000)
 # plt.hist(heights[:,1],bins=1000)
 # plt.hist(heights[:,2],bins=1000)
 # plt.show()
 # =============================================================================
-
-beds = []
-
-with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
-    for s in src:
-        beds.append(Polygon(s['geometry']['coordinates'][0]))
-
-height_beds = [[] for i in range(len(beds))]
-for i, plant in enumerate(plants):
-    for j, bed in enumerate(beds):
-        if Point(plant).within(bed):
-            height_beds[j].append(heights[i,1] - heights[i,0])
-            
-max_mean = 0
-min_mean = 100
-for bed in height_beds:
-    if np.mean(bed) > max_mean:
-        max_mean = np.mean(bed)
-    if np.mean(bed) < min_mean:
-        min_mean = np.mean(bed)
-
-spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:,1]), np.amax(np.array(plants)[:,0]), np.amax(np.array(plants)[:,1])))
-for i,plant in enumerate(plants):
-    spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
-    
-# =============================================================================
-# fig = plt.figure()
-# for i, bed in enumerate(beds):
-#     plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
-# fig.show()
-# =============================================================================
+#%% 
+fig = plt.figure()
+for i, bed in enumerate(beds):
+    plt.fill(*bed.exterior.xy, c=cm.get_cmap(colormap)((np.mean(height_beds[i]) - min_mean)/(max_mean-min_mean)))
+fig.show()
+sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
+sm.set_array([])
+plt.colorbar(sm)
+plt.show()
+#%%
 allsimplices = []
 for k in range(len(beds)):
     bed = beds[k]
@@ -119,8 +120,8 @@ for k in range(len(beds)):
         
 tri_values = [[] for i in range(len(allsimplices))]
 for j, s in enumerate(allsimplices):
-    for plant in spindex.intersect(Polygon(tri.points[s]).bounds):
-        if Point(plant['obj']).within(Polygon(tri.points[s])):
+    for plant in spindex.intersect(s.bounds):
+        if Point(plant['obj']).within(s):
             tri_values[j].append(heights[plant['index']][1] - heights[plant['index']][0])
 
 min_mean = min([np.mean(v) if v else 100 for v in tri_values])
@@ -133,7 +134,9 @@ sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
 sm.set_array([])
 plt.colorbar(sm)
 plt.show()
-                
+           
+#%%     
+diff =2
 allpolys = []
 for bed in beds:
     if bed.exterior:
@@ -158,9 +161,12 @@ for bed in beds:
             
         slope = np.arctan((longest_line[1][1] - longest_line[0][1])/(longest_line[1][0] - longest_line[0][0])) + np.pi/2
         ints = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]).intersection(Polygon(points).exterior) for p in ret]
+        midpoints = [((ps[0].x + ps[1].x)/2, (ps[0].y + ps[1].y)/2) for ps in ints]
         polys = []
         for i in range(len(ints)-1):
-            polys.append(Polygon([ints[i][0].coords[0], ints[i][1].coords[0], ints[i+1][1].coords[0], ints[i+1][0].coords[0]]))
+            poly = Polygon([ints[i][0].coords[0], ints[i][1].coords[0], ints[i+1][1].coords[0], ints[i+1][0].coords[0]])
+            for p in polygonize(unary_union(linemerge([poly.boundary, LineString([midpoints[i], midpoints[i + 1]])]))):    
+                polys.append(p)
         
         polyunion = polys[0]
         for i in range(1, len(polys)):
@@ -175,13 +181,13 @@ poly_values = [[] for i in range(len(allpolys))]
 for i, poly in enumerate(allpolys):
     for plant in spindex.intersect(poly.bounds):
         if Point(plant['obj']).within(poly):
-            poly_values[i].append(heights[plant['index']][1] - heights[plant['index']][0])
+            poly_values[i].append(heights[plant['index']][diff] - heights[plant['index']][diff-1])
             
 min_mean = min([np.mean(v) if v else 100 for v in poly_values])
 max_mean = max([np.mean(v) if v else -100 for v in poly_values])
 
 for i, poly in enumerate(allpolys):
-    if poly.values[i]:
+    if poly_values[i]:
         plt.fill(*poly.exterior.xy, c=cm.get_cmap(colormap)((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean)))
         
 sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
