@@ -38,10 +38,12 @@ with fiona.open(wd + "/" + plants_count_path + ".shp") as src:
 heights = np.zeros((len(plants), len(paths)))
 for i in range(len(plants)):
     heights[i,:] = np.array([plane.getMaxValueAt(plants[i][1], plants[i][0], k_size=15) for plane in planes])
-    
-plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
-plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
-plt.show()
+# =============================================================================
+#     
+# plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
+# plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
+# plt.show()
+# =============================================================================
 # =============================================================================
 # 
 # beds,_ = dib.divide(np.array(plants))
@@ -63,10 +65,12 @@ plt.show()
 # plt.show()
 # =============================================================================
 
-plt.hist(heights[:,0],bins=1000)
-plt.hist(heights[:,1],bins=1000)
-plt.hist(heights[:,2],bins=1000)
-plt.show()
+# =============================================================================
+# plt.hist(heights[:,0],bins=1000)
+# plt.hist(heights[:,1],bins=1000)
+# plt.hist(heights[:,2],bins=1000)
+# plt.show()
+# =============================================================================
 
 beds = []
 
@@ -92,10 +96,12 @@ spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:
 for i,plant in enumerate(plants):
     spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
     
-fig = plt.figure()
-for i, bed in enumerate(beds):
-    plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
-fig.show()
+# =============================================================================
+# fig = plt.figure()
+# for i, bed in enumerate(beds):
+#     plt.fill(*bed.exterior.xy, c=(np.mean(height_beds[i])/max_mean,0,0))
+# fig.show()
+# =============================================================================
 
 for k in trange(len(beds), desc="driehoeken", position=0):
     bed = beds[k]
@@ -145,19 +151,10 @@ for bed in beds:
             ret.append(point_to_add)
             
         slope = np.arctan((longest_line[1][1] - longest_line[0][1])/(longest_line[1][0] - longest_line[0][0])) + np.pi/2
-        ints = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]).intersection(Polygon(points).exterior)[1] for p in ret]
-        
-        side1 = []
-        side2 = []
-        for p in points:
-            if LinearRing([(p[0], p[1]), ints[0].coords[0], ints[0].coords[1]]).is_ccw:
-                side1.append(p)
-            else:
-                side2.append(p)
-                
+        ints = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]).intersection(Polygon(points).exterior) for p in ret]
         polys = []
         for i in range(len(ints)-1):
-            polys.append(Polygon([ints[i].coords[0], ints[i].coords[1], ints[i+1].coords[1], ints[i+1].coords[0]]))
+            polys.append(Polygon([ints[i][0].coords[0], ints[i][1].coords[0], ints[i+1][1].coords[0], ints[i+1][0].coords[0]]))
         
         polyunion = polys[0]
         for i in range(1, len(polys)):
@@ -178,5 +175,5 @@ min_mean = min([np.mean(v) if v else 100 for v in poly_values])
 max_mean = max([np.mean(v) if v else -100 for v in poly_values])
 
 for i, poly in enumerate(allpolys):
-    if poly.values[i]:
+    if poly_values[i]:
         plt.fill(*poly.exterior.xy, c=((np.mean(poly_values[i]) - min_mean)/(max_mean-min_mean), 0, 0))
