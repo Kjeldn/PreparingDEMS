@@ -41,6 +41,10 @@ beds : list of numpy arrays
     plants divided in beds
 """
 def divide(plants, plot=False, orientation='East-West'):
+    a = 1 #tolerance for finding lines, if too many are found descrease, if not enough increase
+    b = 4 #max size of groups of lone points which are ignored, int
+    c = 4 #min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy)
+    
     if orientation == 'North-South':
         plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
     else:    
@@ -85,7 +89,7 @@ def divide(plants, plot=False, orientation='East-West'):
     dists = []
     indices = []
     for i in range(len(dist)):
-        if dist[i]['dist'] > 4:
+        if dist[i]['dist'] > c:
             if plot:
                 plt.plot(dist[i]['coord'][0], dist[i]['coord'][1], '*')
                 plt.text(dist[i]['coord'][0], dist[i]['coord'][1], dist[i]['dist'])
@@ -107,7 +111,7 @@ def divide(plants, plot=False, orientation='East-West'):
             
             
     for i in range(len(groups)-1, -1, -1):
-        if len(groups[i]) < 4:
+        if len(groups[i]) < b:
             del groups[i]
     
     max_points = []
@@ -132,7 +136,7 @@ def divide(plants, plot=False, orientation='East-West'):
                     points = fill_points_in_line(l.coords[0], l.coords[1], int(l.length / ds + 0.5) - 1)
                     n = 0
                     for point in points:
-                        if spindex.intersect((point[0] - dx, point[1] - dy, point[0] + dx, point[1] + dy)):
+                        if spindex.intersect((point[0] - a*dx, point[1] - a*dy, point[0] + a*dx, point[1] + a*dy)):
                             n += 1
                     likeliness.append({'line': (i, j), 'likeliness': 1 - n/len(points)})
                 else:
@@ -185,6 +189,3 @@ def write_shape_file(plants, dst, crs):
     with fiona.open(dst, 'w', driver='ESRI Shapefile', schema= { 'geometry': 'MultiPoint', 'properties': {'bed': 'int'} }, crs=crs) as c:
         for i, mp in enumerate(mps):
             c.write({ 'geometry': mapping(mp), 'properties': {'bed': i}})
-    
-if __name__ == "__main__":
-    write_shape_file(plants[0], r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare\20190709_count_beds.shx", plants[2])
