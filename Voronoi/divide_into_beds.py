@@ -1,10 +1,11 @@
-from shapely.geometry import Polygon, Point, LineString
+from shapely.geometry import Polygon, Point, LineString, mapping, MultiPoint
 from shapely.geometry.polygon import LinearRing
 import numpy as np
 from pyqtree import Index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import util
+import util_voronoi as util
+import fiona
 
 def fill_points_in_line(p, q, n):
     ret = []
@@ -61,6 +62,7 @@ def divide(plants, plot=False, orientation='East-West'):
     convex_hull = convex_hulls[0]
     for i in range(1, len(convex_hulls)):
         convex_hull = convex_hull.union(convex_hulls[i])
+    convex_hull_o = util.get_convex_hull(plants)
     
     ds = convex_hull.length / 5000
     dy = (np.max(plants[:,1]) - np.min(plants[:,1]))/2000
@@ -126,11 +128,11 @@ def divide(plants, plot=False, orientation='East-West'):
             q = max_points[j]
             if p != q:
                 l = LineString([(p[0], p[1]), (q[0], q[1])])
-                if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds:
+                if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds and LineString([p, q]).length > convex_hull_o.length/4:
                     points = fill_points_in_line(l.coords[0], l.coords[1], int(l.length / ds + 0.5) - 1)
                     n = 0
                     for point in points:
-                        if spindex.intersect((point[0] - 3*dx, point[1] - 3*dy, point[0] + 3*dx, point[1] + 3*dy)):
+                        if spindex.intersect((point[0] - dx, point[1] - dy, point[0] + dx, point[1] + dy)):
                             n += 1
                     likeliness.append({'line': (i, j), 'likeliness': 1 - n/len(points)})
                 else:
@@ -176,3 +178,13 @@ def divide(plants, plot=False, orientation='East-West'):
         plt.show()
     
     return beds
+
+def write_shape_file(plants, dst, crs):
+    beds = divide(plants)
+    mps = [MultiPoint(bed) for bed in beds]
+    with fiona.open(dst, 'w', driver='ESRI Shapefile', schema= { 'geometry': 'MultiPoint', 'properties': {'bed': 'int'} }, crs=crs) as c:
+        for i, mp in enumerate(mps):
+            c.write({ 'geometry': mapping(mp), 'properties': {'bed': i}})
+    
+if __name__ == "__main__":
+    write_shape_file(plants[0], r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare\20190709_count_beds.shx", plants[2])
