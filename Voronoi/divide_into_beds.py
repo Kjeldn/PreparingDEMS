@@ -34,17 +34,19 @@ plot : Boolean
     If True it plots the divided beds, the splitting lines and the points on the convex hull with large distance to plants
 orentation : String
     If The orientation of the crop field is more North-South than East-West set this to North-South
+a : float
+    tolerance for finding lines, if too many are found descrease, if not enough increase
+b : int
+    max size of groups of lone points which are ignored
+c : float
+    min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy)
     
 Returns
 -----------
 beds : list of numpy arrays
     plants divided in beds
 """
-def divide(plants, plot=False, orientation='East-West'):
-    a = 1 #tolerance for finding lines, if too many are found descrease, if not enough increase
-    b = 4 #max size of groups of lone points which are ignored, int
-    c = 4 #min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy)
-    
+def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     if orientation == 'North-South':
         plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
     else:    
