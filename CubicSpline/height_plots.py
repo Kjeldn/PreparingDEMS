@@ -3,7 +3,7 @@ import util
 import numpy as np
 import fiona
 import matplotlib.pyplot as plt
-from shapely.geometry import Polygon, Point, LineString, LinearRing
+from shapely.geometry import Polygon, Point, LineString, LinearRing, mapping
 from shapely.ops import linemerge, unary_union, polygonize
 from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
@@ -15,7 +15,7 @@ wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Pla
 paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
          "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR_cubic",
          "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR_cubic",
-         "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GRcubic"]
+         "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR_cubic"]
 plants_count_path = "20190709_count"
 planes = []
 colormap = "viridis"
@@ -45,6 +45,7 @@ for i in range(len(plants)):
 beds = []
 
 with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
+    print(src.crs)
     for s in src:
         beds.append(Polygon(s['geometry']['coordinates'][0]))
 
@@ -136,7 +137,7 @@ plt.colorbar(sm)
 plt.show()
            
 #%%     
-diff =2
+diff =3
 allpolys = []
 for bed in beds:
     if bed.exterior:
@@ -158,23 +159,16 @@ for bed in beds:
         for i in range(1, n + 1):
             point_to_add = [(i*longest_line[0][0] + (n + 1 -i) * longest_line[1][0])*(1/(n+1)), (i*longest_line[0][1] + (n + 1 -i) * longest_line[1][1])*(1/(n+1))]
             ret.append(point_to_add)
-            
+        
         slope = np.arctan((longest_line[1][1] - longest_line[0][1])/(longest_line[1][0] - longest_line[0][0])) + np.pi/2
         ints = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]).intersection(Polygon(points).exterior) for p in ret]
         midpoints = [((ps[0].x + ps[1].x)/2, (ps[0].y + ps[1].y)/2) for ps in ints]
         polys = []
-        for i in range(len(ints)-1):
-            poly = Polygon([ints[i][0].coords[0], ints[i][1].coords[0], ints[i+1][1].coords[0], ints[i+1][0].coords[0]])
-            for p in polygonize(unary_union(linemerge([poly.boundary, LineString([midpoints[i], midpoints[i + 1]])]))):    
-                polys.append(p)
-        
-        polyunion = polys[0]
-        for i in range(1, len(polys)):
-            polyunion = polyunion.union(polys[i])
-            
-        diff_polys = sorted(Polygon(points).difference(polyunion), key=lambda p : p.area, reverse=True)
-        polys.append(diff_polys[0])
-        polys.append(diff_polys[1])
+        slope2 = np.arctan((midpoints[-1][1] - midpoints[0][1])/(midpoints[-1][0] - midpoints[0][0]))
+        line = LineString([(midpoints[0][0]- 0.01*np.cos(slope2),midpoints[0][1] - 0.01*np.sin(slope2)), (midpoints[0][0] + 0.01*np.cos(slope2),midpoints[0][1] + 0.01*np.sin(slope2))])
+        lines = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]) for p in ret]
+        for p in polygonize(unary_union(linemerge([line] + lines  + [LineString(bed.exterior.coords)]))):    
+            polys.append(p)
         allpolys += polys
 
 poly_values = [[] for i in range(len(allpolys))]
@@ -194,3 +188,17 @@ sm = cm.ScalarMappable(norm=Normalize(min_mean, max_mean), cmap=colormap)
 sm.set_array([])
 plt.colorbar(sm)
 plt.show()
+
+#%%
+schema = {
+    'geometry': 'Polygon',
+    'properties': {'mean_height_diff': 'float'},
+}
+
+with fiona.open(wd + '/height_diff_polygons_0723-0805.shp', 'w', crs={'init': 'epsg:4326'}, driver='ESRI Shapefile', schema=schema) as c:
+    ## If there are multiple geometries, put the "for" loop here
+    for i, p in enumerate(allpolys):
+        c.write({
+            'geometry': mapping(p),
+            'properties': {'mean_height_diff': np.mean(poly_values[i])},
+        })

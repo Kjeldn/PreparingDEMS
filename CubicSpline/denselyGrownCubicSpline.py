@@ -98,4 +98,4 @@ for i in range(0, a.shape[0], 20):
             e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
 mask = None
 
-util.create_tiff(a - np.mean(e), gt, proj, wd + "\\" + path + "cubic.tif")
+util.create_tiff(a - np.mean(e) +0.1, gt, proj, wd + "\\" + path + "_cubic.tif")
