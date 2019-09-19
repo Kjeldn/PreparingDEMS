@@ -1,6 +1,6 @@
 from shapely.geometry import Polygon, Point, LineString
 import numpy as np
-import util
+import util_voronoi as util
 from scipy.spatial import voronoi_plot_2d, Voronoi
 import matplotlib.pyplot as plt
 
