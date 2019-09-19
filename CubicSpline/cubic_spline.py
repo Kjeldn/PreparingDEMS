@@ -5,7 +5,7 @@ import rasterio
 from rasterio.warp import reproject, Resampling
 from rasterio import Affine as A
 import detect_ridges as dt
-import util
+import util_cubic as util
 import fiona
 from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
@@ -13,9 +13,8 @@ import matplotlib.pyplot as plt
 
 gdal.UseExceptions()
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
-#paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR"]
+wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2"
+paths = ["c01_verdonk-Wever west-201908041528_DEM-GR"]
 path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False
@@ -23,7 +22,7 @@ load_ridges = False
 #%% plants
 plants = []
     
-with fiona.open(wd + "/20190709_count.shp") as src:
+with fiona.open(wd + "/20190717_count.shp") as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -83,7 +82,7 @@ for a in range(len(paths)):
             y_plants.append(yc_plant)
     poly = Polygon(zip(x_plants, y_plants))
     poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-    polygon = Polygon(poly_line.buffer(100).exterior.coords)
+    polygon = Polygon(poly_line)
         
     if use_ridges:
         if load_ridges:
@@ -146,5 +145,5 @@ for a in range(len(paths)):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew, gt, projection, wd + "/" + paths[a] +'_cubic.tif')
+    util.create_tiff(znew + 0.1, gt, projection, wd + "/" + paths[a] +'_cubic.tif')
     znew = None

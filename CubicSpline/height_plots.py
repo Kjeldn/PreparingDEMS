@@ -1,5 +1,5 @@
 import gdal
-import util
+import util_cubic as util
 import numpy as np
 import fiona
 import matplotlib.pyplot as plt
@@ -10,13 +10,13 @@ from scipy.interpolate import interp1d
 from pyqtree import Index
 from matplotlib import cm
 from matplotlib.colors import Normalize
+import divide_into_beds as dib
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
-paths = ["c01_verdonk-Rijweg stalling 1-201907091137_DEM-GR_cubic", 
-         "c01_verdonk-Rijweg stalling 1-201907170849_DEM-GR_cubic",
-         "c01_verdonk-Rijweg stalling 1-201907230859_DEM-GR_cubic",
-         "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR_cubic"]
-plants_count_path = "20190709_count"
+wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2"
+paths = ["c01_verdonk-Wever west-201907170749_DEM-GR_cubic", 
+         "c01_verdonk-Wever west-201907240724_DEM-GR_cubic",
+         "c01_verdonk-Wever west-201908041528_DEM-GR_cubic"]
+plants_count_path = "20190717_count"
 planes = []
 colormap = "viridis"
 
@@ -31,6 +31,7 @@ for path in paths:
 
 plants = []
 with fiona.open(wd + "/" + plants_count_path + ".shp") as src:
+    print(src.crs)
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -42,12 +43,8 @@ heights = np.zeros((len(plants), len(paths)))
 for i in range(len(plants)):
     heights[i,:] = np.array([plane.getMaxValueAt(plants[i][1], plants[i][0], k_size=15) for plane in planes])
     
-beds = []
-
-with fiona.open(wd + "/c01_verdonk-Rijweg stalling 1-201907170849-GR.shp") as src:
-    print(src.crs)
-    for s in src:
-        beds.append(Polygon(s['geometry']['coordinates'][0]))
+beds_points = dib.divide(plants)
+beds = [util.get_convex_hull(np.array(bed)) for bed in beds_points]
 
 height_beds = [[] for i in range(len(beds))]
 for i, plant in enumerate(plants):
@@ -62,12 +59,10 @@ spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:
 for i,plant in enumerate(plants):
     spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
 #%%
-# =============================================================================
-#     
-# plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
-# plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
-# plt.show()
-# =============================================================================
+    
+plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
+plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
+plt.show()
 #%%
 # =============================================================================
 # 
@@ -90,12 +85,11 @@ for i,plant in enumerate(plants):
 # plt.show()
 # =============================================================================
 #%%
-# =============================================================================
-# plt.hist(heights[:,0],bins=1000)
-# plt.hist(heights[:,1],bins=1000)
-# plt.hist(heights[:,2],bins=1000)
-# plt.show()
-# =============================================================================
+plt.hist(heights[:,0],bins=1000,color=(1, 0, 0, 0.5))
+plt.hist(heights[:,1],bins=1000,color=(0, 0, 1, 0.5))
+plt.hist(heights[:,2],bins=1000,color=(1, 1, 0, 0.5))
+plt.hist(heights[:,3],bins=1000,color=(0, 1, 0, 0.5))
+plt.show()
 #%% 
 fig = plt.figure()
 for i, bed in enumerate(beds):
@@ -111,9 +105,9 @@ for k in range(len(beds)):
     bed = beds[k]
     if bed.exterior:
         x,y = bed.exterior.xy   
-        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = np.cumsum(np.sqrt(np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2))
         distance = distance/distance[-1]
-        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        fx, fy = interp1d(distance, x), interp1d(distance, y)
         alpha = np.linspace(0, 1, 50)
         x_regular, y_regular = fx(alpha), fy(alpha)
         tri = Delaunay(np.array([x_regular, y_regular]).T)
@@ -137,7 +131,7 @@ plt.colorbar(sm)
 plt.show()
            
 #%%     
-diff =3
+diff =2
 allpolys = []
 for bed in beds:
     if bed.exterior:
@@ -155,7 +149,7 @@ for bed in beds:
                 longest_length = Point(points[i]).distance(Point(points[(i + 1) % len(points)]))
                 
         ret = []
-        n = 20
+        n = 50
         for i in range(1, n + 1):
             point_to_add = [(i*longest_line[0][0] + (n + 1 -i) * longest_line[1][0])*(1/(n+1)), (i*longest_line[0][1] + (n + 1 -i) * longest_line[1][1])*(1/(n+1))]
             ret.append(point_to_add)
@@ -195,7 +189,7 @@ schema = {
     'properties': {'mean_height_diff': 'float'},
 }
 
-with fiona.open(wd + '/height_diff_polygons_0723-0805.shp', 'w', crs={'init': 'epsg:4326'}, driver='ESRI Shapefile', schema=schema) as c:
+with fiona.open(wd + '/height_diff_polygons_0724-0804.shp', 'w', crs={'init': 'epsg:4326'}, driver='ESRI Shapefile', schema=schema) as c:
     ## If there are multiple geometries, put the "for" loop here
     for i, p in enumerate(allpolys):
         c.write({

@@ -1,6 +1,6 @@
 import gdal
 import fiona
-import util
+import util_cubic as util
 import numpy as np
 from scipy import interpolate
 from shapely.geometry import Polygon, Point

@@ -1,8 +1,6 @@
-from typing import List
 import gdal
 import numpy as np
-import util
-from shapely.geometry import Polygon, LinearRing
+from shapely.geometry import Polygon, LinearRing, Point
 
 class Plane:
     def __init__(self, array, gt):
@@ -16,7 +14,7 @@ class Plane:
         return self.gt[3] + x * self.gt[5], self.gt[0] + y * self.gt[1] 
         
     def getMeanValueAt(self, x, y, k_size = 3):
-        ptl = util.Point(int(abs(np.floor((x - self.gt[3])/self.gt[5]))), int(abs(np.floor((y - self.gt[0])/self.gt[1]))))
+        ptl = Point(int(abs(np.floor((x - self.gt[3])/self.gt[5]))), int(abs(np.floor((y - self.gt[0])/self.gt[1]))))
         sum_k = 0
         for i in range(ptl.x - int((k_size - 1)/2), ptl.x + int((k_size - 1)/2) + 1):
             for j in range(ptl.y - int((k_size - 1)/2), ptl.y + int((k_size - 1)/2) + 1):
@@ -60,7 +58,7 @@ def get_convex_hull(plants):
     
 def getMask(array, plants, gt, k_size = 45):
     mask = np.zeros(array.shape)
-    plane = util.Plane(mask, gt)
+    plane = Plane(mask, gt)
     
     for p in plants:
         if p:
