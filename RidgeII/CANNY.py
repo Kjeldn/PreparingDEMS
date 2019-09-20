@@ -23,7 +23,7 @@ def CannyLines(plist,Img0C,img_b,mask_b):
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
     gNoise = 1.33333
     VMGradient = 70
-    k=7
+    k=3
     gradientMap = np.zeros(img_b.shape)
     dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
     dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
@@ -320,7 +320,7 @@ def CannyLines(plist,Img0C,img_b,mask_b):
             mapF[point[0],point[1]]=1
     pbar2.update(1)
     pbar2.close()
-    temp = copy.deepcopy(mapA)
+    temp = copy.deepcopy(edgemap)
     temp[temp==0]=np.NaN
     p = plt.figure()
     plt.title('Edges 0.5m')

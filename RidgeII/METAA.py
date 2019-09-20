@@ -22,17 +22,19 @@ def SelectFiles():
     root.filename =  filedialog.askopenfilename(initialdir = "/" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
     base = root.filename
-    temp = base[::-1]
-    temp2 = temp[temp.find("/")+1:]
-    wdir = temp2[::-1]
-    root = Tk()
-    root.withdraw()
-    #
-    root.filename2 =  filedialog.askopenfilename(multiple=True,initialdir = wdir,title = "Select Orthomosaics for Georegistration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
+    path0 = base[base.find("Archive"):]
+    path1 = path0[path0.find("/")+1:]
+    path2 = path1[path1.find("/")+1:]
+    path3 = path2[path2.find("/")+1:]
+    folder = base[:base.find(path3)]
     path = []
     path.append(base)
-    path.extend(root.filename2)
+    for root, dirs, files in os.walk(folder, topdown=True):
+        for name in files:
+            if ".tif" in name:
+                if name not in base:
+                    if "_DEM" not in name:
+                        path.append(os.path.join(root,name))             
     plist = []
     plt.ioff()
     return path,plist
@@ -87,7 +89,7 @@ def OrtOpening(plist,path):
     cdf_m                              = np.ma.masked_equal(cdf,0)
     cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
     cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
-    L_eq                               = cdf[L] 
+    L_eq                               = cdf[L]     
     img_s_cielab_eq                    = img_s_cielab.copy()
     img_s_cielab_eq[:,:,0]             = L_eq   
     img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)

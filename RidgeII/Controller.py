@@ -2,7 +2,8 @@ import METAA
 import CANNY
 import RECCM
 
-path,plist = METAA.SelectFiles() 
+path,plist = METAA.SelectFiles()
+ 
 
 plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpening(plist,path[0])
 plist,Edges0C                             = CANNY.CannyLines(plist,Img0C,ImgB0C,MaskB0C)
