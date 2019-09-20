@@ -321,6 +321,7 @@ def CannyLines(plist,Img0C,img_b,mask_b):
     pbar2.update(1)
     pbar2.close()
     temp = copy.deepcopy(edgemap)
+    temp = temp.astype(float)
     temp[temp==0]=np.NaN
     p = plt.figure()
     plt.title('Edges 0.5m')
