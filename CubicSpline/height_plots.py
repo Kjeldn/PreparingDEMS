@@ -11,12 +11,19 @@ from pyqtree import Index
 from matplotlib import cm
 from matplotlib.colors import Normalize
 import divide_into_beds as dib
+import datetime
 
-wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2"
-paths = ["c01_verdonk-Wever west-201907170749_DEM-GR_cubic", 
-         "c01_verdonk-Wever west-201907240724_DEM-GR_cubic",
-         "c01_verdonk-Wever west-201908041528_DEM-GR_cubic"]
-plants_count_path = "20190717_count"
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
+paths = ["c07_hollandbean-Joke Visser-201906031020_DEM_cubic", 
+         "c07_hollandbean-Joke Visser-201906191208_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201906250739_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201907010933_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201907101007_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201907241431_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201908020829_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201908231004_DEM-GR_cubic",
+         "c07_hollandbean-Joke Visser-201908300729_DEM-GR_cubic"]
+plants_count_path = "20190603_final_plant_count.gpkg"
 planes = []
 colormap = "viridis"
 
@@ -30,7 +37,7 @@ for path in paths:
     file = None
 
 plants = []
-with fiona.open(wd + "/" + plants_count_path + ".shp") as src:
+with fiona.open(wd + "/" + plants_count_path) as src:
     print(src.crs)
     for s in src:
         if s['geometry']:
@@ -59,7 +66,7 @@ spindex = Index(bbox=(np.amin(np.array(plants)[:,0]), np.amin(np.array(plants)[:
 for i,plant in enumerate(plants):
     spindex.insert({'obj': plant, 'index': i}, bbox=(plant[0], plant[1], plant[0], plant[1]))
 #%%
-    
+
 plt.plot(np.arange(len(planes)), [np.median(heights[:,i]) for i in range(len(planes))])
 plt.fill_between(np.arange(len(planes)), [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
 plt.show()
@@ -131,9 +138,9 @@ plt.colorbar(sm)
 plt.show()
            
 #%%     
-diff = (0, 2) #height difference between path[diff[1]] and path[diff[0]]
-m = 1 #number of splitting lines parallel to the long side of the bed
-n = 100 #number of splitting lines perpendicular to the long side of the bed
+diff = (0, 1) #height difference between path[diff[1]] and path[diff[0]]
+m = 10 #number of splitting lines parallel to the long side of the bed
+n = 10 #number of splitting lines perpendicular to the long side of the bed
 allpolys = []
 for bed in beds:
     if bed.exterior:
