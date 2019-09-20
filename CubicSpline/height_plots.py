@@ -131,7 +131,9 @@ plt.colorbar(sm)
 plt.show()
            
 #%%     
-diff =2
+diff = (0, 2) #height difference between path[diff[1]] and path[diff[0]]
+m = 1 #number of splitting lines parallel to the long side of the bed
+n = 100 #number of splitting lines perpendicular to the long side of the bed
 allpolys = []
 for bed in beds:
     if bed.exterior:
@@ -156,12 +158,12 @@ for bed in beds:
         
         slope = np.arctan((longest_line[1][1] - longest_line[0][1])/(longest_line[1][0] - longest_line[0][0])) + np.pi/2
         ints = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]).intersection(Polygon(points).exterior) for p in ret]
-        midpoints = [((ps[0].x + ps[1].x)/2, (ps[0].y + ps[1].y)/2) for ps in ints]
+        midpoints = [[[(i*ps[0].x + (m + 1 -i) * ps[1].x)*(1/(m+1)), (i*ps[0].y + (m + 1 -i) * ps[1].y)*(1/(m+1))] for ps in [ints[int(n/3)], ints[int(2*n/3)]]] for i in range(1, m + 1)]
         polys = []
-        slope2 = np.arctan((midpoints[-1][1] - midpoints[0][1])/(midpoints[-1][0] - midpoints[0][0]))
-        line = LineString([(midpoints[0][0]- 0.01*np.cos(slope2),midpoints[0][1] - 0.01*np.sin(slope2)), (midpoints[0][0] + 0.01*np.cos(slope2),midpoints[0][1] + 0.01*np.sin(slope2))])
-        lines = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]) for p in ret]
-        for p in polygonize(unary_union(linemerge([line] + lines  + [LineString(bed.exterior.coords)]))):    
+        slopes = [np.arctan((mps[1][1] - mps[0][1])/(mps[1][0] - mps[0][0])) for mps in midpoints]
+        lines1 = [LineString([(midpoints[i][0][0]- 0.01*np.cos(slope2), midpoints[i][0][1] - 0.01*np.sin(slope2)), (midpoints[i][0][0] + 0.01*np.cos(slope2), midpoints[i][0][1] + 0.01*np.sin(slope2))]) for i, slope2 in enumerate(slopes)]
+        lines2 = [LineString([(p[0]- 0.01*np.cos(slope),p[1] - 0.01*np.sin(slope)), (p[0] + 0.01*np.cos(slope),p[1] + 0.01*np.sin(slope))]) for p in ret]
+        for p in polygonize(unary_union(linemerge(lines1 + lines2  + [LineString(bed.exterior.coords)]))):    
             polys.append(p)
         allpolys += polys
 
@@ -169,7 +171,7 @@ poly_values = [[] for i in range(len(allpolys))]
 for i, poly in enumerate(allpolys):
     for plant in spindex.intersect(poly.bounds):
         if Point(plant['obj']).within(poly):
-            poly_values[i].append(heights[plant['index']][diff] - heights[plant['index']][diff-1])
+            poly_values[i].append(heights[plant['index']][diff[1]] - heights[plant['index']][diff[0]])
             
 min_mean = min([np.mean(v) if v else 100 for v in poly_values])
 max_mean = max([np.mean(v) if v else -100 for v in poly_values])
