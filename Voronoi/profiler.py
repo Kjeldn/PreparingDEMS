@@ -1,4 +1,4 @@
-import util
+import util_voronoi as util
 import divide_into_beds as dib
 import numpy as np
 from scipy.spatial import voronoi_plot_2d
@@ -32,7 +32,8 @@ for plant in plants_i:
     spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
 #missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = voronoi.get_missing_points(plants_i, spindex, plot=True, mean_dist=0.08)
 convex_hull = util.get_convex_hull(np.array(plants_i))
-vor = vd.Voronoi_diagram(plants_i)
+id_plants, non_id_plants = ro.remove_outliers(plants_i, -0.706638627706045)
+vor = vd.Voronoi_diagram(id_plants)
 a, lengths = util.get_areas_and_lengths(vor, convex_hull)
 vor.clip_regions(convex_hull.buffer(0.03))
 ci = util.get_confidence_interval(a)
@@ -42,7 +43,7 @@ slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjac
 
 missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, -0.7143475337058449, dists, True, 0.08)
 missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, -0.7143475337058449, dists, spindex, True, 0.08)
-id_plants, non_id_plants = ro.remove_outliers(plants_i, -0.706638627706045)
+
 voronoi_plot_2d(vor, show_vertices=False, show_points=False)
 plt.scatter(np.array(id_plants)[:,0], np.array(id_plants)[:,1], color='b')
 plt.scatter(np.array(non_id_plants)[:,0], np.array(non_id_plants)[:,1], color='purple', marker='x')

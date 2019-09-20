@@ -1,10 +1,11 @@
-from shapely.geometry import Polygon, Point, LineString
+from shapely.geometry import Polygon, Point, LineString, mapping, MultiPoint
 from shapely.geometry.polygon import LinearRing
 import numpy as np
 from pyqtree import Index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import util
+import util_voronoi as util
+import fiona
 
 def fill_points_in_line(p, q, n):
     ret = []
@@ -33,13 +34,19 @@ plot : Boolean
     If True it plots the divided beds, the splitting lines and the points on the convex hull with large distance to plants
 orentation : String
     If The orientation of the crop field is more North-South than East-West set this to North-South
+a : float
+    tolerance for finding lines, if too many are found descrease, if not enough increase
+b : int
+    max size of groups of lone points which are ignored
+c : float
+    min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy)
     
 Returns
 -----------
 beds : list of numpy arrays
     plants divided in beds
 """
-def divide(plants, plot=False, orientation='East-West'):
+def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     if orientation == 'North-South':
         plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
     else:    
@@ -61,6 +68,7 @@ def divide(plants, plot=False, orientation='East-West'):
     convex_hull = convex_hulls[0]
     for i in range(1, len(convex_hulls)):
         convex_hull = convex_hull.union(convex_hulls[i])
+    convex_hull_o = util.get_convex_hull(plants)
     
     ds = convex_hull.length / 5000
     dy = (np.max(plants[:,1]) - np.min(plants[:,1]))/2000
@@ -83,7 +91,7 @@ def divide(plants, plot=False, orientation='East-West'):
     dists = []
     indices = []
     for i in range(len(dist)):
-        if dist[i]['dist'] > 4:
+        if dist[i]['dist'] > c:
             if plot:
                 plt.plot(dist[i]['coord'][0], dist[i]['coord'][1], '*')
                 plt.text(dist[i]['coord'][0], dist[i]['coord'][1], dist[i]['dist'])
@@ -105,7 +113,7 @@ def divide(plants, plot=False, orientation='East-West'):
             
             
     for i in range(len(groups)-1, -1, -1):
-        if len(groups[i]) < 4:
+        if len(groups[i]) < b:
             del groups[i]
     
     max_points = []
@@ -126,11 +134,11 @@ def divide(plants, plot=False, orientation='East-West'):
             q = max_points[j]
             if p != q:
                 l = LineString([(p[0], p[1]), (q[0], q[1])])
-                if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds:
+                if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds and LineString([p, q]).length > convex_hull_o.length/4:
                     points = fill_points_in_line(l.coords[0], l.coords[1], int(l.length / ds + 0.5) - 1)
                     n = 0
                     for point in points:
-                        if spindex.intersect((point[0] - 3*dx, point[1] - 3*dy, point[0] + 3*dx, point[1] + 3*dy)):
+                        if spindex.intersect((point[0] - a*dx, point[1] - a*dy, point[0] + a*dx, point[1] + a*dy)):
                             n += 1
                     likeliness.append({'line': (i, j), 'likeliness': 1 - n/len(points)})
                 else:
@@ -176,3 +184,10 @@ def divide(plants, plot=False, orientation='East-West'):
         plt.show()
     
     return beds
+
+def write_shape_file(plants, dst, crs):
+    beds = divide(plants)
+    mps = [MultiPoint(bed) for bed in beds]
+    with fiona.open(dst, 'w', driver='ESRI Shapefile', schema= { 'geometry': 'MultiPoint', 'properties': {'bed': 'int'} }, crs=crs) as c:
+        for i, mp in enumerate(mps):
+            c.write({ 'geometry': mapping(mp), 'properties': {'bed': i}})

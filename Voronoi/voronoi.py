@@ -4,7 +4,7 @@ from pyqtree import Index
 import divide_into_beds as dib
 import warnings
 import voronoi_diagram as vd
-import util
+import util_voronoi as util
 import multiprocessing as mp
 import time
 import remove_outliers as ro

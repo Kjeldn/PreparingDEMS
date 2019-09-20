@@ -5,17 +5,28 @@ import rasterio
 from rasterio.warp import reproject, Resampling
 from rasterio import Affine as A
 import detect_ridges as dt
-import util
+import util_cubic as util
 import fiona
 from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
+from tqdm import trange
 
 gdal.UseExceptions()
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
-#paths = ["c01_verdonk-Wever oost-201908041528_DEM-GR"]
-paths = ["c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR"]
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
+paths = ["c07_hollandbean-Joke Visser-201906031020_DEM",
+         "c07_hollandbean-Joke Visser-201906191208_DEM-GR",
+         "c07_hollandbean-Joke Visser-201906250739_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907010933_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907101007_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907241431_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
+diffs = [0, 0.075, 0.1, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2]
+plant_path = "20190603_final_plant_count.gpkg"
+
 path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False
@@ -23,7 +34,7 @@ load_ridges = False
 #%% plants
 plants = []
     
-with fiona.open(wd + "/20190709_count.shp") as src:
+with fiona.open(wd + "/" + plant_path) as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -61,7 +72,7 @@ if path_ahn:
         ##util.create_tiff(ahn_array, orig.GetGeoTransform(), orig.GetProjection(), 'ahn.tif')
 
 #%% cubic spline   
-for a in range(len(paths)):
+for a in trange(len(paths), desc="doing cubic splines thingies"):
     file = gdal.Open(wd + "/" + paths[a] + ".tif")
     
     band = file.GetRasterBand(1)
@@ -83,7 +94,7 @@ for a in range(len(paths)):
             y_plants.append(yc_plant)
     poly = Polygon(zip(x_plants, y_plants))
     poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-    polygon = Polygon(poly_line.buffer(100).exterior.coords)
+    polygon = Polygon(poly_line)
         
     if use_ridges:
         if load_ridges:
@@ -146,5 +157,5 @@ for a in range(len(paths)):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew, gt, projection, wd + "/" + paths[a] +'_cubic.tif')
+    util.create_tiff(znew + diffs[a], gt, projection, wd + "/" + paths[a] +'_cubic.tif')
     znew = None
