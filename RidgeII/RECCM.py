@@ -95,14 +95,13 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
     w = int(25/ps0F)
     buffer = 2*w
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
-    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F
-    md = 12
+    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
     if CV1>4:
-        md = md/2
-    elif CV1>1.5:
-        md = md/3
+        md = 6
+    elif CV1<1.5:
+        md = 3
     else:
-        md = md/4
+        md = 3 + 3*((CV1-1.5)/2.5)
     max_dist = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]

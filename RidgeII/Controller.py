@@ -2,7 +2,7 @@ import METAA
 import CANNY
 import RECCM
 
-path,plist = METAA.SelectFiles() 
+path,plist = METAA.SelectFiles()
 
 plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpening(plist,path[0])
 plist,Edges0C                             = CANNY.CannyLines(plist,Img0C,ImgB0C,MaskB0C)
@@ -18,3 +18,6 @@ for i in range(1,len(path)):
     plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist               = RECCM.RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,path,i)
     plist                                                                               = METAA.CapFigures(i,path,plist)
     RECCM.Georegistr(i,path,gcplist)
+    
+    
+#path = [r"E:\LOCALORTHO\T2.tif",r"E:\LOCALORTHO\T0.tif"]

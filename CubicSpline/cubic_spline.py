@@ -10,11 +10,23 @@ import fiona
 from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
+from tqdm import trange
 
 gdal.UseExceptions()
 
-wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2"
-paths = ["c01_verdonk-Wever west-201908041528_DEM-GR"]
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
+paths = ["c07_hollandbean-Joke Visser-201906031020_DEM",
+         "c07_hollandbean-Joke Visser-201906191208_DEM-GR",
+         "c07_hollandbean-Joke Visser-201906250739_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907010933_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907101007_DEM-GR",
+         "c07_hollandbean-Joke Visser-201907241431_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
+diffs = [0, 0.075, 0.1, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2]
+plant_path = "20190603_final_plant_count.gpkg"
+
 path_ahn = None#"m_19fn2.tif"
 use_ridges = True
 load_ridges = False
@@ -22,7 +34,7 @@ load_ridges = False
 #%% plants
 plants = []
     
-with fiona.open(wd + "/20190717_count.shp") as src:
+with fiona.open(wd + "/" + plant_path) as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -60,7 +72,7 @@ if path_ahn:
         ##util.create_tiff(ahn_array, orig.GetGeoTransform(), orig.GetProjection(), 'ahn.tif')
 
 #%% cubic spline   
-for a in range(len(paths)):
+for a in trange(len(paths), desc="doing cubic splines thingies"):
     file = gdal.Open(wd + "/" + paths[a] + ".tif")
     
     band = file.GetRasterBand(1)
@@ -145,5 +157,5 @@ for a in range(len(paths)):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew + 0.1, gt, projection, wd + "/" + paths[a] +'_cubic.tif')
+    util.create_tiff(znew + diffs[a], gt, projection, wd + "/" + paths[a] +'_cubic.tif')
     znew = None

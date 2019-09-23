@@ -19,20 +19,23 @@ def SelectFiles():
     root = Tk()
     root.withdraw()
     #
-    root.filename =  filedialog.askopenfilename(initialdir = "/" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    root.filename =  filedialog.askopenfilename(initialdir = "D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
     base = root.filename
-    temp = base[::-1]
-    temp2 = temp[temp.find("/")+1:]
-    wdir = temp2[::-1]
-    root = Tk()
-    root.withdraw()
-    #
-    root.filename2 =  filedialog.askopenfilename(multiple=True,initialdir = wdir,title = "Select Orthomosaics for Georegistration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
+    path0 = base[base.find("Archive"):]
+    path1 = path0[path0.find("/")+1:]
+    path2 = path1[path1.find("/")+1:]
+    path3 = path2[path2.find("/")+1:]
+    folder = base[:base.find(path3)]
     path = []
     path.append(base)
-    path.extend(root.filename2)
+    for root, dirs, files in os.walk(folder, topdown=True):
+        for name in files:
+            if ".tif" in name:
+                if name not in base:
+                    if "_DEM" not in name:
+                        if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                            path.append(os.path.join(root,name).replace("\\","/"))             
     plist = []
     plt.ioff()
     return path,plist
@@ -87,7 +90,7 @@ def OrtOpening(plist,path):
     cdf_m                              = np.ma.masked_equal(cdf,0)
     cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
     cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
-    L_eq                               = cdf[L] 
+    L_eq                               = cdf[L]     
     img_s_cielab_eq                    = img_s_cielab.copy()
     img_s_cielab_eq[:,:,0]             = L_eq   
     img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
@@ -114,19 +117,14 @@ def DemOpening(plist,path,Img0C):
     dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
     mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
     fx                                 = dem_o.shape[0]/dem.shape[0]
-    fy                                 = dem_o.shape[1]/dem.shape[1]
-    dem[dem == np.amin(dem)] = 0
-    dem[dem > 10] = 0  
-    kernel = np.ones((8,1),np.float32)/8
-    filtered_dem = cv2.filter2D(dem,-1,kernel)
-    for i in range(2):
-        filtered_dem = cv2.filter2D(filtered_dem,-1,kernel)  
-    n=int(75/(psF/0.01))
-    kernel = np.ones((n,n),np.float32)/(n**2)
-    smooth = cv2.filter2D(dem,-1,kernel)
-    ridges = (filtered_dem-smooth)
+    fy                                 = dem_o.shape[1]/dem.shape[1] 
+    dem_f = cv2.GaussianBlur(dem,(11,11),0)
+    smooth = cv2.GaussianBlur(dem_f,(15,15),0)
+    ridges = (dem_f-smooth)
+    #kernel = np.ones((n,n),np.float32)/(n**2)
+    #smooth = cv2.filter2D(dem_f,-1,kernel)
     mask_b = cv2.GaussianBlur(mask,(51,51),0)  
-    ridges[mask_b>10**-10]=0  
+    ridges[mask>10**-10]=0  
     temp1 = np.zeros(ridges.shape)
     temp2 = np.zeros(ridges.shape)
     temp1[ridges<-0.01]=1
