@@ -19,7 +19,7 @@ def SelectFiles():
     root = Tk()
     root.withdraw()
     #
-    root.filename =  filedialog.askopenfilename(initialdir = "/" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    root.filename =  filedialog.askopenfilename(initialdir = "D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
     base = root.filename
     path0 = base[base.find("Archive"):]
@@ -34,7 +34,8 @@ def SelectFiles():
             if ".tif" in name:
                 if name not in base:
                     if "_DEM" not in name:
-                        path.append(os.path.join(root,name).replace("\\","/"))             
+                        if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                            path.append(os.path.join(root,name).replace("\\","/"))             
     plist = []
     plt.ioff()
     return path,plist
