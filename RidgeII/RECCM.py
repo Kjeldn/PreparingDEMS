@@ -298,6 +298,9 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     clist     = clist[indices]
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
+    gcplist_DEM = []
+    for k in range(len(origin_x)): 
+        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
     gto = gdal.Open(files[iiii]).GetGeoTransform()
     origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
     origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
@@ -314,9 +317,9 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close(258)
     plist.append(p)
-    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
 
-def Georegistr(i,files,gcplist):
+def Georegistr(i,files,gcplist,gcplist_DEM):
     pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
     temp = files[i][::-1]
     temp2 = temp[:temp.find("/")]
@@ -344,7 +347,7 @@ def Georegistr(i,files,gcplist):
     dest = file.strip(".tif")+"_GR.vrt"  
     if os.path.isfile(dest.replace("\\","/")):
         os.remove(dest)
-    temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
+    temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
     gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
     pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
     subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
