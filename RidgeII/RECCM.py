@@ -194,8 +194,8 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
         CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
         origin_x[i] = x1[i]*fx1F
         origin_y[i] = y1[i]*fy1F    
-        dx = (x1-xof)*ps0F
-        dy = (y1-yof)*ps0F 
+    dx = (x1-xof)*ps0F
+    dy = (y1-yof)*ps0F 
     p = plt.figure()
     plt.subplot(1,2,1)
     plt.title("Patch")

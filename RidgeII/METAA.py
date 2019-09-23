@@ -122,7 +122,10 @@ def OrtOpening(plist,path):
 
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    temp = path.strip(".tif")+"_DEM.tif"
+    if "-GR" in path:
+        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+    else:
+        temp = path.strip(".tif")+"_DEM.tif"
     psF=0.05
     file                               = gdal.Open(temp)
     gt                                 = file.GetGeoTransform()
