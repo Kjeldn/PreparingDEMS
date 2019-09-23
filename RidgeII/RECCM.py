@@ -182,6 +182,8 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]*circle2
         RECC_total.fill(np.NaN)
+        if RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist].shape != (2*(max_dist+w),2*(max_dist+w)):
+            continue
         RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
         max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
