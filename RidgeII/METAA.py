@@ -14,6 +14,25 @@ import os
 from tkinter import filedialog
 from tkinter import *
 
+def InboxxFiles(num):
+    plt.close("all")
+    metapath = []
+    for i in range(num):
+        path = []
+        root = Tk()
+        root.withdraw()
+        #
+        root.filename =  filedialog.askopenfilename(initialdir = r"D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+        #
+        path.append(root.filename)
+        root.filename =  filedialog.askopenfilename(multiple=True, initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+        for file in root.filename:
+            path.append(file)
+        metapath.append(path)
+    plist = []
+    plt.ioff()
+    return metapath,plist
+
 def SelectFiles():
     plt.close("all")
     root = Tk()
