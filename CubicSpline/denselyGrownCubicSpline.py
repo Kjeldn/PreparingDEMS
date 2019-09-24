@@ -8,14 +8,18 @@ from shapely.geometry.polygon import LinearRing
 import rasterio
 from rasterio import Affine as A
 from rasterio.warp import reproject, Resampling
+import detect_ridges as dr
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare"
-path = "c01_verdonk-Rijweg stalling 1-201908051539_DEM-GR"
+wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
+paths = ["c07_hollandbean-Joke Visser-201907241431_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
+         "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
 path_ahn = None #"m_19fn2.tif"
 plants = []
 
 if path_ahn:
-    orig = gdal.Open(wd + "/" + path + ".tif")
+    orig = gdal.Open(wd + "/" + paths[0] + ".tif")
     dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
     dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
     ahn_array = np.zeros(dst_shape)
@@ -37,7 +41,7 @@ if path_ahn:
             
     source = None
 
-with fiona.open(wd + "/20190709_count.shp") as src:
+with fiona.open(wd + "/20190603_final_plant_count.gpkg") as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -50,52 +54,55 @@ with fiona.open(wd + "/20190709_count.shp") as src:
 
 src_schema['properties']['diff'] = 'float:24.15'
 
-x = []
-y = []
-values = []
-
-tif = gdal.Open(wd + "/" + path + ".tif")
-band = tif.GetRasterBand(1)
-array = band.ReadAsArray()
-array[array == np.amin(array)] = 0
-xsize = band.XSize
-ysize = band.YSize
-gt = tif.GetGeoTransform()
-proj = tif.GetProjection()
-plane = util.Plane(array, gt)
-tif = None
-
-for i in range(0, len(plants), 20):
-    if plants[i]:
-        values.append(plane.getMaxValueAt(plants[i][1], plants[i][0]))
-        xx, yy = plane.getIndicesByCoord(plants[i][1], plants[i][0])
-        x.append(xx)
-        y.append(yy)    
-        
-poly = Polygon(zip(x, y))
-poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
-polygon = Polygon(poly_line.coords)
-
-xnew, ynew = np.mgrid[0:ysize, 0:xsize]
-
-tck = interpolate.bisplrep(x, y, values)
-znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
-x = None
-y = None
-xnew = None
-ynew = None
-values = None
-a = (array - znew)
-array = None
-znew = None
-
-mask = util.getMask(a, plants, gt)
-
-e = []
-for i in range(0, a.shape[0], 20):
-    for j in range(0, a.shape[1], 20):
-        if mask[i][j] == 0 and polygon.contains(Point(i, j)):
-            e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
-mask = None
-
-util.create_tiff(a - np.mean(e) +0.1, gt, proj, wd + "\\" + path + "_cubic.tif")
+for path in paths:
+    x = []
+    y = []
+    values = []
+    
+    tif = gdal.Open(wd + "/" + path + ".tif")
+    band = tif.GetRasterBand(1)
+    array = band.ReadAsArray()
+    array[array == np.amin(array)] = 0
+    xsize = band.XSize
+    ysize = band.YSize
+    gt = tif.GetGeoTransform()
+    proj = tif.GetProjection()
+    plane = util.Plane(array, gt)
+    tif = None
+    
+    for i in range(0, len(plants), 20):
+        if plants[i]:
+            values.append(plane.getMaxValueAt(plants[i][1], plants[i][0]))
+            xx, yy = plane.getIndicesByCoord(plants[i][1], plants[i][0])
+            x.append(xx)
+            y.append(yy)    
+            
+    poly = Polygon(zip(x, y))
+    poly_line = LinearRing(np.array([z.tolist() for z in poly.convex_hull.exterior.coords.xy]).T)
+    polygon = Polygon(poly_line.coords)
+    
+    xnew, ynew = np.mgrid[0:ysize, 0:xsize]
+    
+    tck = interpolate.bisplrep(x, y, values)
+    znew = interpolate.bisplev(xnew[:,0], ynew[0,:], tck)
+    ridges_array = dr.get_ridges_array(array)
+    x = None
+    y = None
+    xnew = None
+    ynew = None
+    values = None
+    a = (array - znew)
+    array = None
+    znew = None
+    
+    mask = util.getMask(a, plants, gt)
+    
+    
+    e = []
+    for i in range(0, a.shape[0], 20):
+        for j in range(0, a.shape[1], 20):
+            if mask[i][j] == 0 and ridges_array[i][j] == 1 and polygon.contains(Point(i, j)):
+                e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
+    mask = None
+    
+    util.create_tiff(a - np.mean(e)-0.1, gt, proj, wd + "\\" + path + "_cubic.tif")

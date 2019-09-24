@@ -182,6 +182,8 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]*circle2
         RECC_total.fill(np.NaN)
+        if RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist].shape != (2*(max_dist),2*(max_dist)):
+            continue
         RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
         max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
@@ -191,9 +193,9 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
         x_n      = np.where(RECC_total >= max_n)[0][0:-1]
         CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
         origin_x[i] = x1[i]*fx1F
-        origin_y[i] = y1[i]*fy1F
-        dx = (x1-xof)*ps0F
-        dy = (y1-yof)*ps0F 
+        origin_y[i] = y1[i]*fy1F    
+    dx = (x1-xof)*ps0F
+    dy = (y1-yof)*ps0F 
     p = plt.figure()
     plt.subplot(1,2,1)
     plt.title("Patch")
@@ -296,6 +298,9 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     clist     = clist[indices]
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
+    gcplist_DEM = []
+    for k in range(len(origin_x)): 
+        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
     gto = gdal.Open(files[iiii]).GetGeoTransform()
     origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
     origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
@@ -312,10 +317,10 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close(258)
     plist.append(p)
-    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
 
-def Georegistr(i,files,gcplist):
-    pbar3 = tqdm(total=1,position=0,desc="Georeg    ")
+def Georegistr(i,files,gcplist,gcplist_DEM):
+    pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
     temp = files[i][::-1]
     temp2 = temp[:temp.find("/")]
     src = temp2[::-1]
@@ -323,6 +328,26 @@ def Georegistr(i,files,gcplist):
     if os.path.isfile(dest.replace("\\","/")):
         os.remove(dest)
     temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
+    gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
+    pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
+    subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
+    fh, abs_path = mkstemp()
+    with os.fdopen(fh,'w') as new_file:
+        with open(dest) as old_file:
+            for line in old_file:
+                new_file.write(line.replace(pattern, subst))
+    os.remove(dest)
+    move(abs_path, dest)
+    pbar3.update(1)
+   
+    file = files[i].strip(".tif")+"_DEM.tif"
+    temp = file[::-1]
+    temp2 = temp[:temp.find("/")]
+    src = temp2[::-1]
+    dest = file.strip(".tif")+"_GR.vrt"  
+    if os.path.isfile(dest.replace("\\","/")):
+        os.remove(dest)
+    temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
     gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
     pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
     subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"

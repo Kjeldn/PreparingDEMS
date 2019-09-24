@@ -15,16 +15,11 @@ from tqdm import trange
 gdal.UseExceptions()
 
 wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
-paths = ["c07_hollandbean-Joke Visser-201906031020_DEM",
-         "c07_hollandbean-Joke Visser-201906191208_DEM-GR",
-         "c07_hollandbean-Joke Visser-201906250739_DEM-GR",
-         "c07_hollandbean-Joke Visser-201907010933_DEM-GR",
-         "c07_hollandbean-Joke Visser-201907101007_DEM-GR",
-         "c07_hollandbean-Joke Visser-201907241431_DEM-GR",
+paths = ["c07_hollandbean-Joke Visser-201907241431_DEM-GR",
          "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
          "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
          "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
-diffs = [0, 0.075, 0.1, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2]
+diffs = [0, 0, 0, 0, 0]
 plant_path = "20190603_final_plant_count.gpkg"
 
 path_ahn = None#"m_19fn2.tif"
@@ -125,7 +120,7 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
             y[i][j] = step * j
             if array[step * i, step * j] == 0 or not polygon.contains(Point(step * i, step * j)):
                 mask[i][j] = True
-            if use_ridges and ridges_array[step * i, step * j] != 0:
+            if use_ridges and ridges_array[step * i, step * j] != 1:
                 mask[i][j] = True
             if path_ahn and abs(ahn_array[step * i, step * j]) > 10:
                 mask[i][j] = True
