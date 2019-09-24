@@ -9,23 +9,29 @@ import rasterio
 from rasterio import Affine as A
 from rasterio.warp import reproject, Resampling
 import detect_ridges as dr
+from tkinter import filedialog
+from tkinter import *
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
-paths = ["c07_hollandbean-Joke Visser-201907241431_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
-path_ahn = None #"m_19fn2.tif"
+use_ahn = False = None #"m_19fn2.tif"
+
+root = Tk()
+paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
+plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
+
+if use_ahn:
+    ahn_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select ahn dem", parent=root)
+
+root.destroy()
 plants = []
 
 if path_ahn:
-    orig = gdal.Open(wd + "/" + paths[0] + ".tif")
+    orig = gdal.Open(paths[0])
     dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
     dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
     ahn_array = np.zeros(dst_shape)
     dst_crs = "EPSG:4326"
     
-    with rasterio.open(wd + "/" + path_ahn) as src:
+    with rasterio.open(ahn_path) as src:
         source = src.read(1)
         
         with rasterio.Env():
@@ -41,7 +47,7 @@ if path_ahn:
             
     source = None
 
-with fiona.open(wd + "/20190603_final_plant_count.gpkg") as src:
+with fiona.open(plant_pth) as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -59,7 +65,7 @@ for path in paths:
     y = []
     values = []
     
-    tif = gdal.Open(wd + "/" + path + ".tif")
+    tif = gdal.Open(path)
     band = tif.GetRasterBand(1)
     array = band.ReadAsArray()
     array[array == np.amin(array)] = 0
@@ -105,4 +111,4 @@ for path in paths:
                 e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
     mask = None
     
-    util.create_tiff(a - np.mean(e)-0.1, gt, proj, wd + "\\" + path + "_cubic.tif")
+    util.create_tiff(a - np.mean(e)-0.1, gt, proj, path.split(".")[0] + "_cubic.tif")

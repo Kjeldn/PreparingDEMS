@@ -11,25 +11,26 @@ from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
 from tqdm import trange
+from tkinter import filedialog
+from tkinter import *
 
 gdal.UseExceptions()
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
-paths = ["c07_hollandbean-Joke Visser-201907241431_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908020829_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908231004_DEM-GR",
-         "c07_hollandbean-Joke Visser-201908300729_DEM-GR"]
-diffs = [0, 0, 0, 0, 0]
-plant_path = "20190603_final_plant_count.gpkg"
+root = Tk()
+paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
+plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
 
-path_ahn = None#"m_19fn2.tif"
+use_ahn = False
+if use_ahn:
+    ahn_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select ahn dem", parent=root)
+
+root.destroy()
 use_ridges = True
-load_ridges = False
 
 #%% plants
 plants = []
     
-with fiona.open(wd + "/" + plant_path) as src:
+with fiona.open(plant_path) as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -41,14 +42,14 @@ with fiona.open(wd + "/" + plant_path) as src:
         src_schema = src.schema
     
 #%% reproject AHN Model
-if path_ahn:
-    orig = gdal.Open(wd + "/" + paths[0] + ".tif")
+if use_ahn:
+    orig = gdal.Open(paths[0])
     dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
     dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
     ahn_array = np.zeros(dst_shape)
     dst_crs = "EPSG:4326"
     
-    with rasterio.open(wd + "/" + path_ahn) as src:
+    with rasterio.open(ahn_path) as src:
         source = src.read(1)
         
         with rasterio.Env():
@@ -68,7 +69,7 @@ if path_ahn:
 
 #%% cubic spline   
 for a in trange(len(paths), desc="doing cubic splines thingies"):
-    file = gdal.Open(wd + "/" + paths[a] + ".tif")
+    file = gdal.Open(paths[a])
     
     band = file.GetRasterBand(1)
     array = band.ReadAsArray()
@@ -92,14 +93,7 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
     polygon = Polygon(poly_line)
         
     if use_ridges:
-        if load_ridges:
-            ridges_file = gdal.Open(wd + "/" + paths[a] + "_ridges.tif")
-            ridges_band = ridges_file.GetRasterBand(1)
-            ridges_array = ridges_band.ReadAsArray()
-            ridges_array = ridges_array.astype(np.uint8)
-            file = None
-        else:
-            ridges_array = dt.get_ridges_array(array).astype(np.uint8)
+        ridges_array = dt.get_ridges_array(array).astype(np.uint8)
     
     ##Remove all non-values from array
     array[array == np.amin(array)] = 0
@@ -115,14 +109,14 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
     # create list of points inside the field to get the fit over
     for i in range(int(ysize/step)):
         for j in range(int(xsize/step)):
-            data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j] if path_ahn else array[step * i, step * j]
+            data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j] if use_ahn else array[step * i, step * j]
             x[i][j] = step * i
             y[i][j] = step * j
             if array[step * i, step * j] == 0 or not polygon.contains(Point(step * i, step * j)):
                 mask[i][j] = True
             if use_ridges and ridges_array[step * i, step * j] != 1:
                 mask[i][j] = True
-            if path_ahn and abs(ahn_array[step * i, step * j]) > 10:
+            if use_ahn and abs(ahn_array[step * i, step * j]) > 10:
                 mask[i][j] = True
                     
     ridges_array = None
@@ -152,5 +146,5 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew + diffs[a], gt, projection, wd + "/" + paths[a] +'_cubic.tif')
+    util.create_tiff(znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
     znew = None
