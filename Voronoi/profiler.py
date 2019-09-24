@@ -44,10 +44,10 @@ slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjac
 missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, -0.7143475337058449, dists, True, 0.08)
 missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, -0.7143475337058449, dists, spindex, True, 0.08)
 
-voronoi_plot_2d(vor, show_vertices=False, show_points=False)
-plt.scatter(np.array(id_plants)[:,0], np.array(id_plants)[:,1], color='b')
-plt.scatter(np.array(non_id_plants)[:,0], np.array(non_id_plants)[:,1], color='purple', marker='x')
-plt.scatter(np.array(missed_points)[:,0], np.array(missed_points)[:,1], color='k', marker='v')
+voronoi_plot_2d(vor, show_vertices=False)
+#plt.scatter(np.array(id_plants)[:,0], np.array(id_plants)[:,1], color='b')
+#plt.scatter(np.array(non_id_plants)[:,0], np.array(non_id_plants)[:,1], color='purple', marker='x')
+#plt.scatter(np.array(missed_points)[:,0], np.array(missed_points)[:,1], color='k', marker='v')
 for r in missed_regions:
     plt.fill(*zip(*r.vc), color="r", alpha = 0.5)
     
@@ -62,3 +62,14 @@ lines = util.find_points_in_line(list(adjacent_missed_regions[22]), -0.174045239
 plt.scatter(points[:,0], points[:,1])
 for line in lines:
     plt.plot([p[0] for p in line],[p[1] for p in line])
+
+#%%
+from shapely.ops import unary_union
+from shapely.geometry import Polygon
+polys = []
+for amr in adjacent_missed_regions:
+    polys.append(unary_union([Polygon(a.vc) for a in list(amr)]))
+    
+for i, poly in enumerate(polys):
+    plt.plot(*poly.exterior.xy)
+plt.scatter(*np.array(missed_points).T)

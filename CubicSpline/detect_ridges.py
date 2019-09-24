@@ -45,8 +45,9 @@ def write_ridges_array(src_path, dst_path):
     
 #write_ridges_array(r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR.tif", r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR_ridges.tif")
 if __name__ == "__main__":
-    file = gdal.Open(R"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3\c07_hollandbean-Joke Visser-201906031020_DEM.tif")
+    file = gdal.Open(r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2\c01_verdonk-Wever west-201907170749_DEM-GR.tif")
     projection = file.GetProjection()
     band = file.GetRasterBand(1)
     array = get_ridges_array(band.ReadAsArray())
+    plt.spy(array)
     file = None

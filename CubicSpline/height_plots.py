@@ -13,16 +13,16 @@ from matplotlib.colors import Normalize
 import divide_into_beds as dib
 import datetime
 
-wd = r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
+wd = r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare3"
 paths = ["c07_hollandbean-Joke Visser-201906031020_DEM_cubic", 
-         "c07_hollandbean-Joke Visser-201906191208_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201906250739_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201907010933_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201907101007_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201907241431_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201908020829_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201908231004_DEM-GR_cubic",
-         "c07_hollandbean-Joke Visser-201908300729_DEM-GR_cubic"]
+         "c07_hollandbean-Joke Visser-201906191208_DEM-GR_cubic"]
+#         "c07_hollandbean-Joke Visser-201906250739_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201907010933_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201907101007_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201907241431_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201908020829_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201908231004_DEM-GR_cubic",
+#         "c07_hollandbean-Joke Visser-201908300729_DEM-GR_cubic"]
 plants_count_path = "20190603_final_plant_count.gpkg"
 planes = []
 colormap = "viridis"
@@ -68,9 +68,9 @@ for i,plant in enumerate(plants):
 #%%
 dates_str = [p.split("_DEM")[0].split("-")[-1] for p in paths]
 dates = [datetime.datetime(int(d[:4]), int(d[4:6]), int(d[6:8]), int(d[8:10]), int(d[10:12])) for d in dates_str]
-diffs = [(dates[i] - dates[0]).total_seconds()/(60*60*24) for i in range(len(dates))]
-plt.plot(diffs, [np.mean(heights[:,i]) for i in range(len(planes))])
-plt.fill_between(diffs, [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
+time_diffs = [(dates[i] - dates[0]).total_seconds() for i in range(len(dates))]
+plt.plot(time_diffs, [np.median(heights[:,i]) for i in range(len(planes))])
+plt.fill_between(time_diffs, [np.percentile(heights[:,i], 25) for i in range(len(planes))], [np.percentile(heights[:,i], 75) for i in range(len(planes))], color="cyan")
 plt.show()
 #%%
 # =============================================================================

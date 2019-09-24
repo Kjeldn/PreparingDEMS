@@ -1,4 +1,4 @@
-from shapely.geometry import Polygon, Point, LineString, mapping, MultiPoint
+from shapely.geometry import Polygon, Point, LineString, mapping, MultiPoint, MultiPolygon
 from shapely.geometry.polygon import LinearRing
 import numpy as np
 from pyqtree import Index
