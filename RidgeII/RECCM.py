@@ -1,3 +1,4 @@
+import METAA
 import cv2
 import numpy as np
 import numpy.matlib
@@ -286,6 +287,81 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     distance = delta_x**2 + delta_y**2
     radius = 1
     indices = np.where(distance <= radius)[0]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    x0        = x0[indices]
+    y0        = y0[indices]
+    x1        = x1[indices]
+    y1        = y1[indices]
+    CVa       = CVa[indices]
+    clist     = clist[indices]
+    size2=len(x0)  
+    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
+    gcplist_DEM = []
+    for k in range(len(origin_x)): 
+        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
+    gto = gdal.Open(files[iiii]).GetGeoTransform()
+    origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
+    origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
+    gcplist = []
+    for k in range(len(origin_x)): 
+        gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
+    clist = list(clist)
+    p = plt.figure(258)
+    plt.subplot(1,2,1)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
+    plt.subplot(1,2,2)
+    plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(258)
+    plist.append(p)
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
+
+def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
+    size0 = len(x0)
+    indices = np.where(CVa>0)[0]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    x0        = x0[indices]
+    y0        = y0[indices]
+    x1        = x1[indices]
+    y1        = y1[indices]
+    CVa       = CVa[indices]
+    dx        = dx[indices]
+    dy        = dy[indices]
+    size1=len(x0)
+    clist = list(np.random.choice(range(256), size=len(x0)))
+    p=plt.figure(257)
+    plt.subplot(1,2,1)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
+    plt.subplot(1,2,2)
+    plt.title(str(size1)+" in-domain")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(257)
+    plist.append(p)
+    clist = np.array(clist)
+    if len(x0[CVa<1.5]) >= size0/2:
+        ind = np.where(CVa<1.5)[0]
+    elif len(x0[CVa<4]) >= size0/2:
+        ind = np.where(CVa<4)[0]
+    else:
+        ind = np.where(CVa<np.median(CVa))[0]
+        print("WARNING   : Not enough points with low CV score.")
+    fun_dx = METAA.fit(origin_x[ind],origin_y[ind],dx[ind])
+    fun_dy = METAA.fit(origin_x[ind],origin_y[ind],dy[ind])
+    supposed_dx = fun_dx[0]*origin_x+fun_dx[1]*origin_y+fun_dx[2]
+    supposed_dy = fun_dy[0]*origin_x+fun_dy[1]*origin_y+fun_dy[2]
+    delta_x = dx - supposed_dx
+    delta_y = dy - supposed_dy
+    distance = np.square(delta_x) + np.square(delta_y)
+    radius = 0.1
+    indices = np.where(distance.T <= radius)[0]
     origin_x   = origin_x[indices]
     origin_y   = origin_y[indices]
     target_lon = target_lon[indices]

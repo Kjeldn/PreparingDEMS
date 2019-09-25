@@ -426,5 +426,18 @@ def CapFigures(i,path,plist):
     plist = list(plist)
     pp.close()
     return plist
+
+def fit(origin_x,origin_y,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    fit = (A.T * A).I * A.T * b
+    #errors = b - A * fit
+    #residual = np.linalg.norm(errors)
+    return fit
     
     
