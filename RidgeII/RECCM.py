@@ -98,11 +98,11 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
     if CV1>4:
-        md = 6
+        md = 10
     elif CV1<1.5:
-        md = 3
+        md = 5
     else:
-        md = 3 + 3*((CV1-1.5)/2.5)
+        md = 5 + 5*((CV1-1.5)/2.5)
     max_dist = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -434,5 +434,20 @@ def Georegistr(i,files,gcplist,gcplist_DEM):
                 new_file.write(line.replace(pattern, subst))
     os.remove(dest)
     move(abs_path, dest)
+    pbar3.update(1)
+    pbar3.close()
+    
+def GeoPointss(i,files,target_lon,target_lat,origin_x,origin_y,gt1F):
+    pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
+    origin_lat = gt1F[3]+gt1F[5]*origin_x
+    origin_lon = gt1F[0]+gt1F[1]*origin_y
+    dest = files[i].strip(".tif")+".points" 
+    if os.path.isfile(dest.replace("\\","/")):
+        os.remove(dest)
+    f = open(dest,"w+")
+    f.write("mapX,mapY,pixelX,pixelY,enable,dX,dY,residual")
+    for i in range(len(target_lon)):
+        f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
+    f.close()
     pbar3.update(1)
     pbar3.close()

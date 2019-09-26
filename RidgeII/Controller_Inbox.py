@@ -2,7 +2,7 @@ import METAA
 import CANNY
 import RECCM
 
-metapath,plist = METAA.InboxxFiles(8)
+metapath,plist = METAA.InboxxFiles(1)
 
 for path in metapath:
     plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpening(plist,path[0])
@@ -19,3 +19,4 @@ for path in metapath:
         plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist1,gcplist2     = RECCM.RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,path,i)
         plist                                                                               = METAA.CapFigures(i,path,plist)
         RECCM.Georegistr(i,path,gcplist1,gcplist2)
+        RECCM.GeoPointss(i,path,target_lon,target_lat,origin_x,origin_y,gt1F)
