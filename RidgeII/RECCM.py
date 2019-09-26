@@ -365,6 +365,26 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     distance = np.square(delta_x) + np.square(delta_y)
     radius = 0.1
     indices = np.where(distance.T <= radius)[0]
+    inv_ind = []
+    for i in range(len(origin_x)):
+        if i not in ind:
+            inv_ind.append(i)
+    p = plt.figure()
+    ax = p.add_subplot(111, projection='3d')
+    ax.scatter(origin_x,origin_y,supposed_dx,c='b',marker='o')
+    ax.scatter(origin_x[ind],origin_y[ind],dx[ind],c='g',marker='o')
+    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dx[inv_ind],c='r',marker='o')
+    ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
+    plt.close()
+    plist.append(p)   
+    p = plt.figure()
+    ax = p.add_subplot(111, projection='3d')
+    ax.scatter(origin_x,origin_y,supposed_dy,c='b',marker='o')
+    ax.scatter(origin_x[ind],origin_y[ind],dy[ind],c='g',marker='o')
+    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dy[inv_ind],c='r',marker='o')
+    ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
+    plt.close()
+    plist.append(p)  
     origin_x   = origin_x[indices]
     origin_y   = origin_y[indices]
     target_lon = target_lon[indices]
@@ -396,26 +416,6 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close(258)
     plist.append(p)
-    inv_ind = []
-    for i in range(len(origin_x)):
-        if i not in ind:
-            inv_ind.append(i)
-    p = plt.figure()
-    ax = p.add_subplot(111, projection='3d')
-    ax.scatter(origin_x,origin_y,supposed_dx,c='b',marker='o')
-    ax.scatter(origin_x[ind],origin_y[ind],dx[ind],c='g',marker='o')
-    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dx[inv_ind],c='r',marker='o')
-    ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
-    plt.close()
-    plist.append(p)   
-    p = plt.figure()
-    ax = p.add_subplot(111, projection='3d')
-    ax.scatter(origin_x,origin_y,supposed_dy,c='b',marker='o')
-    ax.scatter(origin_x[ind],origin_y[ind],dy[ind],c='g',marker='o')
-    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dy[inv_ind],c='r',marker='o')
-    ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
-    plt.close()
-    plist.append(p)  
     return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
 
 def Georegistr(i,files,gcplist,gcplist_DEM):

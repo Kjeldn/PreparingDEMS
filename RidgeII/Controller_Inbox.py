@@ -2,7 +2,7 @@ import METAA
 import CANNY
 import RECCM
 
-metapath,plist = METAA.InboxxFiles(1)
+metapath,plist = METAA.InboxxFiles(2)
 
 for path in metapath:
     plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpening(plist,path[0])
