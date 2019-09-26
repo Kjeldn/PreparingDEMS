@@ -61,35 +61,45 @@ def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     RECC_wide = numerator / (sum_patch+sum_target)
     RECC_area = RECC_wide[xd:-xd,yd:-yd]*circle2
     RECC_total.fill(np.NaN)
-    RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
-    max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
-    max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
-    y1       = np.where(RECC_total >= max_one)[1][0]  
-    x1       = np.where(RECC_total >= max_one)[0][0]
-    y_n      = np.where(RECC_total >= max_n)[1][0:-1]
-    x_n      = np.where(RECC_total >= max_n)[0][0:-1]
-    CV1      = sum(np.sqrt(np.square(x1-x_n)+np.square(y1-y_n)))/4
-    x_off = (x1-xog)*psC
-    y_off = (y1-yog)*psC
-    pbar.update(1)
-    pbar.close()
-    p = plt.figure()
-    plt.figtext(.8, .8, "[R] Origin \n[G] Other Grid \n[B] Offset")
-    plt.subplot(1,2,1)
-    plt.title("Offset: ("+str(x_off)+","+str(y_off)+") m")
-    plt.imshow(Edges0C,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=3)
-    plt.subplot(1,2,2)
-    plt.title("CV: "+str(round(CV1,2)))
-    plt.imshow(Edges1C,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=1)
-    plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
-    plt.scatter(yog,xog,c='g',s=1)
-    plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
-    plt.scatter(y1,x1,c='b',s=1) 
-    plt.close()
-    plist.append(p)
-    print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
+    if RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist].shape != (2*(max_dist),2*(max_dist)):
+        pbar.update(1)
+        pbar.close()
+        x_off = 0
+        y_off = 0
+        x1=0
+        y1=0
+        CV1=100
+        print("Something something out of bounds again...")
+    else:   
+        RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
+        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
+        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
+        y1       = np.where(RECC_total >= max_one)[1][0]  
+        x1       = np.where(RECC_total >= max_one)[0][0]
+        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
+        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
+        CV1      = sum(np.sqrt(np.square(x1-x_n)+np.square(y1-y_n)))/4
+        x_off = (x1-xog)*psC
+        y_off = (y1-yog)*psC
+        pbar.update(1)
+        pbar.close()
+        p = plt.figure()
+        plt.figtext(.8, .8, "[R] Origin \n[G] Other Grid \n[B] Offset")
+        plt.subplot(1,2,1)
+        plt.title("Offset: ("+str(x_off)+","+str(y_off)+") m")
+        plt.imshow(Edges0C,cmap='Greys')
+        plt.scatter(y0,x0,c='r',s=3)
+        plt.subplot(1,2,2)
+        plt.title("CV: "+str(round(CV1,2)))
+        plt.imshow(Edges1C,cmap='Greys')
+        plt.scatter(y0,x0,c='r',s=1)
+        plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
+        plt.scatter(yog,xog,c='g',s=1)
+        plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
+        plt.scatter(y1,x1,c='b',s=1) 
+        plt.close()
+        plist.append(p)
+        print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
 def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
@@ -350,9 +360,9 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.close(257)
     plist.append(p)
     clist = np.array(clist)
-    if len(x0[CVa<1.5]) >= size0/2:
+    if len(x0[CVa<1.5]) >= 0.5*size0:
         ind = np.where(CVa<1.5)[0]
-    elif len(x0[CVa<4]) >= size0/2:
+    elif len(x0[CVa<4]) >= 0.5*size0:
         ind = np.where(CVa<4)[0]
     else:
         ind = np.where(CVa<np.median(CVa))[0]
@@ -364,25 +374,25 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     delta_x = dx - supposed_dx
     delta_y = dy - supposed_dy
     distance = np.square(delta_x) + np.square(delta_y)
-    radius = 0.1
+    radius = 0.15
     indices = np.where(distance.T <= radius)[0]
-    inv_ind = []
+    inv_indices = []
     for i in range(len(origin_x)):
         if i not in ind:
-            inv_ind.append(i)
+            inv_indices.append(i)
     p = plt.figure()
     ax = p.add_subplot(111, projection='3d')
     ax.scatter(origin_x,origin_y,supposed_dx,c='b',marker='o')
-    ax.scatter(origin_x[ind],origin_y[ind],dx[ind],c='g',marker='o')
-    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dx[inv_ind],c='r',marker='o')
+    ax.scatter(origin_x[indices],origin_y[indices],dx[indices],c='g',marker='o')
+    ax.scatter(origin_x[inv_indices],origin_y[inv_indices],dx[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
     plt.close()
     plist.append(p)   
     p = plt.figure()
     ax = p.add_subplot(111, projection='3d')
     ax.scatter(origin_x,origin_y,supposed_dy,c='b',marker='o')
-    ax.scatter(origin_x[ind],origin_y[ind],dy[ind],c='g',marker='o')
-    ax.scatter(origin_x[inv_ind],origin_y[inv_ind],dy[inv_ind],c='r',marker='o')
+    ax.scatter(origin_x[indices],origin_y[indices],dy[indices],c='g',marker='o')
+    ax.scatter(origin_x[inv_indices],origin_y[inv_indices],dy[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
     plt.close()
     plist.append(p)  
@@ -420,46 +430,47 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
 
 def Georegistr(i,files,gcplist,gcplist_DEM):
-    pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
-    temp = files[i][::-1]
-    temp2 = temp[:temp.find("/")]
-    src = temp2[::-1]
-    dest = files[i].strip(".tif")+"_GR.vrt"  
-    if os.path.isfile(dest.replace("\\","/")):
+    if len(gcplist) != 0:
+        pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
+        temp = files[i][::-1]
+        temp2 = temp[:temp.find("/")]
+        src = temp2[::-1]
+        dest = files[i].strip(".tif")+"_GR.vrt"  
+        if os.path.isfile(dest.replace("\\","/")):
+            os.remove(dest)
+        temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
+        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
+        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
+        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
+        fh, abs_path = mkstemp()
+        with os.fdopen(fh,'w') as new_file:
+            with open(dest) as old_file:
+                for line in old_file:
+                    new_file.write(line.replace(pattern, subst))
         os.remove(dest)
-    temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
-    gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
-    pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
-    subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
-    fh, abs_path = mkstemp()
-    with os.fdopen(fh,'w') as new_file:
-        with open(dest) as old_file:
-            for line in old_file:
-                new_file.write(line.replace(pattern, subst))
-    os.remove(dest)
-    move(abs_path, dest)
-    pbar3.update(1)
-   
-    file = files[i].strip(".tif")+"_DEM.tif"
-    temp = file[::-1]
-    temp2 = temp[:temp.find("/")]
-    src = temp2[::-1]
-    dest = file.strip(".tif")+"_GR.vrt"  
-    if os.path.isfile(dest.replace("\\","/")):
+        move(abs_path, dest)
+        pbar3.update(1)
+       
+        file = files[i].strip(".tif")+"_DEM.tif"
+        temp = file[::-1]
+        temp2 = temp[:temp.find("/")]
+        src = temp2[::-1]
+        dest = file.strip(".tif")+"_GR.vrt"  
+        if os.path.isfile(dest.replace("\\","/")):
+            os.remove(dest)
+        temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
+        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
+        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
+        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
+        fh, abs_path = mkstemp()
+        with os.fdopen(fh,'w') as new_file:
+            with open(dest) as old_file:
+                for line in old_file:
+                    new_file.write(line.replace(pattern, subst))
         os.remove(dest)
-    temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
-    gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
-    pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
-    subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
-    fh, abs_path = mkstemp()
-    with os.fdopen(fh,'w') as new_file:
-        with open(dest) as old_file:
-            for line in old_file:
-                new_file.write(line.replace(pattern, subst))
-    os.remove(dest)
-    move(abs_path, dest)
-    pbar3.update(1)
-    pbar3.close()
+        move(abs_path, dest)
+        pbar3.update(1)
+        pbar3.close()
     
 def GeoPointss(i,files,target_lon,target_lat,origin_x,origin_y,gt1F):
     pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
