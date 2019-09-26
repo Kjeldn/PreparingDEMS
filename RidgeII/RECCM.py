@@ -109,9 +109,10 @@ def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
     polygon = Polygon(np.array(biggest_contour[:,0]))
+    ref_area = polygon.area
     polygon = polygon.buffer(-w)
     v=w
-    while polygon.is_empty or polygon.geom_type == 'MultiPolygon' or polygon.area/ps0F<100:
+    while polygon.is_empty or polygon.geom_type == 'MultiPolygon' or polygon.area<0.4*ref_area:
         v -= int(2/ps0F)
         polygon = Polygon(np.array(biggest_contour[:,0]))
         polygon = polygon.buffer(-v)

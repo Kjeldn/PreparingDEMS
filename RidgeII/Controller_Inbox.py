@@ -2,15 +2,15 @@ import METAA
 import CANNY
 import RECCM
 
-metapath,plist = METAA.InboxxFiles(2)
+metapath,plist = METAA.InboxxFiles(1)
 
 for path in metapath:
-    plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpening(plist,path[0])
+    plist,Img0C,ImgB0C,MaskB0C,gt0C,fx0C,fy0C = METAA.OrtOpenDow(plist,path[0])
     plist,Edges0C                             = CANNY.CannyLines(plist,Img0C,ImgB0C,MaskB0C)
     plist,gt0F,fx0F,fy0F,MaskB0F,Edges0F      = METAA.DemOpening(plist,path[0],Img0C)
     
     for i in range(1,len(path)):
-        plist,Img1C,ImgB1C,MaskB1C,gt1C,fx1C,fy1C = METAA.OrtOpening(plist,path[i])
+        plist,Img1C,ImgB1C,MaskB1C,gt1C,fx1C,fy1C = METAA.OrtOpenDow(plist,path[i])
         plist,Edges1C                             = CANNY.CannyLines(plist,Img1C,ImgB1C,MaskB1C)
         plist,gt1F,fx1F,fy1F,MaskB1F,Edges1F      = METAA.DemOpening(plist,path[i],Img1C)
     

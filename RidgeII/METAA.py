@@ -13,6 +13,7 @@ import sys
 import os
 from tkinter import filedialog
 from tkinter import *
+import time
 
 def InboxxFiles(num):
     plt.close("all")
@@ -80,6 +81,19 @@ def calc_pixsize(array,gt):
     dist = calc_distance(lat1,lon1,lat2,lon2)
     xsize = dist/array.shape[1]
     return xsize, ysize   
+
+def calc_pixsize2(s1,s2,gt):
+    lon1 = gt[0] 
+    lat1 = gt[3] 
+    lon2 = gt[0] + gt[1]*s1
+    lat2 = gt[3] + gt[4]*s1
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    ysize = dist/s1 
+    lon2 = gt[0] + gt[2]*s2
+    lat2 = gt[3] + gt[5]*s2
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    xsize = dist/s2
+    return xsize, ysize 
     
 def OrtOpening(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
@@ -120,6 +134,50 @@ def OrtOpening(plist,path):
     pbar1.close()
     return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
+def OrtOpenDow(plist,path):
+    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
+    file                               = gdal.Open(path)
+    gt                                 = file.GetGeoTransform()
+    x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
+    w = round(file.RasterXSize/(0.5/x_s))
+    h = round(file.RasterYSize/(0.5/y_s))
+    dest = path.strip(".tif")+"_s.vrt"
+    time.sleep(0.5)
+    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='near',dstAlpha=True,dstNodata=255)  
+    file_s                               = gdal.Open(dest)
+    B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
+    G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
+    R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
+    fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
+    fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
+    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    mask                               = np.zeros(B_s.shape)
+    mask[R_s==255]                     = 1
+    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+    img_s[:,:,0]                       = B_s
+    img_s[:,:,1]                       = G_s
+    img_s[:,:,2]                       = R_s
+    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+    L                                  = img_s_cielab[:,:,0] 
+    hist                               = np.histogram(L[mask_b==0],bins=256)[0]
+    cdf                                = hist.cumsum()
+    cdf_m                              = np.ma.masked_equal(cdf,0)
+    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+    L_eq                               = cdf[L]     
+    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq[:,:,0]             = L_eq   
+    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
+    fsize                              = int(np.ceil((1.05/0.5))//2*2+1)
+    img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
+    file_s = None
+    gdal.Unlink(dest)
+    pbar1.update(1)
+    pbar1.close()
+    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
+
+    
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     if "-GR" in path:
