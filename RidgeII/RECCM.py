@@ -332,8 +332,6 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plist.append(p)
     return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
 
-# RECCM.RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,path,i)
-
 def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]

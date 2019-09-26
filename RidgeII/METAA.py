@@ -148,8 +148,14 @@ def OrtOpenDow(plist,path):
     B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
     G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
     R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
-    fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
-    fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
+    new_gt = 1
+    if new_gt == 1:
+        gt = file_s.GetGeoTransform()
+        fact_x_ps1 = 1
+        fact_y_ps1 = 1
+    else:
+        fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
+        fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
