@@ -61,35 +61,45 @@ def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     RECC_wide = numerator / (sum_patch+sum_target)
     RECC_area = RECC_wide[xd:-xd,yd:-yd]*circle2
     RECC_total.fill(np.NaN)
-    RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
-    max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
-    max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
-    y1       = np.where(RECC_total >= max_one)[1][0]  
-    x1       = np.where(RECC_total >= max_one)[0][0]
-    y_n      = np.where(RECC_total >= max_n)[1][0:-1]
-    x_n      = np.where(RECC_total >= max_n)[0][0:-1]
-    CV1      = sum(np.sqrt(np.square(x1-x_n)+np.square(y1-y_n)))/4
-    x_off = (x1-xog)*psC
-    y_off = (y1-yog)*psC
-    pbar.update(1)
-    pbar.close()
-    p = plt.figure()
-    plt.figtext(.8, .8, "[R] Origin \n[G] Other Grid \n[B] Offset")
-    plt.subplot(1,2,1)
-    plt.title("Offset: ("+str(x_off)+","+str(y_off)+") m")
-    plt.imshow(Edges0C,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=3)
-    plt.subplot(1,2,2)
-    plt.title("CV: "+str(round(CV1,2)))
-    plt.imshow(Edges1C,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=1)
-    plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
-    plt.scatter(yog,xog,c='g',s=1)
-    plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
-    plt.scatter(y1,x1,c='b',s=1) 
-    plt.close()
-    plist.append(p)
-    print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
+    if RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist].shape != (2*(max_dist),2*(max_dist)):
+        pbar.update(1)
+        pbar.close()
+        x_off = 0
+        y_off = 0
+        x1=0
+        y1=0
+        CV1=100
+        print("Something something out of bounds again...")
+    else:   
+        RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
+        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
+        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
+        y1       = np.where(RECC_total >= max_one)[1][0]  
+        x1       = np.where(RECC_total >= max_one)[0][0]
+        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
+        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
+        CV1      = sum(np.sqrt(np.square(x1-x_n)+np.square(y1-y_n)))/4
+        x_off = (x1-xog)*psC
+        y_off = (y1-yog)*psC
+        pbar.update(1)
+        pbar.close()
+        p = plt.figure()
+        plt.figtext(.8, .8, "[R] Origin \n[G] Other Grid \n[B] Offset")
+        plt.subplot(1,2,1)
+        plt.title("Offset: ("+str(x_off)+","+str(y_off)+") m")
+        plt.imshow(Edges0C,cmap='Greys')
+        plt.scatter(y0,x0,c='r',s=3)
+        plt.subplot(1,2,2)
+        plt.title("CV: "+str(round(CV1,2)))
+        plt.imshow(Edges1C,cmap='Greys')
+        plt.scatter(y0,x0,c='r',s=1)
+        plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
+        plt.scatter(yog,xog,c='g',s=1)
+        plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
+        plt.scatter(y1,x1,c='b',s=1) 
+        plt.close()
+        plist.append(p)
+        print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
 def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
