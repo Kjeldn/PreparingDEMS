@@ -170,7 +170,7 @@ def OooneMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x
     return plist,pbar,inp,pool
 
 def TwoooMatch(plist,pbar,inp,pool):
-    results = [pool.apply_async(MultiMatch, inp[i]) for i in range(len(inp))]
+    results = [pool.apply(MultiMatch, inp[i]) for i in range(len(inp))]
     return plist,results
 
 def MultiMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
@@ -227,11 +227,13 @@ def MultiMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1
     dy = (y1-yof)*0.05 
     return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def ThreeMatch(plist,pbar,results,Edges0F,Edges1F):
+def ThreeMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
+    results = [pool.apply_async(MultiMatch, inp[i]) for i in range(len(inp))]
     origin_x=[];origin_y=[];target_lon=[];target_lat=[];x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
     for r in results:
         re=r.get()
         origin_x.extend(re[0]);origin_y.extend(re[1]);target_lon.extend(re[2]);target_lat.extend(re[3]);x0.extend(re[4]);y0.extend(re[5]);xog.extend(re[6]);yog.extend(re[7]);xof.extend(re[8]);yof.extend(re[9]);x1.extend(re[10]);y1.extend(re[11]);CVa.extend(re[12]);dx.extend(re[13]);dy.extend(re[14]);         
+        del re
     origin_x=np.array(origin_x);origin_y=np.array(origin_y);target_lon=np.array(target_lon);target_lat=np.array(target_lat);x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
     
     p = plt.figure()
