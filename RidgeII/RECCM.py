@@ -297,7 +297,11 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.close(257)
     plist.append(p)
     clist = np.array(clist)
-    if len(x0[CVa<1.5]) >= 0.5*size0:
+    fuck_it = 1
+    if fuck_it == 1:
+        ind = np.where(CVa<20)[0]
+        flag = 0
+    elif len(x0[CVa<1.5]) >= 0.5*size0:
         ind = np.where(CVa<1.5)[0]
         flag = 1
     elif len(x0[CVa<4]) >= 0.5*size0:
@@ -313,16 +317,16 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
     delta_x = dx - supposed_dx
     delta_y = dy - supposed_dy
-    distance = np.square(delta_x) + np.square(delta_y)
+    distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
     radius = 0.15
     indices = np.where(distance.T <= radius)[0]
     inv_indices = []
-    for i in range(len(origin_x)):
-        if i not in ind:
+    for i in range(len(dx)):
+        if i not in indices:
             inv_indices.append(i)
     p = plt.figure()
     ax = p.add_subplot(111, projection='3d')
-    ax.scatter(x0,y0,supposed_dx,c='b',marker='o')
+    ax.scatter(x0,y0,supposed_dx,c='b',marker='o',alpha=0.2)
     ax.scatter(x0[indices],y0[indices],dx[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dx[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
@@ -330,12 +334,12 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plist.append(p)   
     p = plt.figure()
     ax = p.add_subplot(111, projection='3d')
-    ax.scatter(x0,y0,supposed_dy,c='b',marker='o')
+    ax.scatter(x0,y0,supposed_dy,c='b',marker='o',alpha=0.2)
     ax.scatter(x0[indices],y0[indices],dy[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dy[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
     plt.close()
-    plist.append(p)  
+    plist.append(p)
     origin_x   = origin_x[indices]
     origin_y   = origin_y[indices]
     target_lon = target_lon[indices]
