@@ -143,7 +143,7 @@ def OrtOpenDow(plist,path):
     h = round(file.RasterYSize/(0.5/y_s))
     dest = path.strip(".tif")+"_s.vrt"
     time.sleep(0.5)
-    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='near',dstAlpha=True,dstNodata=255)  
+    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)  
     file_s                               = gdal.Open(dest)
     B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
     G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
@@ -175,15 +175,14 @@ def OrtOpenDow(plist,path):
     img_s_cielab_eq[:,:,0]             = L_eq   
     img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
     img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
-    fsize                              = int(np.ceil((1.05/0.5))//2*2+1)
-    img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
+    fsize                              = 14
+    img_b                              = cv2.bilateralFilter(img_g,fsize,80,250)
     file_s = None
     gdal.Unlink(dest)
     pbar1.update(1)
     pbar1.close()
     return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
-
-    
+ 
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     if "-GR" in path:

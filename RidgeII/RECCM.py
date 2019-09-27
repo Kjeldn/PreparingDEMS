@@ -17,6 +17,8 @@ from scipy.interpolate import interp1d
 from tempfile import mkstemp
 from shutil import move
 from mpl_toolkits.mplot3d import Axes3D
+from multiprocessing import Pool
+from multiprocessing import cpu_count as cpu
 
 def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
     psC = 0.5
@@ -102,6 +104,331 @@ def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
         print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
+def OooneMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
+    ps0F = 0.05
+    w = int(25/ps0F)
+    buffer = 2*w
+    edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
+    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
+    if CV1>4:
+        md = 10
+    elif CV1<1.5:
+        md = 5
+    else:
+        md = 5 + 5*((CV1-1.5)/2.5)
+    max_dist = int((md)/(ps0F))
+    contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
+    biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
+    polygon = Polygon(np.array(biggest_contour[:,0]))
+    ref_area = polygon.area
+    polygon = polygon.buffer(-w)
+    v=w
+    while polygon.is_empty or polygon.geom_type == 'MultiPolygon' or polygon.area<0.4*ref_area:
+        v -= int(2/ps0F)
+        polygon = Polygon(np.array(biggest_contour[:,0]))
+        polygon = polygon.buffer(-v)
+    if v != w:
+        print("WARNING   : Polygon-buffer: "+str(v*ps0F)+" < 25...")
+    x,y = polygon.exterior.xy   
+    distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+    distance = distance/distance[-1]
+    fx, fy = interp1d( distance, x ), interp1d( distance, y )
+    alpha = np.linspace(0, 1, 200)
+    x_regular, y_regular = fx(alpha), fy(alpha)
+    grid = []
+    for i in range(len(x_regular)):
+        grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+    if polygon.buffer(-2*w).is_empty == False:
+        polygon = polygon.buffer(-2*w)
+        x,y = polygon.exterior.xy   
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 100)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        for i in range(len(x_regular)):
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+    circle1 = np.zeros((2*w,2*w))
+    for x in range(circle1.shape[0]):
+        for y in range(circle1.shape[1]):
+            if (x-w)**2 + (y-w)**2 < w**2:
+                circle1[x,y]=1
+    circle2 = np.zeros((2*max_dist,2*max_dist))
+    for x in range(circle2.shape[0]):
+        for y in range(circle2.shape[1]):
+            if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
+                circle2[x,y]=1
+    circle2[circle2==0]=np.NaN
+    pbar = tqdm(total=1,position=0,desc="RECC(f)    ")
+    inp = []
+    n = cpu()-2
+    N=int(np.ceil(len(grid)/n))
+    for i in range(n):
+        inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off)))
+    pool = Pool(n)
+    return plist,pbar,inp,pool
+
+def TwoooMatch(plist,pbar,inp,pool):
+    results = [pool.apply_async(MultiMatch, inp[i]) for i in range(len(inp))]
+    return plist,results
+
+def MultiMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
+    CVa        = np.zeros(len(grid)) 
+    x0         = np.zeros(len(grid)).astype(int)
+    y0         = np.zeros(len(grid)).astype(int)
+    xog        = np.zeros(len(grid)).astype(int)
+    yog        = np.zeros(len(grid)).astype(int)
+    xof        = np.zeros(len(grid)).astype(int)
+    yof        = np.zeros(len(grid)).astype(int)
+    x1         = np.zeros(len(grid)).astype(int)
+    y1         = np.zeros(len(grid)).astype(int)
+    origin_x   = np.zeros(len(grid))
+    origin_y   = np.zeros(len(grid))
+    target_lon = np.zeros(len(grid))
+    target_lat = np.zeros(len(grid))
+    RECC_total = np.zeros(Edges1F.shape)
+    for i in range(len(grid)):
+        x0[i] = grid[i][1]
+        y0[i] = grid[i][0]
+        target_lon[i] = gt0F[0] + gt0F[1]*y0[i]*fy0F
+        target_lat[i] = gt0F[3] + gt0F[5]*x0[i]*fx0F  
+        xog[i] = int(round((target_lat[i]-gt1F[3])/(gt1F[5]*fx1F)))
+        yog[i] = int(round((target_lon[i]-gt1F[0])/(gt1F[1]*fy1F)))
+        xof[i] = int(round(xog[i] + x_off/0.05))
+        yof[i] = int(round(yog[i] + y_off/0.05))
+        target = Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w]
+        if target.shape != (2*w,2*w):
+            continue
+        target = target*circle1
+        sum_target = np.sum(target)     
+        search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
+        search_wide = edges1Fa[2*w+xof[i]-max_dist-w:2*w+xof[i]+max_dist+w,2*w+yof[i]-max_dist-w:2*w+yof[i]+max_dist+w]
+        if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
+            continue
+        sum_patch = cv2.filter2D(search_wide,-1,circle1)
+        numerator = cv2.filter2D(search_wide,-1,target)
+        RECC_wide = numerator / (sum_patch+sum_target)
+        RECC_area = RECC_wide[w:-w,w:-w]*circle2
+        RECC_total.fill(np.NaN)
+        if RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist].shape != (2*(max_dist),2*(max_dist)):
+            continue
+        RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist] = RECC_area
+        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
+        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
+        y1[i]    = np.where(RECC_total >= max_one)[1][0]  
+        x1[i]    = np.where(RECC_total >= max_one)[0][0]
+        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
+        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
+        CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
+        origin_x[i] = x1[i]*fx1F
+        origin_y[i] = y1[i]*fy1F    
+    dx = (x1-xof)*0.05
+    dy = (y1-yof)*0.05 
+    return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
+
+def ThreeMatch(plist,pbar,results,Edges0F,Edges1F):
+    origin_x=[];origin_y=[];target_lon=[];target_lat=[];x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
+    for r in results:
+        re=r.get()
+        origin_x.extend(re[0]);origin_y.extend(re[1]);target_lon.extend(re[2]);target_lat.extend(re[3]);x0.extend(re[4]);y0.extend(re[5]);xog.extend(re[6]);yog.extend(re[7]);xof.extend(re[8]);yof.extend(re[9]);x1.extend(re[10]);y1.extend(re[11]);CVa.extend(re[12]);dx.extend(re[13]);dy.extend(re[14]);         
+    origin_x=np.array(origin_x);origin_y=np.array(origin_y);target_lon=np.array(target_lon);target_lat=np.array(target_lat);x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
+    
+    p = plt.figure()
+    plt.subplot(1,2,1)
+    plt.title("Patch")
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.scatter(y0,x0,c='r',s=1)
+    plt.subplot(1,2,2)
+    plt.title("Match")
+    plt.imshow(Edges1F,cmap='Greys')
+    plt.figtext(.8, 0.8, "[R] Origin \n[G] Other Grid \n[B] Offset \n[Y] Patch Match")
+    plt.scatter(y0,x0,c='r',s=1)
+    for i in range(len(y1)):
+        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.1,alpha=0.5)
+    plt.scatter(yog,xog,c='g',s=1)
+    for i in range(len(y1)):
+        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.1,alpha=0.5)
+    plt.scatter(yof,xof,c='b',s=1)
+    for i in range(len(y1)):
+        if x1[i] != 0 and y1[i] != 0:
+            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
+    ind = np.where(x1!=0)
+    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
+    plt.close()
+    plist.append(p)
+    plt.figure(257)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
+    plt.figure(258)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
+    pbar.update(1)
+    pbar.close()
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
+
+def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
+    size0 = len(x0)
+    indices = np.where(CVa>0)[0]
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    x0        = x0[indices]
+    y0        = y0[indices]
+    x1        = x1[indices]
+    y1        = y1[indices]
+    CVa       = CVa[indices]
+    dx        = dx[indices]
+    dy        = dy[indices]
+    size1=len(x0)
+    clist = list(np.random.choice(range(256), size=len(x0)))
+    p=plt.figure(257)
+    plt.subplot(1,2,1)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
+    plt.subplot(1,2,2)
+    plt.title(str(size1)+" in-domain")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(257)
+    plist.append(p)
+    clist = np.array(clist)
+    if len(x0[CVa<1.5]) >= 0.5*size0:
+        ind = np.where(CVa<1.5)[0]
+        flag = 1
+    elif len(x0[CVa<4]) >= 0.5*size0:
+        ind = np.where(CVa<4)[0]
+        flag = 2
+    else:
+        ind = np.where(CVa<np.median(CVa))[0]
+        flag = 3
+        print("WARNING   : Not enough points with low CV score.")
+    fun_dx = METAA.fit(x0[ind],y0[ind],dx[ind])
+    fun_dy = METAA.fit(x0[ind],y0[ind],dy[ind])
+    supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
+    supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
+    delta_x = dx - supposed_dx
+    delta_y = dy - supposed_dy
+    distance = np.square(delta_x) + np.square(delta_y)
+    radius = 0.15
+    indices = np.where(distance.T <= radius)[0]
+    inv_indices = []
+    for i in range(len(origin_x)):
+        if i not in ind:
+            inv_indices.append(i)
+    p = plt.figure()
+    ax = p.add_subplot(111, projection='3d')
+    ax.scatter(x0,y0,supposed_dx,c='b',marker='o')
+    ax.scatter(x0[indices],y0[indices],dx[indices],c='g',marker='o')
+    ax.scatter(x0[inv_indices],y0[inv_indices],dx[inv_indices],c='r',marker='o')
+    ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
+    plt.close()
+    plist.append(p)   
+    p = plt.figure()
+    ax = p.add_subplot(111, projection='3d')
+    ax.scatter(x0,y0,supposed_dy,c='b',marker='o')
+    ax.scatter(x0[indices],y0[indices],dy[indices],c='g',marker='o')
+    ax.scatter(x0[inv_indices],y0[inv_indices],dy[inv_indices],c='r',marker='o')
+    ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
+    plt.close()
+    plist.append(p)  
+    origin_x   = origin_x[indices]
+    origin_y   = origin_y[indices]
+    target_lon = target_lon[indices]
+    target_lat = target_lat[indices]
+    x0        = x0[indices]
+    y0        = y0[indices]
+    x1        = x1[indices]
+    y1        = y1[indices]
+    CVa       = CVa[indices]
+    clist     = clist[indices]
+    size2=len(x0)  
+    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+"/"+str(flag)+") [OK/OoD/CV-2D/f]") 
+    gcplist_DEM = []
+    for k in range(len(origin_x)): 
+        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
+    gto = gdal.Open(files[iiii]).GetGeoTransform()
+    origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
+    origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
+    gcplist = []
+    for k in range(len(origin_x)): 
+        gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
+    clist = list(clist)
+    p = plt.figure(258)
+    plt.subplot(1,2,1)
+    plt.title("GCP Status:")
+    plt.scatter(y0,x0,s=1,c=clist)
+    plt.subplot(1,2,2)
+    plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
+    plt.scatter(y1,x1,s=1,c=clist)
+    plt.close(258)
+    plist.append(p)
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
+
+def Georegistr(i,files,gcplist,gcplist_DEM):
+    if len(gcplist) != 0:
+        pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
+        temp = files[i][::-1]
+        temp2 = temp[:temp.find("/")]
+        src = temp2[::-1]
+        dest = files[i].strip(".tif")+"_GR.vrt"  
+        if os.path.isfile(dest.replace("\\","/")):
+            os.remove(dest)
+        temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
+        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
+        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
+        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
+        fh, abs_path = mkstemp()
+        with os.fdopen(fh,'w') as new_file:
+            with open(dest) as old_file:
+                for line in old_file:
+                    new_file.write(line.replace(pattern, subst))
+        os.remove(dest)
+        move(abs_path, dest)
+        pbar3.update(1)
+       
+        file = files[i].strip(".tif")+"_DEM.tif"
+        temp = file[::-1]
+        temp2 = temp[:temp.find("/")]
+        src = temp2[::-1]
+        dest = file.strip(".tif")+"_GR.vrt"  
+        if os.path.isfile(dest.replace("\\","/")):
+            os.remove(dest)
+        temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
+        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
+        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
+        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
+        fh, abs_path = mkstemp()
+        with os.fdopen(fh,'w') as new_file:
+            with open(dest) as old_file:
+                for line in old_file:
+                    new_file.write(line.replace(pattern, subst))
+        os.remove(dest)
+        move(abs_path, dest)
+        pbar3.update(1)
+        pbar3.close()
+    
+def GeoPointss(i,files,target_lon,target_lat,origin_x,origin_y,gt1F):
+    pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
+    origin_lat = gt1F[3]+gt1F[5]*origin_x
+    origin_lon = gt1F[0]+gt1F[1]*origin_y
+    dest = files[i].strip(".tif")+".points" 
+    if os.path.isfile(dest.replace("\\","/")):
+        os.remove(dest)
+    f = open(dest,"w+")
+    f.write("mapX,mapY,pixelX,pixelY,enable,dX,dY,residual")
+    for i in range(len(target_lon)):
+        f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
+    f.close()
+    pbar3.update(1)
+    pbar3.close()
+    
+# Archived:
+    
 def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
     ps0F = 0.05
     w = int(25/ps0F)
@@ -331,156 +658,3 @@ def RemOutlier(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     plt.close(258)
     plist.append(p)
     return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
-
-def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
-    size0 = len(x0)
-    indices = np.where(CVa>0)[0]
-    origin_x   = origin_x[indices]
-    origin_y   = origin_y[indices]
-    target_lon = target_lon[indices]
-    target_lat = target_lat[indices]
-    x0        = x0[indices]
-    y0        = y0[indices]
-    x1        = x1[indices]
-    y1        = y1[indices]
-    CVa       = CVa[indices]
-    dx        = dx[indices]
-    dy        = dy[indices]
-    size1=len(x0)
-    clist = list(np.random.choice(range(256), size=len(x0)))
-    p=plt.figure(257)
-    plt.subplot(1,2,1)
-    plt.title("GCP Status:")
-    plt.scatter(y0,x0,s=1,c=clist)
-    plt.subplot(1,2,2)
-    plt.title(str(size1)+" in-domain")
-    plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(257)
-    plist.append(p)
-    clist = np.array(clist)
-    if len(x0[CVa<1.5]) >= 0.5*size0:
-        ind = np.where(CVa<1.5)[0]
-    elif len(x0[CVa<4]) >= 0.5*size0:
-        ind = np.where(CVa<4)[0]
-    else:
-        ind = np.where(CVa<np.median(CVa))[0]
-        print("WARNING   : Not enough points with low CV score.")
-    fun_dx = METAA.fit(origin_x[ind],origin_y[ind],dx[ind])
-    fun_dy = METAA.fit(origin_x[ind],origin_y[ind],dy[ind])
-    supposed_dx = fun_dx[0]*origin_x+fun_dx[1]*origin_y+fun_dx[2]
-    supposed_dy = fun_dy[0]*origin_x+fun_dy[1]*origin_y+fun_dy[2]
-    delta_x = dx - supposed_dx
-    delta_y = dy - supposed_dy
-    distance = np.square(delta_x) + np.square(delta_y)
-    radius = 0.15
-    indices = np.where(distance.T <= radius)[0]
-    inv_indices = []
-    for i in range(len(origin_x)):
-        if i not in ind:
-            inv_indices.append(i)
-    p = plt.figure()
-    ax = p.add_subplot(111, projection='3d')
-    ax.scatter(origin_x,origin_y,supposed_dx,c='b',marker='o')
-    ax.scatter(origin_x[indices],origin_y[indices],dx[indices],c='g',marker='o')
-    ax.scatter(origin_x[inv_indices],origin_y[inv_indices],dx[inv_indices],c='r',marker='o')
-    ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
-    plt.close()
-    plist.append(p)   
-    p = plt.figure()
-    ax = p.add_subplot(111, projection='3d')
-    ax.scatter(origin_x,origin_y,supposed_dy,c='b',marker='o')
-    ax.scatter(origin_x[indices],origin_y[indices],dy[indices],c='g',marker='o')
-    ax.scatter(origin_x[inv_indices],origin_y[inv_indices],dy[inv_indices],c='r',marker='o')
-    ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
-    plt.close()
-    plist.append(p)  
-    origin_x   = origin_x[indices]
-    origin_y   = origin_y[indices]
-    target_lon = target_lon[indices]
-    target_lat = target_lat[indices]
-    x0        = x0[indices]
-    y0        = y0[indices]
-    x1        = x1[indices]
-    y1        = y1[indices]
-    CVa       = CVa[indices]
-    clist     = clist[indices]
-    size2=len(x0)  
-    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
-    gcplist_DEM = []
-    for k in range(len(origin_x)): 
-        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
-    gto = gdal.Open(files[iiii]).GetGeoTransform()
-    origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
-    origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
-    gcplist = []
-    for k in range(len(origin_x)): 
-        gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
-    clist = list(clist)
-    p = plt.figure(258)
-    plt.subplot(1,2,1)
-    plt.title("GCP Status:")
-    plt.scatter(y0,x0,s=1,c=clist)
-    plt.subplot(1,2,2)
-    plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
-    plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(258)
-    plist.append(p)
-    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,gcplist,gcplist_DEM
-
-def Georegistr(i,files,gcplist,gcplist_DEM):
-    if len(gcplist) != 0:
-        pbar3 = tqdm(total=2,position=0,desc="Georeg    ")
-        temp = files[i][::-1]
-        temp2 = temp[:temp.find("/")]
-        src = temp2[::-1]
-        dest = files[i].strip(".tif")+"_GR.vrt"  
-        if os.path.isfile(dest.replace("\\","/")):
-            os.remove(dest)
-        temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
-        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
-        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
-        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
-        fh, abs_path = mkstemp()
-        with os.fdopen(fh,'w') as new_file:
-            with open(dest) as old_file:
-                for line in old_file:
-                    new_file.write(line.replace(pattern, subst))
-        os.remove(dest)
-        move(abs_path, dest)
-        pbar3.update(1)
-       
-        file = files[i].strip(".tif")+"_DEM.tif"
-        temp = file[::-1]
-        temp2 = temp[:temp.find("/")]
-        src = temp2[::-1]
-        dest = file.strip(".tif")+"_GR.vrt"  
-        if os.path.isfile(dest.replace("\\","/")):
-            os.remove(dest)
-        temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
-        gdal.Warp(dest,temp,tps=True,resampleAlg='bilinear')
-        pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
-        subst   = "    <SourceDataset relativeToVRT=\"1\">"+src+"</SourceDataset>"
-        fh, abs_path = mkstemp()
-        with os.fdopen(fh,'w') as new_file:
-            with open(dest) as old_file:
-                for line in old_file:
-                    new_file.write(line.replace(pattern, subst))
-        os.remove(dest)
-        move(abs_path, dest)
-        pbar3.update(1)
-        pbar3.close()
-    
-def GeoPointss(i,files,target_lon,target_lat,origin_x,origin_y,gt1F):
-    pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
-    origin_lat = gt1F[3]+gt1F[5]*origin_x
-    origin_lon = gt1F[0]+gt1F[1]*origin_y
-    dest = files[i].strip(".tif")+".points" 
-    if os.path.isfile(dest.replace("\\","/")):
-        os.remove(dest)
-    f = open(dest,"w+")
-    f.write("mapX,mapY,pixelX,pixelY,enable,dX,dY,residual")
-    for i in range(len(target_lon)):
-        f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
-    f.close()
-    pbar3.update(1)
-    pbar3.close()
