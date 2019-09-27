@@ -104,7 +104,7 @@ def SinglMatch(plist,Edges1C,gt1C,fx1C,fy1C,Edges0C,gt0C,fx0C,fy0C,MaskB0C):
         print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,x0,y0,xog,yog,x1,y1,CV1
 
-def OooneMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
+def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
     ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
@@ -169,11 +169,53 @@ def OooneMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x
     pool = Pool(n)
     return plist,pbar,inp,pool
 
-def TwoooMatch(plist,pbar,inp,pool):
-    results = [pool.apply(MultiMatch, inp[i]) for i in range(len(inp))]
-    return plist,results
+def MultiMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
+    results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
+    origin_x=[];origin_y=[];target_lon=[];target_lat=[];x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
+    for r in results:
+        re=r.get()
+        origin_x.extend(re[0]);origin_y.extend(re[1]);target_lon.extend(re[2]);target_lat.extend(re[3]);x0.extend(re[4]);y0.extend(re[5]);xog.extend(re[6]);yog.extend(re[7]);xof.extend(re[8]);yof.extend(re[9]);x1.extend(re[10]);y1.extend(re[11]);CVa.extend(re[12]);dx.extend(re[13]);dy.extend(re[14]);         
+        del re
+    origin_x=np.array(origin_x);origin_y=np.array(origin_y);target_lon=np.array(target_lon);target_lat=np.array(target_lat);x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
+    
+    p = plt.figure()
+    plt.subplot(1,2,1)
+    plt.title("Patch")
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.scatter(y0,x0,c='r',s=1)
+    plt.subplot(1,2,2)
+    plt.title("Match")
+    plt.imshow(Edges1F,cmap='Greys')
+    plt.figtext(.8, 0.8, "[R] Origin \n[G] Other Grid \n[B] Offset \n[Y] Patch Match")
+    plt.scatter(y0,x0,c='r',s=1)
+    for i in range(len(y1)):
+        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.1,alpha=0.5)
+    plt.scatter(yog,xog,c='g',s=1)
+    for i in range(len(y1)):
+        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.1,alpha=0.5)
+    plt.scatter(yof,xof,c='b',s=1)
+    for i in range(len(y1)):
+        if x1[i] != 0 and y1[i] != 0:
+            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
+    ind = np.where(x1!=0)
+    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
+    plt.close()
+    plist.append(p)
+    plt.figure(257)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
+    plt.figure(258)
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
+    pbar.update(1)
+    pbar.close()
+    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def MultiMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
+def BatchMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,fx0F,fy0F,fx1F,fy1F,x_off,y_off):
     CVa        = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
@@ -227,52 +269,6 @@ def MultiMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1
     dy = (y1-yof)*0.05 
     return origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def ThreeMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
-    results = [pool.apply_async(MultiMatch, inp[i]) for i in range(len(inp))]
-    origin_x=[];origin_y=[];target_lon=[];target_lat=[];x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    for r in results:
-        re=r.get()
-        origin_x.extend(re[0]);origin_y.extend(re[1]);target_lon.extend(re[2]);target_lat.extend(re[3]);x0.extend(re[4]);y0.extend(re[5]);xog.extend(re[6]);yog.extend(re[7]);xof.extend(re[8]);yof.extend(re[9]);x1.extend(re[10]);y1.extend(re[11]);CVa.extend(re[12]);dx.extend(re[13]);dy.extend(re[14]);         
-        del re
-    origin_x=np.array(origin_x);origin_y=np.array(origin_y);target_lon=np.array(target_lon);target_lat=np.array(target_lat);x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
-    
-    p = plt.figure()
-    plt.subplot(1,2,1)
-    plt.title("Patch")
-    plt.imshow(Edges0F,cmap='Greys')
-    plt.scatter(y0,x0,c='r',s=1)
-    plt.subplot(1,2,2)
-    plt.title("Match")
-    plt.imshow(Edges1F,cmap='Greys')
-    plt.figtext(.8, 0.8, "[R] Origin \n[G] Other Grid \n[B] Offset \n[Y] Patch Match")
-    plt.scatter(y0,x0,c='r',s=1)
-    for i in range(len(y1)):
-        plt.plot([y0[i],yog[i]],[x0[i],xog[i]],c='g',lw=0.1,alpha=0.5)
-    plt.scatter(yog,xog,c='g',s=1)
-    for i in range(len(y1)):
-        plt.plot([yog[i],yof[i]],[xog[i],xof[i]],c='b',lw=0.1,alpha=0.5)
-    plt.scatter(yof,xof,c='b',s=1)
-    for i in range(len(y1)):
-        if x1[i] != 0 and y1[i] != 0:
-            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
-    ind = np.where(x1!=0)
-    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
-    plt.close()
-    plist.append(p)
-    plt.figure(257)
-    plt.subplot(1,2,1)
-    plt.imshow(Edges0F,cmap='Greys')
-    plt.subplot(1,2,2)
-    plt.imshow(Edges1F,cmap='Greys')
-    plt.figure(258)
-    plt.subplot(1,2,1)
-    plt.imshow(Edges0F,cmap='Greys')
-    plt.subplot(1,2,2)
-    plt.imshow(Edges1F,cmap='Greys')
-    pbar.update(1)
-    pbar.close()
-    return plist,origin_x,origin_y,target_lon,target_lat,x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
-
 def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,dy,gt1F,files,iiii):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
@@ -313,6 +309,17 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
         ind = np.where(CVa<np.median(CVa))[0]
         flag = 3
         print("WARNING   : Not enough points with low CV score.")
+    med_dx = np.median(dx)
+    med_dy = np.median(dy)
+    rough_offset = 1
+    ind1 = np.where(dx>med_dx-rough_offset)
+    ind2 = np.where(dx<med_dx+rough_offset)
+    ind_dx = np.intersect1d(ind1,ind2)
+    ind1 = np.where(dy>med_dy-rough_offset)
+    ind2 = np.where(dy<med_dy+rough_offset)
+    ind_dy = np.intersect1d(ind1,ind2)
+    ind_ex = np.intersect1d(ind_dx,ind_dy)
+    ind = np.intersect1d(ind,ind_ex)
     fun_dx = METAA.fit(x0[ind],y0[ind],dx[ind])
     fun_dy = METAA.fit(x0[ind],y0[ind],dy[ind])
     supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
@@ -320,7 +327,7 @@ def RemOutSlop(plist,origin_x,origin_y,target_lon,target_lat,x0,y0,x1,y1,CVa,dx,
     delta_x = dx - supposed_dx
     delta_y = dy - supposed_dy
     distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
-    radius = 0.15
+    radius = 0.1
     indices = np.where(distance.T <= radius)[0]
     inv_indices = []
     for i in range(len(dx)):

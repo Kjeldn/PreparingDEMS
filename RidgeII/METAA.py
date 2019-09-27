@@ -14,6 +14,7 @@ import os
 from tkinter import filedialog
 from tkinter import *
 import time
+from matplotlib.backends.backend_pdf import PdfPages
 
 def InboxxFiles(num):
     plt.close("all")
@@ -472,9 +473,6 @@ def rangemaker(num,thMeaningfulLength):
     for i in range(len(range_array)):
         range_array[i]=int(num-span+i)
     return range_array
-
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
 
 def CapFigures(i,path,plist):
     dpiset = 1000
