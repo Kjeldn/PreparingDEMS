@@ -149,14 +149,9 @@ def OrtOpenDow(plist,path):
     B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
     G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
     R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
-    new_gt = 1
-    if new_gt == 1:
-        gt = file_s.GetGeoTransform()
-        fact_x_ps1 = 1
-        fact_y_ps1 = 1
-    else:
-        fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
-        fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
+    gt = file_s.GetGeoTransform()
+    #fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
+    #fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -182,7 +177,7 @@ def OrtOpenDow(plist,path):
     gdal.Unlink(dest)
     pbar1.update(1)
     pbar1.close()
-    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
+    return plist,img_s,img_b,mask_b,gt
  
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
@@ -224,6 +219,50 @@ def DemOpening(plist,path,Img0C):
     plt.close()
     plist.append(p)
     return plist,gt,fx,fy,mask_b,ridges
+
+def DemOpenDow(plist,path,Img0C):
+    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
+    if "-GR" in path:
+        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+    else:
+        temp = path.strip(".tif")+"_DEM.tif"
+    file                               = gdal.Open(temp)
+    gt                                 = file.GetGeoTransform()
+    x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
+    w = round(file.RasterXSize/(0.05/x_s))
+    h = round(file.RasterYSize/(0.05/y_s))
+    dest = temp.strip(".tif")+"_s.vrt"
+    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
+    file_s                             = gdal.Open(dest)   
+    gt                                 = file_s.GetGeoTransform()
+    dem                                = file.GetRasterBand(1).ReadAsArray() 
+    mask                               = np.zeros(dem.shape)
+    if np.sum(dem==0) > np.sum(dem==np.min(dem)):
+        mask[dem == 0]               = 1
+    else:
+        mask[dem == np.min(dem)]   = 1
+    dem_f = cv2.GaussianBlur(dem,(11,11),0)
+    smooth = cv2.GaussianBlur(dem_f,(15,15),0)
+    ridges = (dem_f-smooth)
+    #kernel = np.ones((n,n),np.float32)/(n**2)
+    #smooth = cv2.filter2D(dem_f,-1,kernel)
+    mask_b = cv2.GaussianBlur(mask,(51,51),0)  
+    ridges[mask>10**-10]=0  
+    temp1 = np.zeros(ridges.shape)
+    temp2 = np.zeros(ridges.shape)
+    temp1[ridges<-0.01]=1
+    temp2[ridges>-0.11]=1
+    ridges = (temp1*temp2).astype(np.uint8) 
+    p = plt.figure()
+    plt.title('Ridges 0.05m')
+    plt.imshow(ridges,cmap='Greys')
+    file_s = None
+    gdal.Unlink(dest)
+    pbar1.update(1)
+    pbar1.close()
+    plt.close()
+    plist.append(p)
+    return plist,mask_b,gt,ridges
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -474,7 +513,7 @@ def rangemaker(num,thMeaningfulLength):
         range_array[i]=int(num-span+i)
     return range_array
 
-def CapFigures(i,path,plist):
+def CapFigures(plist,path,i):
     dpiset = 1000
     filename = path[i].strip('.tif') + ('_LOG.pdf')
     if os.path.exists(filename.replace("\\","/")):
@@ -488,7 +527,7 @@ def CapFigures(i,path,plist):
     pp.close()
     return plist
 
-def fit(origin_x,origin_y,offset):
+def fit(origin_x,origin_y,CVa,offset):
     tmp_A = []
     tmp_b = []
     for i in range(len(origin_x)):
@@ -496,7 +535,9 @@ def fit(origin_x,origin_y,offset):
         tmp_b.append(offset[i])
     b = np.matrix(tmp_b).T
     A = np.matrix(tmp_A)
-    fit = (A.T * A).I * A.T * b
+    W = np.diag(1/CVa)
+    W = W/np.sum(W)
+    fit = (A.T * W * A).I * A.T * W * b
     #errors = b - A * fit
     #residual = np.linalg.norm(errors)
     return fit
