@@ -19,6 +19,7 @@ from shutil import move
 from mpl_toolkits.mplot3d import Axes3D
 from multiprocessing import Pool
 from multiprocessing import cpu_count as cpu
+from functools import partial
 
 def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
@@ -161,20 +162,22 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    inp = []
-    n = cpu()
-    pbar = tqdm(total=n+1,position=0,desc="RECC(f)   ")
-    N=int(np.ceil(len(grid)/n))
-    for i in range(n):
-        inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)))
-    pool = Pool(n)
-    return plist,pbar,inp,pool
+    func = partial(BatchMatch,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
+    #inp = []
+    #for i in range(num_bat):
+    #    inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)))
+    return plist,func,grid
     
-def MultiMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
-    results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
+def MultiMatch(plist,func,grid,Edges0F,Edges1F):
+    #results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
+    n = cpu()
+    pool = Pool(n)
+    num_bat = n*4
+    N=int(np.ceil(len(grid)/num_bat))
+    pbar = tqdm(total=num_bat+1,position=0,desc="RECC(f)   ")
+    results = pool.imap(func,(grid[i*N:(i+1)*N] for i in range(num_bat)))
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    for i, r in enumerate(results):
-        re=r.get()
+    for re in results:
         pbar.update(1)
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         del re
@@ -216,7 +219,7 @@ def MultiMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
     pbar.close()
     return plist,x0,y0,x1,y1,CVa,dx,dy
 
-def BatchMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off):
+def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off,grid):
     CVa        = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
