@@ -172,7 +172,7 @@ def MultiMatch(plist,func,grid,Edges0F,Edges1F):
     #results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
     n = cpu()
     pool = Pool(n)
-    num_bat = n*4
+    num_bat = n*2
     N=int(np.ceil(len(grid)/num_bat))
     pbar = tqdm(total=num_bat+1,position=0,desc="RECC(f)   ")
     results = pool.imap(func,(grid[i*N:(i+1)*N] for i in range(num_bat)))
