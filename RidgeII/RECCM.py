@@ -161,20 +161,21 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    pbar = tqdm(total=1,position=0,desc="RECC(f)    ")
     inp = []
     n = cpu()
+    pbar = tqdm(total=n+1,position=0,desc="RECC(f)   ")
     N=int(np.ceil(len(grid)/n))
     for i in range(n):
         inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)))
     pool = Pool(n)
     return plist,pbar,inp,pool
-
+    
 def MultiMatch(plist,pbar,pool,inp,Edges0F,Edges1F):
     results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    for r in results:
+    for i, r in enumerate(results):
         re=r.get()
+        pbar.update(1)
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         del re
     x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
@@ -290,8 +291,8 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     clist = np.array(clist)    
     ind1 = np.where(dx < np.median(dx)+1)
     ind2 = np.where(dx > np.median(dx)-1)
-    ind3 = np.where(dy < np.median(dx)+1)
-    ind4 = np.where(dy > np.median(dx)-1)
+    ind3 = np.where(dy < np.median(dy)+1)
+    ind4 = np.where(dy > np.median(dy)-1)
     ind_dx = np.intersect1d(ind1,ind2)
     ind_dy = np.intersect1d(ind3,ind4)
     ind = np.intersect1d(ind_dx,ind_dy)
