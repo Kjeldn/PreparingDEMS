@@ -162,7 +162,7 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
     circle2[circle2==0]=np.NaN
     pbar = tqdm(total=1,position=0,desc="RECC(f)    ")
     inp = []
-    n = cpu()-2
+    n = cpu()
     N=int(np.ceil(len(grid)/n))
     for i in range(n):
         inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)))
