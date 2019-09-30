@@ -232,22 +232,22 @@ def DemOpenDow(plist,path,Img0C):
     w = round(file.RasterXSize/(0.05/x_s))
     h = round(file.RasterYSize/(0.05/y_s))
     dest = temp.strip(".tif")+"_s.vrt"
-    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
+    gdal.Warp(dest,temp,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
     file_s                             = gdal.Open(dest)   
     gt                                 = file_s.GetGeoTransform()
-    dem                                = file.GetRasterBand(1).ReadAsArray() 
+    dem                                = file_s.GetRasterBand(1).ReadAsArray() 
     mask                               = np.zeros(dem.shape)
-    if np.sum(dem==0) > np.sum(dem==np.min(dem)):
-        mask[dem == 0]               = 1
-    else:
-        mask[dem == np.min(dem)]   = 1
+    #if np.sum(dem==0) > np.sum(dem==np.min(dem)):
+    #    mask[dem == 0              = 1
+    #else:
+    #    mask[dem == np.min(dem)]   = 1
+    mask[dem==255]                     = 1
     dem_f = cv2.GaussianBlur(dem,(11,11),0)
-    smooth = cv2.GaussianBlur(dem_f,(15,15),0)
+    kernel = np.ones((15,15),np.float32)/(15**2)
+    smooth = cv2.filter2D(dem,-1,kernel)
     ridges = (dem_f-smooth)
-    #kernel = np.ones((n,n),np.float32)/(n**2)
-    #smooth = cv2.filter2D(dem_f,-1,kernel)
     mask_b = cv2.GaussianBlur(mask,(51,51),0)  
-    ridges[mask>10**-10]=0  
+    ridges[mask_b>10**-10]=0  
     temp1 = np.zeros(ridges.shape)
     temp2 = np.zeros(ridges.shape)
     temp1[ridges<-0.01]=1
@@ -541,5 +541,22 @@ def fit(origin_x,origin_y,CVa,offset):
     #errors = b - A * fit
     #residual = np.linalg.norm(errors)
     return fit
-    
-    
+
+def hifit(origin_x,origin_y,CVa,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    W = np.diag(1/CVa)
+    W = W/np.sum(W)
+    fit = (A.T * W * A).I * A.T * W * b
+    #errors = b - A * fit
+    #residual = np.linalg.norm(errors)
+    return fit
+
+def eval(fit,x,y):
+    value = fit[0]*x+fit[1]*y+fit[2]*x*y+fit[3]*(x**2)+fit[4]*(y**2)+fit[5]    
+    return value

@@ -22,7 +22,7 @@ from multiprocessing import cpu_count as cpu
 
 def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
-    md = 12
+    md = 6
     pbar = tqdm(total=1,position=0,desc="RECC(c)   ")
     max_dist = int((md)/psC)
     contours,hierarchy = cv2.findContours((1-MaskB0C).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -111,11 +111,12 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
     if CV1>4:
-        md = 10
+        md = 6
+        x_off=0;y_off=0
     elif CV1<1.5:
-        md = 5
+        md = 2
     else:
-        md = 5 + 5*((CV1-1.5)/2.5)
+        md = 2 + 3*((CV1-1.5)/2.5)
     max_dist = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -224,16 +225,17 @@ def BatchMatch(grid,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1
     yof        = np.zeros(len(grid)).astype(int)
     x1         = np.zeros(len(grid)).astype(int)
     y1         = np.zeros(len(grid)).astype(int)
-    target_lon = np.zeros(len(grid))
-    target_lat = np.zeros(len(grid))
+    lat        = np.zeros(len(grid))
+    lon        = np.zeros(len(grid))
     RECC_total = np.zeros(Edges1F.shape)
     for i in range(len(grid)):
         x0[i] = grid[i][1]
         y0[i] = grid[i][0]
-        target_lon[i] = gt0F[0] + gt0F[1]*y0[i]
-        target_lat[i] = gt0F[3] + gt0F[5]*x0[i]  
-        xog[i] = int(round((target_lat[i]-gt1F[3])/(gt1F[5])))
-        yog[i] = int(round((target_lon[i]-gt1F[0])/(gt1F[1])))
+        lat[i] = gt0F[3] + gt0F[5]*x0[i]
+        lon[i] = gt0F[0] + gt0F[1]*y0[i]
+        xog[i] = int(round((lat[i]-gt1F[3])/(gt1F[5])))
+        yog[i] = int(round((lon[i]-gt1F[0])/(gt1F[1])))
+        
         xof[i] = int(round(xog[i] + x_off/0.05))
         yof[i] = int(round(yog[i] + y_off/0.05))
         target = Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w]
@@ -286,14 +288,25 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     plt.close(257)
     plist.append(p)
     clist = np.array(clist)    
-    fun_dx = METAA.fit(x0,y0,CVa,dx)
-    fun_dy = METAA.fit(x0,y0,CVa,dy)
-    supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
-    supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
+    ind1 = np.where(dx < np.median(dx)+1)
+    ind2 = np.where(dx > np.median(dx)-1)
+    ind3 = np.where(dy < np.median(dx)+1)
+    ind4 = np.where(dy > np.median(dx)-1)
+    ind_dx = np.intersect1d(ind1,ind2)
+    ind_dy = np.intersect1d(ind3,ind4)
+    ind = np.intersect1d(ind_dx,ind_dy)
+    #fun_dx = METAA.fit(x0[ind],y0[ind],CVa[ind],dx[ind])
+    #fun_dy = METAA.fit(x0[ind],y0[ind],CVa[ind],dy[ind])
+    #supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
+    #supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
+    fdx = METAA.hifit(x0[ind],y0[ind],CVa[ind],dx[ind])
+    fdy = METAA.hifit(x0[ind],y0[ind],CVa[ind],dy[ind])
+    supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
+    supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
     delta_x = dx - supposed_dx
     delta_y = dy - supposed_dy
     distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
-    radius = 0.15
+    radius = 0.10
     indices = np.where(distance.T <= radius)[0]
     inv_indices = []
     for i in range(len(dx)):
