@@ -13,6 +13,8 @@ import sys
 import os
 from tkinter import filedialog
 from tkinter import *
+import time
+from matplotlib.backends.backend_pdf import PdfPages
 
 def InboxxFiles(num):
     plt.close("all")
@@ -80,6 +82,19 @@ def calc_pixsize(array,gt):
     dist = calc_distance(lat1,lon1,lat2,lon2)
     xsize = dist/array.shape[1]
     return xsize, ysize   
+
+def calc_pixsize2(s1,s2,gt):
+    lon1 = gt[0] 
+    lat1 = gt[3] 
+    lon2 = gt[0] + gt[1]*s1
+    lat2 = gt[3] + gt[4]*s1
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    ysize = dist/s1 
+    lon2 = gt[0] + gt[2]*s2
+    lat2 = gt[3] + gt[5]*s2
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    xsize = dist/s2
+    return xsize, ysize 
     
 def OrtOpening(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
@@ -120,6 +135,50 @@ def OrtOpening(plist,path):
     pbar1.close()
     return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
+def OrtOpenDow(plist,path):
+    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
+    file                               = gdal.Open(path)
+    gt                                 = file.GetGeoTransform()
+    x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
+    w = round(file.RasterXSize/(0.5/x_s))
+    h = round(file.RasterYSize/(0.5/y_s))
+    dest = path.strip(".tif")+"_s.vrt"
+    time.sleep(0.5)
+    gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)  
+    file_s                               = gdal.Open(dest)
+    B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
+    G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
+    R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
+    gt = file_s.GetGeoTransform()
+    #fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
+    #fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
+    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+    mask                               = np.zeros(B_s.shape)
+    mask[R_s==255]                     = 1
+    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+    img_s[:,:,0]                       = B_s
+    img_s[:,:,1]                       = G_s
+    img_s[:,:,2]                       = R_s
+    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+    L                                  = img_s_cielab[:,:,0] 
+    hist                               = np.histogram(L[mask_b==0],bins=256)[0]
+    cdf                                = hist.cumsum()
+    cdf_m                              = np.ma.masked_equal(cdf,0)
+    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+    L_eq                               = cdf[L]     
+    img_s_cielab_eq                    = img_s_cielab.copy()
+    img_s_cielab_eq[:,:,0]             = L_eq   
+    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
+    fsize                              = 14
+    img_b                              = cv2.bilateralFilter(img_g,fsize,80,250)
+    file_s = None
+    gdal.Unlink(dest)
+    pbar1.update(1)
+    pbar1.close()
+    return plist,img_s,img_b,mask_b,gt
+ 
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     if "-GR" in path:
@@ -160,6 +219,50 @@ def DemOpening(plist,path,Img0C):
     plt.close()
     plist.append(p)
     return plist,gt,fx,fy,mask_b,ridges
+
+def DemOpenDow(plist,path,Img0C):
+    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
+    if "-GR" in path:
+        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+    else:
+        temp = path.strip(".tif")+"_DEM.tif"
+    file                               = gdal.Open(temp)
+    gt                                 = file.GetGeoTransform()
+    x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
+    w = round(file.RasterXSize/(0.05/x_s))
+    h = round(file.RasterYSize/(0.05/y_s))
+    dest = temp.strip(".tif")+"_s.vrt"
+    gdal.Warp(dest,temp,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
+    file_s                             = gdal.Open(dest)   
+    gt                                 = file_s.GetGeoTransform()
+    dem                                = file_s.GetRasterBand(1).ReadAsArray() 
+    mask                               = np.zeros(dem.shape)
+    #if np.sum(dem==0) > np.sum(dem==np.min(dem)):
+    #    mask[dem == 0              = 1
+    #else:
+    #    mask[dem == np.min(dem)]   = 1
+    mask[dem==255]                     = 1
+    dem_f = cv2.GaussianBlur(dem,(11,11),0)
+    kernel = np.ones((15,15),np.float32)/(15**2)
+    smooth = cv2.filter2D(dem,-1,kernel)
+    ridges = (dem_f-smooth)
+    mask_b = cv2.GaussianBlur(mask,(51,51),0)  
+    ridges[mask_b>10**-10]=0  
+    temp1 = np.zeros(ridges.shape)
+    temp2 = np.zeros(ridges.shape)
+    temp1[ridges<-0.01]=1
+    temp2[ridges>-0.11]=1
+    ridges = (temp1*temp2).astype(np.uint8) 
+    p = plt.figure()
+    plt.title('Ridges 0.05m')
+    plt.imshow(ridges,cmap='Greys')
+    file_s = None
+    gdal.Unlink(dest)
+    pbar1.update(1)
+    pbar1.close()
+    plt.close()
+    plist.append(p)
+    return plist,mask_b,gt,ridges
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -410,10 +513,7 @@ def rangemaker(num,thMeaningfulLength):
         range_array[i]=int(num-span+i)
     return range_array
 
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-
-def CapFigures(i,path,plist):
+def CapFigures(plist,path,i):
     dpiset = 1000
     filename = path[i].strip('.tif') + ('_LOG.pdf')
     if os.path.exists(filename.replace("\\","/")):
@@ -426,5 +526,37 @@ def CapFigures(i,path,plist):
     plist = list(plist)
     pp.close()
     return plist
-    
-    
+
+def fit(origin_x,origin_y,CVa,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    W = np.diag(1/CVa)
+    W = W/np.sum(W)
+    fit = (A.T * W * A).I * A.T * W * b
+    #errors = b - A * fit
+    #residual = np.linalg.norm(errors)
+    return fit
+
+def hifit(origin_x,origin_y,CVa,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    W = np.diag(1/CVa)
+    W = W/np.sum(W)
+    fit = (A.T * W * A).I * A.T * W * b
+    #errors = b - A * fit
+    #residual = np.linalg.norm(errors)
+    return fit
+
+def eval(fit,x,y):
+    value = fit[0]*x+fit[1]*y+fit[2]*x*y+fit[3]*(x**2)+fit[4]*(y**2)+fit[5]    
+    return value

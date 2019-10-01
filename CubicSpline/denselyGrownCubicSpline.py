@@ -11,8 +11,9 @@ from rasterio.warp import reproject, Resampling
 import detect_ridges as dr
 from tkinter import filedialog
 from tkinter import *
+from tqdm import trange
 
-use_ahn = False = None #"m_19fn2.tif"
+use_ahn = False
 
 root = Tk()
 paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
@@ -24,7 +25,7 @@ if use_ahn:
 root.destroy()
 plants = []
 
-if path_ahn:
+if use_ahn:
     orig = gdal.Open(paths[0])
     dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
     dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
@@ -47,7 +48,7 @@ if path_ahn:
             
     source = None
 
-with fiona.open(plant_pth) as src:
+with fiona.open(plant_path) as src:
     for s in src:
         if s['geometry']:
             if s['geometry']['type'] == 'Point':
@@ -60,7 +61,8 @@ with fiona.open(plant_pth) as src:
 
 src_schema['properties']['diff'] = 'float:24.15'
 
-for path in paths:
+for a in trange(len(paths), desc="cubic spline thingies"):
+    path = paths[a]
     x = []
     y = []
     values = []
@@ -108,7 +110,7 @@ for path in paths:
     for i in range(0, a.shape[0], 20):
         for j in range(0, a.shape[1], 20):
             if mask[i][j] == 0 and ridges_array[i][j] == 1 and polygon.contains(Point(i, j)):
-                e.append(a[i][j] if path_ahn==None else a[i][j] - ahn_array[i][j])
+                e.append(a[i][j] if not use_ahn else a[i][j] - ahn_array[i][j])
     mask = None
     
     util.create_tiff(a - np.mean(e)-0.1, gt, proj, path.split(".")[0] + "_cubic.tif")

@@ -56,7 +56,7 @@ def get_convex_hull(plants):
     return polygon
 
     
-def getMask(array, plants, gt, k_size = 45):
+def getMask(array, plants, gt, k_size = 25):
     mask = np.zeros(array.shape)
     plane = Plane(mask, gt)
     
