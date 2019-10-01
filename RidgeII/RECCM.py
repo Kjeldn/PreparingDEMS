@@ -20,6 +20,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from multiprocessing import Pool
 from multiprocessing import cpu_count as cpu
 from functools import partial
+from scipy import optimize
 
 def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
@@ -162,26 +163,46 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    func = partial(BatchMatch,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
-    #inp = []
-    #for i in range(num_bat):
-    #    inp.append(tuple((grid[i*N:(i+1)*N],w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)))
+    import RECCM
+    func = partial(RECCM.BatchMatch,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
     return plist,func,grid
     
 def MultiMatch(plist,func,grid,Edges0F,Edges1F):
-    #results = [pool.apply_async(BatchMatch, inp[i]) for i in range(len(inp))]
-    n = cpu()
-    pool = Pool(n)
-    num_bat = n*2
-    N=int(np.ceil(len(grid)/num_bat))
-    pbar = tqdm(total=num_bat+1,position=0,desc="RECC(f)   ")
-    results = pool.imap(func,(grid[i*N:(i+1)*N] for i in range(num_bat)))
+    num_workers = cpu()
+    pool = Pool(num_workers)
+    bpw = 2
+    num_batches = num_workers*bpw
+    while len(grid)/num_batches > 10:
+        bpw += 1
+        num_batches = num_workers*bpw
+    N=int(np.ceil(len(grid)/num_batches))
+    pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
+    results = pool.imap_unordered(func,(grid[i*N:(i+1)*N] for i in range(num_batches)),chunksize=N)
     for re in results:
         pbar.update(1)
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         del re
     x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
+#    from multiprocessing import Queue
+#    from multiprocessing import Process
+#    work_queue = Queue()
+#    done_queue = Queue()
+#    processes = []
+#    for i in range(num_batches):
+#        work_queue.put(grid[i*N:(i+1)*N])
+#    for w in range(num_workers):
+#        p = Process(target=func,args=(work_queue,done_queue))
+#        p.start()
+#        processes.append(p)
+#        work_queue.put('STOP')
+#    for p in processes:
+#        p.join()
+#    done_queue.put('STOP')
+#    results = []
+#    for status in iter(done_queue.get, 'STOP'):
+#        if status is not None:
+#            results.append(status)
     p = plt.figure()
     plt.subplot(1,2,1)
     plt.title("Patch")
@@ -267,7 +288,7 @@ def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_o
         x_n      = np.where(RECC_total >= max_n)[0][0:-1]
         CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
     dx = (x1-xof)*0.05
-    dy = (y1-yof)*0.05 
+    dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
 def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
@@ -292,19 +313,27 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     plt.close(257)
     plist.append(p)
     clist = np.array(clist)    
-    ind1 = np.where(dx < np.median(dx)+1)
-    ind2 = np.where(dx > np.median(dx)-1)
-    ind3 = np.where(dy < np.median(dy)+1)
-    ind4 = np.where(dy > np.median(dy)-1)
-    ind_dx = np.intersect1d(ind1,ind2)
-    ind_dy = np.intersect1d(ind3,ind4)
-    ind = np.intersect1d(ind_dx,ind_dy)
+    
+    #ind1 = np.where(dx < np.median(dx)+1)
+    #ind2 = np.where(dx > np.median(dx)-1)
+    #ind3 = np.where(dy < np.median(dy)+1)
+    #ind4 = np.where(dy > np.median(dy)-1)
+    #ind_dx = np.intersect1d(ind1,ind2)
+    #ind_dy = np.intersect1d(ind3,ind4)
+    #ind = np.intersect1d(ind_dx,ind_dy).astype(int)
+    
+    ## First order LSE fit
     #fun_dx = METAA.fit(x0[ind],y0[ind],CVa[ind],dx[ind])
     #fun_dy = METAA.fit(x0[ind],y0[ind],CVa[ind],dy[ind])
     #supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
     #supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
-    fdx = METAA.hifit(x0[ind],y0[ind],CVa[ind],dx[ind])
-    fdy = METAA.hifit(x0[ind],y0[ind],CVa[ind],dy[ind])
+    
+    ## Second order LSE fit
+    #fdx = METAA.hifit(x0[ind],y0[ind],CVa[ind],dx[ind])
+    #fdy = METAA.hifit(x0[ind],y0[ind],CVa[ind],dy[ind])
+    
+    fdx = METAA.hifit(x0,y0,CVa,dx)
+    fdy = METAA.hifit(x0,y0,CVa,dy)
     supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
     supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
     delta_x = dx - supposed_dx
@@ -322,6 +351,8 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     ax.scatter(x0[indices],y0[indices],dx[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dx[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
+    plt.show()
+    
     plt.close()
     plist.append(p)   
     p = plt.figure()
@@ -330,6 +361,8 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     ax.scatter(x0[indices],y0[indices],dy[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dy[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
+    plt.show()
+    
     plt.close()
     plist.append(p)
     x0        = x0[indices]
@@ -643,3 +676,44 @@ def GeoPointss(i,files,x0,y0,x1,y1,gt0F,gt1F):
 #        move(abs_path, dest)
 #        pbar3.update(1)
 #        pbar3.close()
+    
+#    medx0 = (np.max(x0)-np.min(x0))/2 + np.min(x0)
+#    medy0 = (np.max(y0)-np.min(y0))/2 + np.min(y0)
+#    x0 = x0 - medx0
+#    y0 = y0 - medy0
+#    
+#    A = []
+#    bdx = []
+#    bdy = []
+#    for i in range(len(x0[ind])):
+#        A.append([x0[ind][i], y0[ind][i], x0[ind][i]*y0[ind][i], x0[ind][i]**2, y0[ind][i]**2, 1])
+#        bdx.append(dx[ind][i])
+#        bdy.append(dy[ind][i])
+#    bdx = np.matrix(bdx).T
+#    bdy = np.matrix(bdy).T
+#    A = np.matrix(A)
+#    W = np.diag(1/CVa[ind])
+#    W = (W/np.sum(W))*len(CVa)
+#    
+#    ErrorFunc_dx=lambda fit: np.ravel(W*(bdx - np.dot(A,fit)))
+#    ErrorFunc_dy=lambda fit: np.ravel(W*(bdy - np.dot(A,fit)))
+#    
+#    fdx = [0,0,0,0,0,np.median(dx[ind])]
+#    fdx,flagx = optimize.leastsq(ErrorFunc_dx,fdx)
+#    fdy = [0,0,0,0,0,np.median(dy[ind])]
+#    fdy,flagy = optimize.leastsq(ErrorFunc_dy,fdy)
+#    
+#    ErrorFunc_dx=lambda fit: np.sum((W*(bdx - np.dot(A,fit)))**2)
+#    ErrorFunc_dy=lambda fit: np.sum((W*(bdy - np.dot(A,fit)))**2)
+#    
+#    
+#    fdx = [1,1,1,1,1,np.median(dx[ind])]
+#    fdx = optimize.minimize(ErrorFunc_dx,fdx,method='Nelder-Mead',tol=0.1,options={'maxiter':100,'maxfun':500,'adaptive':True})
+#    fdy = [0,0,0,0,0,np.median(dy[ind])]
+#    fdy = optimize.minimize(ErrorFunc_dy,fdy,options={'maxiter':5000}).x
+#    
+#    supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
+#    supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
+#
+#    x0 = x0 + medx0
+#    y0 = y0 + medy0

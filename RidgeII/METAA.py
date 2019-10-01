@@ -550,13 +550,7 @@ def hifit(origin_x,origin_y,CVa,offset):
         tmp_b.append(offset[i])
     b = np.matrix(tmp_b).T
     A = np.matrix(tmp_A)
-    W = np.diag(1/CVa)
-    W = W/np.sum(W)
+    W = np.diag(CVa**-3)
+    W = (W/np.sum(W))*len(CVa)
     fit = (A.T * W * A).I * A.T * W * b
-    #errors = b - A * fit
-    #residual = np.linalg.norm(errors)
     return fit
-
-def eval(fit,x,y):
-    value = fit[0]*x+fit[1]*y+fit[2]*x*y+fit[3]*(x**2)+fit[4]*(y**2)+fit[5]    
-    return value
