@@ -68,6 +68,8 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     convex_hull = convex_hulls[0]
     for i in range(1, len(convex_hulls)):
         convex_hull = convex_hull.union(convex_hulls[i])
+    if isinstance(convex_hull, MultiPolygon):
+        convex_hull = sorted(convex_hull, key=lambda a:a.area, reverse=True)[0]
     convex_hull_o = util.get_convex_hull(plants)
     
     ds = convex_hull.length / 5000
