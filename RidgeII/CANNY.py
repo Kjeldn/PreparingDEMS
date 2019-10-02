@@ -310,14 +310,17 @@ def CannyLines(plist,Img0C,img_b,mask_b):
     for chain in edgeChainsA:
        for point in chain:    
            mapA[point[0],point[1]]=1
+    mapA = (mapA).astype(np.uint8)
     mapE = np.zeros(edgemap.shape)
     for chain in edgeChainsE:
        for point in chain:    
            mapE[point[0],point[1]]=1           
+    mapE = (mapE).astype(np.uint8)
     mapF = np.zeros(edgemap.shape)
     for chain in edgeChainsF:
         for point in chain:    
             mapF[point[0],point[1]]=1
+    mapF = (mapF).astype(np.uint8)
     pbar2.update(1)
     pbar2.close()
     temp = copy.deepcopy(edgemap)

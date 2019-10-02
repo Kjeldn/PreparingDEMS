@@ -19,6 +19,7 @@ from shutil import move
 from mpl_toolkits.mplot3d import Axes3D
 from multiprocessing import Pool
 from multiprocessing import cpu_count as cpu
+from multiprocessing import set_start_method
 from functools import partial
 from scipy import optimize
 
@@ -112,6 +113,7 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     buffer = 2*w
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
+    edges1Fa=(edges1Fa).astype(np.uint8)
     if CV1>4:
         md = 6
         x_off=0;y_off=0
@@ -157,15 +159,18 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         for y in range(circle1.shape[1]):
             if (x-w)**2 + (y-w)**2 < w**2:
                 circle1[x,y]=1
+    #circle1 = (circle1).astype(np.uint8)
     circle2 = np.zeros((2*max_dist,2*max_dist))
     for x in range(circle2.shape[0]):
         for y in range(circle2.shape[1]):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
+    #circle2 = (circle2).astype(np.uint8)
     return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
 def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
+    set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
     func = partial(BatchMatch,w,md,Edges0F,Edges1F,Edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
@@ -179,11 +184,16 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     N=int(np.ceil(len(grid)/num_batches))
     pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)
+    #results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)    
+    results = pool.imap(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N) 
     for re in results:
-        pbar.update(1)
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
+        pbar.update(1)
+        #
+        #
         del re
+    pool.close()
+    pool.join()
     x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
 #    from multiprocessing import Queue
 #    from multiprocessing import Process
@@ -261,7 +271,6 @@ def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_o
         lon[i] = gt0F[0] + gt0F[1]*y0[i]
         xog[i] = int(round((lat[i]-gt1F[3])/(gt1F[5])))
         yog[i] = int(round((lon[i]-gt1F[0])/(gt1F[1])))
-        
         xof[i] = int(round(xog[i] + x_off/0.05))
         yof[i] = int(round(yog[i] + y_off/0.05))
         target = Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w]
