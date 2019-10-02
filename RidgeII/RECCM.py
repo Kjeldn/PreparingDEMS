@@ -163,7 +163,7 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    return plist,edges1Fa,x_off,y_off,grid,md,circle1,circle2
+    return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
 def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
     ps0F = 0.05
@@ -172,14 +172,14 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     num_workers = cpu()
     pool = Pool(num_workers)
     bpw = 2
-    num_batches = num_workers*bpw
+    num_batches = int(num_workers*bpw)
     while len(grid)/num_batches > 10:
         bpw += 1
-        num_batches = num_workers*bpw
+        num_batches = int(num_workers*bpw)
     N=int(np.ceil(len(grid)/num_batches))
     pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    results = pool.imap_unordered(func,(grid[i*N:(i+1)*N] for i in range(num_batches)),chunksize=N)
+    results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)
     for re in results:
         pbar.update(1)
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
