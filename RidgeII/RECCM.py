@@ -106,7 +106,7 @@ def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,CV1
 
-def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
+def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
@@ -163,11 +163,12 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,gt0F,gt1F,x_off,y_off):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
     circle2[circle2==0]=np.NaN
-    import RECCM
-    func = partial(RECCM.BatchMatch,w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
-    return plist,func,grid
-    
-def MultiMatch(plist,func,grid,Edges0F,Edges1F):
+    return plist,edges1Fa,x_off,y_off,grid,md,circle1,circle2
+
+def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
+    ps0F = 0.05
+    w = int(25/ps0F)
+    func = partial(BatchMatch,w,md,Edges0F,Edges1F,Edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
     num_workers = cpu()
     pool = Pool(num_workers)
     bpw = 2
