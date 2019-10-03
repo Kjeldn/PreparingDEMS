@@ -115,13 +115,13 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
     edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
     edges1Fa=(edges1Fa).astype(np.uint8)
-    if CV1>4:
-        md = 6
+    if CV1>=4:
+        md = 8
         x_off=0;y_off=0
-    elif CV1<1.5:
-        md = 2
+    elif CV1<=1.5:
+        md = 4
     else:
-        md = 2 + 3*((CV1-1.5)/2.5)
+        md = 4 + 4*((CV1-1.5)/2.5)
     max_dist = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -129,8 +129,10 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     polygon = Polygon(np.array(biggest_contour[:,0]))
     ref_area = polygon.area
     polygon = polygon.buffer(-w)
+    if polygon.type == 'MultiPolygon':
+        polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]    
     v=w
-    while polygon.is_empty or polygon.geom_type == 'MultiPolygon' or polygon.area<0.4*ref_area:
+    while polygon.is_empty or polygon.area<0.4*ref_area:
         v -= int(2/ps0F)
         polygon = Polygon(np.array(biggest_contour[:,0]))
         polygon = polygon.buffer(-v)
