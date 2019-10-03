@@ -22,6 +22,7 @@ from multiprocessing import cpu_count as cpu
 from multiprocessing import set_start_method
 from functools import partial
 from scipy import optimize
+import copy
 
 def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
@@ -159,21 +160,23 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         for y in range(circle1.shape[1]):
             if (x-w)**2 + (y-w)**2 < w**2:
                 circle1[x,y]=1
-    #circle1 = (circle1).astype(np.uint8)
+    #circle1[circle1==0]=np.NaN
+    circle1 = (circle1).astype(np.uint8)
     circle2 = np.zeros((2*max_dist,2*max_dist))
     for x in range(circle2.shape[0]):
         for y in range(circle2.shape[1]):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
-    circle2[circle2==0]=np.NaN
-    #circle2 = (circle2).astype(np.uint8)
+    #circle2[circle2==0]=np.NaN
+    circle2 = (circle2).astype(np.uint8)
     return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
 def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
     set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
-    func = partial(BatchMatch,w,md,Edges0F,Edges1F,Edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
+    from RECCM import BatchMatch as bm
+    func = partial(bm,w,md,Edges0F,Edges1F,Edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off)
     num_workers = cpu()
     pool = Pool(num_workers)
     bpw = 2
@@ -184,13 +187,10 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     N=int(np.ceil(len(grid)/num_batches))
     pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
-    #results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)    
-    results = pool.imap(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N) 
+    results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)    
     for re in results:
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         pbar.update(1)
-        #
-        #
         del re
     pool.close()
     pool.join()
@@ -250,7 +250,7 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     pbar.update(1)
     pbar.close()
     return plist,x0,y0,x1,y1,CVa,dx,dy
-
+             
 def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off,grid):
     CVa        = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
@@ -273,19 +273,19 @@ def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_o
         yog[i] = int(round((lon[i]-gt1F[0])/(gt1F[1])))
         xof[i] = int(round(xog[i] + x_off/0.05))
         yof[i] = int(round(yog[i] + y_off/0.05))
-        target = Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w]
+        target = copy.deepcopy(Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w])
         if target.shape != (2*w,2*w):
             continue
-        target = target*circle1
+        target[circle1==0] = 0
         sum_target = np.sum(target)     
-        search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
         search_wide = edges1Fa[2*w+xof[i]-max_dist-w:2*w+xof[i]+max_dist+w,2*w+yof[i]-max_dist-w:2*w+yof[i]+max_dist+w]
         if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
             continue
         sum_patch = cv2.filter2D(search_wide,-1,circle1)
         numerator = cv2.filter2D(search_wide,-1,target)
         RECC_wide = numerator / (sum_patch+sum_target)
-        RECC_area = RECC_wide[w:-w,w:-w]*circle2
+        RECC_area = RECC_wide[w:-w,w:-w]
+        RECC_area[circle2==0]=np.NaN
         RECC_total.fill(np.NaN)
         if RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist].shape != (2*(max_dist),2*(max_dist)):
             continue
