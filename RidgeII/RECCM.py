@@ -324,33 +324,19 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     plist.append(p)
     clist = np.array(clist)    
     
-    #ind1 = np.where(dx < np.median(dx)+1)
-    #ind2 = np.where(dx > np.median(dx)-1)
-    #ind3 = np.where(dy < np.median(dy)+1)
-    #ind4 = np.where(dy > np.median(dy)-1)
-    #ind_dx = np.intersect1d(ind1,ind2)
-    #ind_dy = np.intersect1d(ind3,ind4)
-    #ind = np.intersect1d(ind_dx,ind_dy).astype(int)
-    
-    ## First order LSE fit
-    #fun_dx = METAA.fit(x0[ind],y0[ind],CVa[ind],dx[ind])
-    #fun_dy = METAA.fit(x0[ind],y0[ind],CVa[ind],dy[ind])
-    #supposed_dx = fun_dx[0]*x0+fun_dx[1]*y0+fun_dx[2]
-    #supposed_dy = fun_dy[0]*x0+fun_dy[1]*y0+fun_dy[2]
-    
-    ## Second order LSE fit
-    #fdx = METAA.hifit(x0[ind],y0[ind],CVa[ind],dx[ind])
-    #fdy = METAA.hifit(x0[ind],y0[ind],CVa[ind],dy[ind])
-    
-    fdx = METAA.hifit(x0,y0,CVa,dx)
-    fdy = METAA.hifit(x0,y0,CVa,dy)
-    supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
-    supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
-    delta_x = dx - supposed_dx
-    delta_y = dy - supposed_dy
-    distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
-    radius = 0.10
-    indices = np.where(distance.T <= radius)[0]
+    indices = np.where(CVa>-1)[0]
+    dist_range = [1,0.5,0.25,0.1]
+    for dist in dist_range:
+        fdx = METAA.hifit(x0[indices],y0[indices],CVa[indices],dx[indices])
+        fdy = METAA.hifit(x0[indices],y0[indices],CVa[indices],dy[indices])
+        supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
+        supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
+        delta_x = dx - supposed_dx
+        delta_y = dy - supposed_dy
+        distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
+        radius = dist
+        indices = np.where(distance.T <= radius)[0]
+        
     inv_indices = []
     for i in range(len(dx)):
         if i not in indices:
