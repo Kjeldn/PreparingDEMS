@@ -6,7 +6,6 @@ from shutil import move
 from tempfile import mkstemp
 
 folder  = r'C:\Users\VanBoven\Documents\100 Ortho Inbox\1_ready_to_rectify'
-folder  = r'\\STAMPERTJE\100 Ortho Inbox\1_ready_to_rectify'
 pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
 
 path = []
@@ -22,6 +21,7 @@ del root,dirs,files,name
 for tif in path:
     dem = tif.replace(".tif","_DEM.tif")
     points = tif.replace(".tif",".points")
+    
     gt_t = gdal.Open(tif).GetGeoTransform()
     gt_d = gdal.Open(dem).GetGeoTransform()
     gcp_t = []
@@ -48,7 +48,7 @@ for tif in path:
     
     tops = gdal.TranslateOptions(format='VRT',outputSRS='EPSG:4326',GCPs=gcp_t)
     tif_d = tif.replace(".tif","_GR.vrt")
-    subst   = "    <SourceDataset relativeToVRT=\"1\">"+tif+"</SourceDataset>"
+    subst   = "    <SourceDataset relativeToVRT=\"1\">"+tif[::-1][:tif[::-1].find("/")][::-1]+"</SourceDataset>"
     temp = gdal.Translate('',tif,options=tops)
     gdal.Warp(tif_d,temp,options=wops)
     fh, abs_path = mkstemp()
@@ -61,7 +61,7 @@ for tif in path:
     
     tops = gdal.TranslateOptions(format='VRT',outputSRS='EPSG:4326',GCPs=gcp_d)
     dem_d = dem.replace(".tif","_GR.vrt")
-    subst   = "    <SourceDataset relativeToVRT=\"1\">"+dem+"</SourceDataset>"
+    subst   = "    <SourceDataset relativeToVRT=\"1\">"+dem[::-1][:dem[::-1].find("/")][::-1]+"</SourceDataset>"
     temp = gdal.Translate('',dem,options=tops)
     gdal.Warp(dem_d,temp,options=wops)
     fh, abs_path = mkstemp()
