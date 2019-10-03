@@ -251,7 +251,7 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     pbar.close()
     return plist,x0,y0,x1,y1,CVa,dx,dy
              
-def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_off,y_off,grid):
+def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     CVa        = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
@@ -276,20 +276,20 @@ def BatchMatch(w,max_dist,Edges0F,Edges1F,edges1Fa,circle1,circle2,gt0F,gt1F,x_o
         target = copy.deepcopy(Edges0F[x0[i]-w:x0[i]+w,y0[i]-w:y0[i]+w])
         if target.shape != (2*w,2*w):
             continue
-        target[circle1==0] = 0
+        target[c1==0] = 0
         sum_target = np.sum(target)     
-        search_wide = edges1Fa[2*w+xof[i]-max_dist-w:2*w+xof[i]+max_dist+w,2*w+yof[i]-max_dist-w:2*w+yof[i]+max_dist+w]
-        if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
+        search_wide = Edges1Fa[2*w+xof[i]-md-w:2*w+xof[i]+md+w,2*w+yof[i]-md-w:2*w+yof[i]+md+w]
+        if search_wide.shape != (2*(md+w),2*(md+w)):
             continue
-        sum_patch = cv2.filter2D(search_wide,-1,circle1)
-        numerator = cv2.filter2D(search_wide,-1,target)
+        sum_patch = cv2.filter2D(search_wide.astype(float),-1,c1.astype(float))
+        numerator = cv2.filter2D(search_wide.astype(float),-1,target.astype(float))
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]
-        RECC_area[circle2==0]=np.NaN
+        RECC_area[c2==0]=np.NaN
         RECC_total.fill(np.NaN)
-        if RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist].shape != (2*(max_dist),2*(max_dist)):
+        if RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md].shape != (2*(md),2*(md)):
             continue
-        RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist] = RECC_area
+        RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
         max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
         y1[i]    = np.where(RECC_total >= max_one)[1][0]  
