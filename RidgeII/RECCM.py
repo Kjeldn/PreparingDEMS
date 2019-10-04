@@ -105,7 +105,7 @@ def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         plt.scatter(y1,x1,c='b',s=1) 
         plt.close()
         plist.append(p)
-        print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
+        #print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,CV1
 
 def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
@@ -239,21 +239,9 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     plt.scatter(y1[ind],x1[ind],c='y',s=1)   
     plt.close()
     plist.append(p)
-    f1=plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(Edges0F,cmap='Greys')
-    plt.subplot(1,2,2)
-    plt.imshow(Edges1F,cmap='Greys')
-    plt.close()
-    f2=plt.figure()
-    plt.subplot(1,2,1)
-    plt.imshow(Edges0F,cmap='Greys')
-    plt.subplot(1,2,2)
-    plt.imshow(Edges1F,cmap='Greys')
-    plt.close()
     pbar.update(1)
     pbar.close()
-    return plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2
+    return plist,x0,y0,x1,y1,CVa,dx,dy
              
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     CVa        = np.zeros(len(grid)) 
@@ -305,7 +293,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
+def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
     x0        = x0[indices]
@@ -317,14 +305,18 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
     dy        = dy[indices]
     size1=len(x0)
     clist = list(np.random.choice(range(256), size=len(x0)))
-    p=plt.figure(f1)
+    p=plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
     plt.subplot(1,2,1)
     plt.title("GCP Status:")
     plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
     plt.title(str(size1)+" in-domain")
     plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(f1)
+    plt.close()
     plist.append(p)
     clist = np.array(clist)    
     
@@ -351,8 +343,6 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
     ax.scatter(x0[indices],y0[indices],dx[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dx[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
-    plt.show()
-    
     plt.close()
     plist.append(p)   
     p = plt.figure()
@@ -361,8 +351,6 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
     ax.scatter(x0[indices],y0[indices],dy[indices],c='g',marker='o')
     ax.scatter(x0[inv_indices],y0[inv_indices],dy[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dy)-0.05, max(dy)+0.05)
-    plt.show()
-    
     plt.close()
     plist.append(p)
     x0        = x0[indices]
@@ -374,14 +362,18 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
     clist = list(clist)
-    p = plt.figure(f2)
+    p = plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(Edges0F,cmap='Greys')
+    plt.subplot(1,2,2)
+    plt.imshow(Edges1F,cmap='Greys')
     plt.subplot(1,2,1)
     plt.title("GCP Status:")
     plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
     plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
     plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(f2)
+    plt.close()
     plist.append(p)
     return plist,x0,y0,x1,y1,CVa,dx,dy
            

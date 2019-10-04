@@ -50,13 +50,15 @@ def SelectFiles():
     folder = base[:base.find(path3)]
     path = []
     path.append(base)
+    date_base = re.findall(r"\d+",base)[1]
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:
             if ".tif" in name:
                 if name not in base:
                     if "_DEM" not in name:
-                        if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                            path.append(os.path.join(root,name).replace("\\","/"))             
+                        if float(date_base) <= float(re.findall(r"\d+",name)[1]):
+                            if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                path.append(os.path.join(root,name).replace("\\","/"))             
     plist = []
     plt.ioff()
     return path,plist
