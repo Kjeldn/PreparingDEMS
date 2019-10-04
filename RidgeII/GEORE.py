@@ -5,7 +5,8 @@ from io import StringIO
 from shutil import move
 from tempfile import mkstemp
 
-folder  = r'C:\Users\VanBoven\Documents\100 Ortho Inbox\1_ready_to_rectify'
+#folder  = r'C:\Users\VanBoven\Documents\100 Ortho Inbox\1_ready_to_rectify'
+folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris'
 pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
 
 path = []
