@@ -193,7 +193,7 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     for re in results:
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         pbar.update(1)
-        del re
+        #del re
     pool.close()
     pool.join()
     x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
@@ -239,19 +239,21 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     plt.scatter(y1[ind],x1[ind],c='y',s=1)   
     plt.close()
     plist.append(p)
-    plt.figure(257)
+    f1=plt.figure()
     plt.subplot(1,2,1)
     plt.imshow(Edges0F,cmap='Greys')
     plt.subplot(1,2,2)
     plt.imshow(Edges1F,cmap='Greys')
-    plt.figure(258)
+    plt.close()
+    f2=plt.figure()
     plt.subplot(1,2,1)
     plt.imshow(Edges0F,cmap='Greys')
     plt.subplot(1,2,2)
     plt.imshow(Edges1F,cmap='Greys')
+    plt.close()
     pbar.update(1)
     pbar.close()
-    return plist,x0,y0,x1,y1,CVa,dx,dy
+    return plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2
              
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     CVa        = np.zeros(len(grid)) 
@@ -303,7 +305,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
+def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy,f1,f2):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
     x0        = x0[indices]
@@ -315,19 +317,19 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     dy        = dy[indices]
     size1=len(x0)
     clist = list(np.random.choice(range(256), size=len(x0)))
-    p=plt.figure(257)
+    p=plt.figure(f1)
     plt.subplot(1,2,1)
     plt.title("GCP Status:")
     plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
     plt.title(str(size1)+" in-domain")
     plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(257)
+    plt.close(f1)
     plist.append(p)
     clist = np.array(clist)    
     
     indices = np.where(CVa>-1)[0]
-    dist_range = [1,0.5,0.25,0.1]
+    dist_range = [1.5,1,0.5,0.25,0.1]
     for dist in dist_range:
         fdx = METAA.hifit(x0[indices],y0[indices],CVa[indices],dx[indices])
         fdy = METAA.hifit(x0[indices],y0[indices],CVa[indices],dy[indices])
@@ -372,14 +374,14 @@ def RemOutSlop(plist,x0,y0,x1,y1,CVa,dx,dy):
     size2=len(x0)  
     print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
     clist = list(clist)
-    p = plt.figure(258)
+    p = plt.figure(f2)
     plt.subplot(1,2,1)
     plt.title("GCP Status:")
     plt.scatter(y0,x0,s=1,c=clist)
     plt.subplot(1,2,2)
     plt.title("("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
     plt.scatter(y1,x1,s=1,c=clist)
-    plt.close(258)
+    plt.close(f2)
     plist.append(p)
     return plist,x0,y0,x1,y1,CVa,dx,dy
            
