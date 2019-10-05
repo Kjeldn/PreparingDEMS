@@ -3,7 +3,7 @@ import CANNY
 import RECCM
 
 if __name__ == '__main__':
-    metapath,plist = METAA.InboxxFiles(1)
+    metapath,plist = METAA.ChrInbFiles(1)
     
     for path in metapath:
         plist,Img0C,ImgB0C,MaskB0C,gt0C           = METAA.OrtOpenDow(plist,path[0])

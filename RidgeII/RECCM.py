@@ -174,6 +174,10 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
 def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
+    x_off=0
+    y_off=0
+    CV1=1.5
+    
     set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
@@ -377,13 +381,13 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plist.append(p)
     return plist,x0,y0,x1,y1,CVa,dx,dy
            
-def GeoPointss(i,files,x0,y0,x1,y1,gt0F,gt1F):
+def GeoPointss(file,x0,y0,x1,y1,gt0F,gt1F):
     pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
     target_lat = gt0F[3]+gt0F[5]*x0
     target_lon = gt0F[0]+gt0F[1]*y0
     origin_lat = gt1F[3]+gt1F[5]*x1
     origin_lon = gt1F[0]+gt1F[1]*y1
-    dest = files[i].strip(".tif")+".points" 
+    dest = file.strip(".tif")+".points" 
     if os.path.isfile(dest.replace("\\","/")):
         os.remove(dest)
     f = open(dest,"w+")

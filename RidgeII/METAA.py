@@ -36,6 +36,65 @@ def InboxxFiles(num):
     plt.ioff()
     return metapath,plist
 
+def ChrInbFiles(num):
+    plt.close("all")
+    metapath = []
+    for i in range(num):
+        path = []
+        root = Tk()
+        root.withdraw()
+        #
+        root.filename =  filedialog.askopenfilename(initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+        #
+        inboxfile = root.filename
+        split = inboxfile.split("-")
+        company=split[0][::-1][:split[0][::-1].find("/")][::-1]
+        parcel=split[1]
+        date=split[2].replace(".tif","")        
+       
+        candidates = []
+        for root, dirs, files in os.walk(r"D:\VanBovenDrive\VanBoven MT\Archive", topdown=True):
+            for name in files:
+                if ".tif" in name:
+                    if "_DEM" not in name:
+                        if company in name:
+                            if parcel in name:
+                                if "GR" in name:
+                                    if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                                        candidates.append(os.path.join(root,name).replace("\\","/"))
+                                else:    
+                                    if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                        candidates.append(os.path.join(root,name).replace("\\","/"))    
+        dif = []
+        for file in candidates:
+            dif.append(float(date)-float(re.findall(r"\d+",file)[-1]))  
+        dif = np.array(dif)                                      
+        if (dif<=0).all() == True:
+            print("Found zero suitable orthomosaics in the past")
+        dif[dif<=0]=np.NaN
+        ind = np.where(dif==np.nanmin(dif))[0][0]
+        base = candidates[ind]
+        path.append(base)
+        path.append(inboxfile)
+        metapath.append(path)
+    plist = []
+    plt.ioff()
+    return metapath,plist
+
+def ChronicFile(folder):
+    plt.close("all")
+    path = []    
+    root = Tk()
+    root.withdraw()
+    #
+    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    #
+    for file in root.filename:
+        path.append(file)
+    plist = []
+    plt.ioff()
+    return plist, path  
+
 def SelectFiles():
     plt.close("all")
     root = Tk()
@@ -58,11 +117,62 @@ def SelectFiles():
                 if name not in base:
                     if "_DEM" not in name:
                         if float(date_base) < float(re.findall(r"\d+",name)[-1]):
-                            if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                path.append(os.path.join(root,name).replace("\\","/"))    
+                            if "GR" in name:
+                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                                    path.append(os.path.join(root,name).replace("\\","/"))
+                            else:    
+                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                    path.append(os.path.join(root,name).replace("\\","/"))    
     plist = []
     plt.ioff()
     return path,plist
+
+def FirstTBase(plist,file):
+    split = file.split("-")
+    if "\\c" in split[0]:
+        company=split[0][::-1][:split[0][::-1].find("\\")][::-1]
+    elif "/c" in split[0]:
+        company=split[0][::-1][:split[0][::-1].find("/")][::-1]
+    parcel=split[1]
+    date=split[2].replace(".tif","")          
+    candidates = []
+    for root, dirs, files in os.walk(r"D:\VanBovenDrive\VanBoven MT\Archive", topdown=True):
+        for name in files:
+            if ".tif" in name:
+                if "_DEM" not in name:
+                    if company in name:
+                        if parcel in name:
+                            if "GR" in name:
+                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                            else:    
+                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))    
+            elif ".vrt" in name:
+                if "_DEM" not in name:
+                    if company in name:
+                        if parcel in name:
+                            if "GR" in name:
+                                if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                            else:    
+                                if os.path.exists(os.path.join(root,name).replace(".vrt","_DEM.vrt")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/")) 
+    dif = []
+    for file in candidates:
+        dif.append(float(date)-float(re.findall(r"\d+",file)[-1]))  
+    dif = np.array(dif)                                      
+    if (dif<=0).all() == True:
+        print("Found zero suitable orthomosaics in the past")
+    dif[dif<=0]=np.NaN
+    ind = np.where(dif==np.nanmin(dif))[0][:]
+    if len(ind) > 1:
+        for i in ind:
+            if "GR" in candidates[i]:
+                base = candidates[i]
+    else:
+        base = candidates[ind[0]]
+    return plist,base
 
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
@@ -184,8 +294,10 @@ def OrtOpenDow(plist,path):
  
 def DemOpening(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    if "-GR" in path:
+    if "-GR.tif" in path:
         temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+    elif "_GR.vrt" in path:
+        temp = path.strip("_GR.vrt")+"_DEM_GR.vrt"
     else:
         temp = path.strip(".tif")+"_DEM.tif"
     psF=0.05
@@ -225,8 +337,10 @@ def DemOpening(plist,path,Img0C):
 
 def DemOpenDow(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    if "-GR" in path:
+    if "-GR.tif" in path:
         temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+    elif "_GR.vrt" in path:
+        temp = path.strip("_GR.vrt")+"_DEM_GR.vrt"
     else:
         temp = path.strip(".tif")+"_DEM.tif"
     file                               = gdal.Open(temp)
@@ -516,9 +630,9 @@ def rangemaker(num,thMeaningfulLength):
         range_array[i]=int(num-span+i)
     return range_array
 
-def CapFigures(plist,path,i):
+def CapFigures(plist,path):
     dpiset = 1000
-    filename = path[i].strip('.tif') + ('_LOG.pdf')
+    filename = path.strip('.tif') + ('_LOG.pdf')
     if os.path.exists(filename.replace("\\","/")):
         os.remove(filename)   
     pp = PdfPages(filename)
