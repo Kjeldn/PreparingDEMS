@@ -17,25 +17,6 @@ import re
 import time
 from matplotlib.backends.backend_pdf import PdfPages
 
-def InboxxFiles(num):
-    plt.close("all")
-    metapath = []
-    for i in range(num):
-        path = []
-        root = Tk()
-        root.withdraw()
-        #
-        root.filename =  filedialog.askopenfilename(initialdir = r"D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-        #
-        path.append(root.filename)
-        root.filename =  filedialog.askopenfilename(multiple=True, initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-        for file in root.filename:
-            path.append(file)
-        metapath.append(path)
-    plist = []
-    plt.ioff()
-    return metapath,plist
-
 def ChrInbFiles(num):
     plt.close("all")
     metapath = []
@@ -81,53 +62,7 @@ def ChrInbFiles(num):
     plt.ioff()
     return metapath,plist
 
-def ChronicFile(folder):
-    plt.close("all")
-    path = []    
-    root = Tk()
-    root.withdraw()
-    #
-    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
-    for file in root.filename:
-        path.append(file)
-    plist = []
-    plt.ioff()
-    return plist, path  
-
-def SelectFiles():
-    plt.close("all")
-    root = Tk()
-    root.withdraw()
-    #
-    root.filename =  filedialog.askopenfilename(initialdir = "D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
-    base = root.filename
-    path0 = base[base.find("Archive"):]
-    path1 = path0[path0.find("/")+1:]
-    path2 = path1[path1.find("/")+1:]
-    path3 = path2[path2.find("/")+1:]
-    folder = base[:base.find(path3)]
-    path = []
-    path.append(base)
-    date_base = re.findall(r"\d+",base)[-1]
-    for root, dirs, files in os.walk(folder, topdown=True):
-        for name in files:
-            if ".tif" in name:
-                if name not in base:
-                    if "_DEM" not in name:
-                        if float(date_base) < float(re.findall(r"\d+",name)[-1]):
-                            if "GR" in name:
-                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                                    path.append(os.path.join(root,name).replace("\\","/"))
-                            else:    
-                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                    path.append(os.path.join(root,name).replace("\\","/"))    
-    plist = []
-    plt.ioff()
-    return path,plist
-
-def FirstTBase(plist,file):
+def FirstTBase(plist,archive,file):
     split = file.split("-")
     if "\\c" in split[0]:
         company=split[0][::-1][:split[0][::-1].find("\\")][::-1]
@@ -136,7 +71,7 @@ def FirstTBase(plist,file):
     parcel=split[1]
     date=split[2].replace(".tif","")          
     candidates = []
-    for root, dirs, files in os.walk(r"D:\VanBovenDrive\VanBoven MT\Archive", topdown=True):
+    for root, dirs, files in os.walk(archive, topdown=True):
         for name in files:
             if ".tif" in name:
                 if "_DEM" not in name:
@@ -208,53 +143,14 @@ def calc_pixsize2(s1,s2,gt):
     dist = calc_distance(lat1,lon1,lat2,lon2)
     xsize = dist/s2
     return xsize, ysize 
-    
-def OrtOpening(plist,path):
-    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
-    file                               = gdal.Open(path)
-    gt                                 = file.GetGeoTransform()
-    B                                  = file.GetRasterBand(1).ReadAsArray()
-    G                                  = file.GetRasterBand(2).ReadAsArray()
-    R                                  = file.GetRasterBand(3).ReadAsArray()
-    x_s, y_s                           = calc_pixsize(R,gt)
-    ps1 = 0.5
-    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
-    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
-    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
-    fact_x_ps1                         = B.shape[0]/B_s.shape[0]
-    fact_y_ps1                         = B.shape[1]/B_s.shape[1]
-    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
-    mask                               = np.zeros(B_s.shape)
-    mask[R_s==255]                     = 1
-    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
-    img_s[:,:,0]                       = B_s
-    img_s[:,:,1]                       = G_s
-    img_s[:,:,2]                       = R_s
-    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
-    L                                  = img_s_cielab[:,:,0] 
-    hist                               = np.histogram(L[mask_b==0],bins=256)[0]
-    cdf                                = hist.cumsum()
-    cdf_m                              = np.ma.masked_equal(cdf,0)
-    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
-    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
-    L_eq                               = cdf[L]     
-    img_s_cielab_eq                    = img_s_cielab.copy()
-    img_s_cielab_eq[:,:,0]             = L_eq   
-    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
-    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
-    fsize                              = int(np.ceil((1.05/ps1))//2*2+1)
-    img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
-    pbar1.update(1)
-    pbar1.close()
-    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
 
 def OrtOpenDow(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()
     x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
-    w = round(file.RasterXSize/(0.5/x_s))
-    h = round(file.RasterYSize/(0.5/y_s))
+    w = round(file.RasterXSize/(0.5/y_s))
+    h = round(file.RasterYSize/(0.5/x_s))
     dest = path.strip(".tif")+"_s.vrt"
     time.sleep(0.5)
     gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)  
@@ -263,8 +159,6 @@ def OrtOpenDow(plist,path):
     G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
     R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
     gt = file_s.GetGeoTransform()
-    #fact_x_ps1                         = file.RasterYSize/B_s.shape[0]
-    #fact_y_ps1                         = file.RasterXSize/B_s.shape[1]
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
     mask[R_s==255]                     = 1
@@ -292,49 +186,6 @@ def OrtOpenDow(plist,path):
     pbar1.close()
     return plist,img_s,img_b,mask_b,gt
  
-def DemOpening(plist,path,Img0C):
-    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    if "-GR.tif" in path:
-        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
-    elif "_GR.vrt" in path:
-        temp = path.strip("_GR.vrt")+"_DEM_GR.vrt"
-    else:
-        temp = path.strip(".tif")+"_DEM.tif"
-    psF=0.05
-    file                               = gdal.Open(temp)
-    gt                                 = file.GetGeoTransform()
-    dem_o                              = file.GetRasterBand(1).ReadAsArray()
-    x_s, y_s                           = calc_pixsize(dem_o,gt)
-    mask                               = np.zeros(dem_o.shape)
-    if np.sum(dem_o==0) > np.sum(dem_o==np.min(dem_o)):
-        mask[dem_o == 0]               = 1
-    else:
-        mask[dem_o == np.min(dem_o)]   = 1
-    dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
-    mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
-    fx                                 = dem_o.shape[0]/dem.shape[0]
-    fy                                 = dem_o.shape[1]/dem.shape[1] 
-    dem_f = cv2.GaussianBlur(dem,(11,11),0)
-    smooth = cv2.GaussianBlur(dem_f,(15,15),0)
-    ridges = (dem_f-smooth)
-    #kernel = np.ones((n,n),np.float32)/(n**2)
-    #smooth = cv2.filter2D(dem_f,-1,kernel)
-    mask_b = cv2.GaussianBlur(mask,(51,51),0)  
-    ridges[mask>10**-10]=0  
-    temp1 = np.zeros(ridges.shape)
-    temp2 = np.zeros(ridges.shape)
-    temp1[ridges<-0.01]=1
-    temp2[ridges>-0.11]=1
-    ridges = (temp1*temp2).astype(np.uint8) 
-    p = plt.figure()
-    plt.title('Ridges 0.05m')
-    plt.imshow(ridges,cmap='Greys')
-    pbar1.update(1)
-    pbar1.close()
-    plt.close()
-    plist.append(p)
-    return plist,gt,fx,fy,mask_b,ridges
-
 def DemOpenDow(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     if "-GR.tif" in path:
@@ -346,18 +197,14 @@ def DemOpenDow(plist,path,Img0C):
     file                               = gdal.Open(temp)
     gt                                 = file.GetGeoTransform()
     x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
-    w = round(file.RasterXSize/(0.05/x_s))
-    h = round(file.RasterYSize/(0.05/y_s))
+    w = round(file.RasterXSize/(0.05/y_s))
+    h = round(file.RasterYSize/(0.05/x_s))
     dest = temp.strip(".tif")+"_s.vrt"
     gdal.Warp(dest,temp,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
     file_s                             = gdal.Open(dest)   
     gt                                 = file_s.GetGeoTransform()
     dem                                = file_s.GetRasterBand(1).ReadAsArray() 
     mask                               = np.zeros(dem.shape)
-    #if np.sum(dem==0) > np.sum(dem==np.min(dem)):
-    #    mask[dem == 0              = 1
-    #else:
-    #    mask[dem == np.min(dem)]   = 1
     mask[dem==255]                     = 1
     dem_f = cv2.GaussianBlur(dem,(11,11),0)
     kernel = np.ones((15,15),np.float32)/(15**2)
@@ -639,8 +486,7 @@ def CapFigures(plist,path):
     for fig in plist:
         fig.savefig(pp, format='pdf',dpi=dpiset)
     plist = np.array(plist)
-    plist = plist[0:2]
-    plist = list(plist)
+    plist = []
     pp.close()
     return plist
 
@@ -671,3 +517,152 @@ def hifit(origin_x,origin_y,CVa,offset):
     W = (W/np.sum(W))*len(CVa)
     fit = (A.T * W * A).I * A.T * W * b
     return fit
+
+## Archived
+
+#def InboxxFiles(num):
+#    plt.close("all")
+#    metapath = []
+#    for i in range(num):
+#        path = []
+#        root = Tk()
+#        root.withdraw()
+#        #
+#        root.filename =  filedialog.askopenfilename(initialdir = r"D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#        #
+#        path.append(root.filename)
+#        root.filename =  filedialog.askopenfilename(multiple=True, initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#        for file in root.filename:
+#            path.append(file)
+#        metapath.append(path)
+#    plist = []
+#    plt.ioff()
+#    return metapath,plist
+    
+#def ChronicFile(folder):
+#    plt.close("all")
+#    path = []    
+#    root = Tk()
+#    root.withdraw()
+#    #
+#    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#    #
+#    for file in root.filename:
+#        path.append(file)
+#    plist = []
+#    plt.ioff()
+#    return plist, path  
+
+#def SelectFiles():
+#    plt.close("all")
+#    root = Tk()
+#    root.withdraw()
+#    #
+#    root.filename =  filedialog.askopenfilename(initialdir = "D:\VanBovenDrive\VanBoven MT\Archive" ,title = "Select Base Orthomosaic",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#    #
+#    base = root.filename
+#    path0 = base[base.find("Archive"):]
+#    path1 = path0[path0.find("/")+1:]
+#    path2 = path1[path1.find("/")+1:]
+#    path3 = path2[path2.find("/")+1:]
+#    folder = base[:base.find(path3)]
+#    path = []
+#    path.append(base)
+#    date_base = re.findall(r"\d+",base)[-1]
+#    for root, dirs, files in os.walk(folder, topdown=True):
+#        for name in files:
+#            if ".tif" in name:
+#                if name not in base:
+#                    if "_DEM" not in name:
+#                        if float(date_base) < float(re.findall(r"\d+",name)[-1]):
+#                            if "GR" in name:
+#                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+#                                    path.append(os.path.join(root,name).replace("\\","/"))
+#                            else:    
+#                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+#                                    path.append(os.path.join(root,name).replace("\\","/"))    
+#    plist = []
+#    plt.ioff()
+#    return path,plist
+    
+#def OrtOpening(plist,path):
+#    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
+#    file                               = gdal.Open(path)
+#    gt                                 = file.GetGeoTransform()
+#    B                                  = file.GetRasterBand(1).ReadAsArray()
+#    G                                  = file.GetRasterBand(2).ReadAsArray()
+#    R                                  = file.GetRasterBand(3).ReadAsArray()
+#    x_s, y_s                           = calc_pixsize(R,gt)
+#    ps1 = 0.5
+#    R_s                                = cv2.resize(R,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
+#    G_s                                = cv2.resize(G,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
+#    B_s                                = cv2.resize(B,(int(B.shape[1]*(y_s/ps1)), int(B.shape[0]*(x_s/ps1))),interpolation = cv2.INTER_AREA)
+#    fact_x_ps1                         = B.shape[0]/B_s.shape[0]
+#    fact_y_ps1                         = B.shape[1]/B_s.shape[1]
+#    img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
+#    mask                               = np.zeros(B_s.shape)
+#    mask[R_s==255]                     = 1
+#    mask_b                             = cv2.GaussianBlur(mask,(5,5),0)  
+#    img_s[:,:,0]                       = B_s
+#    img_s[:,:,1]                       = G_s
+#    img_s[:,:,2]                       = R_s
+#    img_s_cielab                       = cv2.cvtColor(img_s, cv2.COLOR_BGR2Lab)
+#    L                                  = img_s_cielab[:,:,0] 
+#    hist                               = np.histogram(L[mask_b==0],bins=256)[0]
+#    cdf                                = hist.cumsum()
+#    cdf_m                              = np.ma.masked_equal(cdf,0)
+#    cdf_m                              = (cdf_m-cdf_m.min())*255/(cdf_m.max()-cdf_m.min())   
+#    cdf                                = np.ma.filled(cdf_m,0).astype(np.uint8)     
+#    L_eq                               = cdf[L]     
+#    img_s_cielab_eq                    = img_s_cielab.copy()
+#    img_s_cielab_eq[:,:,0]             = L_eq   
+#    img_s_eq                           = cv2.cvtColor(img_s_cielab_eq, cv2.COLOR_Lab2BGR)
+#    img_g                              = cv2.cvtColor(img_s_eq, cv2.COLOR_BGR2GRAY)
+#    fsize                              = int(np.ceil((1.05/ps1))//2*2+1)
+#    img_b                              = cv2.bilateralFilter(img_g,fsize,125,250)
+#    pbar1.update(1)
+#    pbar1.close()
+#    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
+    
+#def DemOpening(plist,path,Img0C):
+#    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
+#    if "-GR.tif" in path:
+#        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
+#    elif "_GR.vrt" in path:
+#        temp = path.strip("_GR.vrt")+"_DEM_GR.vrt"
+#    else:
+#        temp = path.strip(".tif")+"_DEM.tif"
+#    psF=0.05
+#    file                               = gdal.Open(temp)
+#    gt                                 = file.GetGeoTransform()
+#    dem_o                              = file.GetRasterBand(1).ReadAsArray()
+#    x_s, y_s                           = calc_pixsize(dem_o,gt)
+#    mask                               = np.zeros(dem_o.shape)
+#    if np.sum(dem_o==0) > np.sum(dem_o==np.min(dem_o)):
+#        mask[dem_o == 0]               = 1
+#    else:
+#        mask[dem_o == np.min(dem_o)]   = 1
+#    dem                                = cv2.resize(dem_o,(int(dem_o.shape[1]*(y_s/psF)), int(dem_o.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA)
+#    mask                               = cv2.resize(mask,(int(mask.shape[1]*(y_s/psF)), int(mask.shape[0]*(x_s/psF))),interpolation = cv2.INTER_AREA) 
+#    fx                                 = dem_o.shape[0]/dem.shape[0]
+#    fy                                 = dem_o.shape[1]/dem.shape[1] 
+#    dem_f = cv2.GaussianBlur(dem,(11,11),0)
+#    smooth = cv2.GaussianBlur(dem_f,(15,15),0)
+#    ridges = (dem_f-smooth)
+#    #kernel = np.ones((n,n),np.float32)/(n**2)
+#    #smooth = cv2.filter2D(dem_f,-1,kernel)
+#    mask_b = cv2.GaussianBlur(mask,(51,51),0)  
+#    ridges[mask>10**-10]=0  
+#    temp1 = np.zeros(ridges.shape)
+#    temp2 = np.zeros(ridges.shape)
+#    temp1[ridges<-0.01]=1
+#    temp2[ridges>-0.11]=1
+#    ridges = (temp1*temp2).astype(np.uint8) 
+#    p = plt.figure()
+#    plt.title('Ridges 0.05m')
+#    plt.imshow(ridges,cmap='Greys')
+#    pbar1.update(1)
+#    pbar1.close()
+#    plt.close()
+#    plist.append(p)
+#    return plist,gt,fx,fy,mask_b,ridges

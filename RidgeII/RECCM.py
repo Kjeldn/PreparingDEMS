@@ -131,13 +131,13 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     polygon = polygon.buffer(-w)
     if polygon.type == 'MultiPolygon':
         polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]    
-    v=w
-    while polygon.is_empty or polygon.area<0.4*ref_area:
-        v -= int(2/ps0F)
-        polygon = Polygon(np.array(biggest_contour[:,0]))
-        polygon = polygon.buffer(-v)
-    if v != w:
-        print("WARNING   : Polygon-buffer: "+str(v*ps0F)+" < 25...")
+    #v=w
+    #while polygon.is_empty or polygon.area<0.4*ref_area:
+    #    v -= int(2/ps0F)
+    #    polygon = Polygon(np.array(biggest_contour[:,0]))
+    #    polygon = polygon.buffer(-v)
+    #if v != w:
+    #    print("WARNING   : Polygon-buffer: "+str(v*ps0F)+" < 25...")
     x,y = polygon.exterior.xy   
     distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
     distance = distance/distance[-1]

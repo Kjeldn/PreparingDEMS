@@ -10,7 +10,11 @@ from tempfile import mkstemp
 #folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Osseweyer'
 #folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Hein de Schutter'
 
-def GeoreGeore(folder):
+def GeoreGeore(file):
+    if "\\" in file:
+        folder = file[::-1][file[::-1].find("\\"):][::-1]
+    else:
+        folder = file[::-1][file[::-1].find("/"):][::-1]
     path = []
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:
@@ -42,7 +46,10 @@ def GeoreGeore(folder):
                 gcp_d.append(gdal.GCP(float(row[0]), float(row[1]), 0, (float(row[2])-gt_d[0])/gt_d[1], (float(row[3])-gt_d[3])/gt_d[5]))
         del points,gt_t,gt_d,line,row,reader
         
-        wops = gdal.WarpOptions(dstAlpha=True,
+        wops = gdal.WarpOptions(format='VRT',
+                             dstAlpha=True,   
+                             srcSRS = 'EPSG:4326',
+                             dstSRS = 'EPSG:4326',
                              warpOptions=['NUM_THREADS=ALL_CPUS'],
                              warpMemoryLimit=3000,
                              creationOptions=['COMPRESS=LZW','TILED=YES', 'BLOCKXSIZE=512', 'BLOCKYSIZE=512', 'NUM_THREADS=ALL_CPUS', 'JPEG_QUALITY=100', 'BIGTIFF=YES', 'ALPHA=YES'],
@@ -51,7 +58,7 @@ def GeoreGeore(folder):
                              tps=True,
                              transformerOptions=['NUM_THREADS=ALL_CPUS'])
         
-        tops = gdal.TranslateOptions(format='VRT',outputSRS='EPSG:4326',GCPs=gcp_t)
+        tops = gdal.TranslateOptions(format='VRT',outputType=gdal.GDT_Byte,outputSRS='EPSG:4326',GCPs=gcp_t)
         tif_d = tif.replace(".tif","_GR.vrt")
         subst   = "    <SourceDataset relativeToVRT=\"1\">"+tif[::-1][:tif[::-1].find("/")][::-1]+"</SourceDataset>"
         temp = gdal.Translate('',tif,options=tops)
@@ -64,7 +71,7 @@ def GeoreGeore(folder):
         os.remove(tif_d)
         move(abs_path, tif_d)
         
-        tops = gdal.TranslateOptions(format='VRT',outputSRS='EPSG:4326',GCPs=gcp_d)
+        tops = gdal.TranslateOptions(format='VRT',outputType=gdal.GDT_Float32,outputSRS='EPSG:4326',GCPs=gcp_d)
         dem_d = dem.replace(".tif","_GR.vrt")
         subst   = "    <SourceDataset relativeToVRT=\"1\">"+dem[::-1][:dem[::-1].find("/")][::-1]+"</SourceDataset>"
         temp = gdal.Translate('',dem,options=tops)

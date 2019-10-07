@@ -3,28 +3,29 @@ import CANNY
 import RECCM
 import GEORE
 
-#folder = r"C:\Users\VanBoven\Documents\100 Ortho Inbox"
-folder = r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris"
+#inbox = r"C:\Users\VanBoven\Documents\100 Ortho Inbox"
+#inbox = r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris"
+archive = r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive"
 plist = []
-path = [r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190513\1240\Orthomosaic\c07_hollandbean-Aart Maris-201905131240.tif",
-        r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190522\0956\Orthomosaic\c07_hollandbean-Aart Maris-201905220956.tif",
-        r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190527\1152\Orthomosaic\c07_hollandbean-Aart Maris-201905271152.tif",
-        r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190603\0946\Orthomosaic\c07_hollandbean-Aart Maris-201906030946.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190617\1333\Orthomosaic\c07_hollandbean-Aart Maris-201906171333.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190624\0942\Orthomosaic\c07_hollandbean-Aart Maris-201906240942.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190703\0945\Orthomosaic\c07_hollandbean-Aart Maris-201907030945.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190724\1028\Orthomosaic\c07_hollandbean-Aart Maris-201907241028.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190806\1005\Orthomosaic\c07_hollandbean-Aart Maris-201908061005.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190823\1048\Orthomosaic\c07_hollandbean-Aart Maris-201908231048.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190829\1123\Orthomosaic\c07_hollandbean-Aart Maris-201908291123.tif",
-        "D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190906\0917\Orthomosaic\c07_hollandbean-Aart Maris-201909060917.tif"]
+path = [#r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190513\1240\Orthomosaic\c07_hollandbean-Aart Maris-201905131240.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190522\0956\Orthomosaic\c07_hollandbean-Aart Maris-201905220956.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190527\1152\Orthomosaic\c07_hollandbean-Aart Maris-201905271152.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190603\0946\Orthomosaic\c07_hollandbean-Aart Maris-201906030946.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190617\1333\Orthomosaic\c07_hollandbean-Aart Maris-201906171333.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190624\0942\Orthomosaic\c07_hollandbean-Aart Maris-201906240942.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190703\0945\Orthomosaic\c07_hollandbean-Aart Maris-201907030945.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190724\1028\Orthomosaic\c07_hollandbean-Aart Maris-201907241028.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190806\1005\Orthomosaic\c07_hollandbean-Aart Maris-201908061005.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190823\1048\Orthomosaic\c07_hollandbean-Aart Maris-201908231048.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190829\1123\Orthomosaic\c07_hollandbean-Aart Maris-201908291123.tif",
+        r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris\20190906\0917\Orthomosaic\c07_hollandbean-Aart Maris-201909060917.tif"]
 
 
 if __name__ == '__main__':
-    #plist,path = METAA.ChronicFile(folder)
+    #plist,path = METAA.ChronicFile(inbox)
     
     for file in path:
-        plist,base                                = METAA.FirstTBase(plist,file)
+        plist,base                                = METAA.FirstTBase(plist,archive,file)
         
         print("BASE:", base)
         print("FILE:", file)
@@ -44,4 +45,4 @@ if __name__ == '__main__':
         plist,x0,y0,x1,y1,CVa,dx,dy                                                         = RECCM.RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy)
         plist                                                                               = METAA.CapFigures(plist,file)
         RECCM.GeoPointss(file,x0,y0,x1,y1,gt0F,gt1F)
-        GEORE.GeoreGeore(folder)
+        GEORE.GeoreGeore(file)
