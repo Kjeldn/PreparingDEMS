@@ -17,52 +17,22 @@ import re
 import time
 from matplotlib.backends.backend_pdf import PdfPages
 
-def ChrInbFiles(num):
+def SelectFile(folder):
     plt.close("all")
-    metapath = []
-    for i in range(num):
-        path = []
-        root = Tk()
-        root.withdraw()
-        #
-        root.filename =  filedialog.askopenfilename(initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-        #
-        inboxfile = root.filename
-        split = inboxfile.split("-")
-        company=split[0][::-1][:split[0][::-1].find("/")][::-1]
-        parcel=split[1]
-        date=split[2].replace(".tif","")        
-       
-        candidates = []
-        for root, dirs, files in os.walk(r"D:\VanBovenDrive\VanBoven MT\Archive", topdown=True):
-            for name in files:
-                if ".tif" in name:
-                    if "_DEM" not in name:
-                        if company in name:
-                            if parcel in name:
-                                if "GR" in name:
-                                    if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                                        candidates.append(os.path.join(root,name).replace("\\","/"))
-                                else:    
-                                    if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                        candidates.append(os.path.join(root,name).replace("\\","/"))    
-        dif = []
-        for file in candidates:
-            dif.append(float(date)-float(re.findall(r"\d+",file)[-1]))  
-        dif = np.array(dif)                                      
-        if (dif<=0).all() == True:
-            print("Found zero suitable orthomosaics in the past")
-        dif[dif<=0]=np.NaN
-        ind = np.where(dif==np.nanmin(dif))[0][0]
-        base = candidates[ind]
-        path.append(base)
-        path.append(inboxfile)
-        metapath.append(path)
+    path = []    
+    root = Tk()
+    root.withdraw()
+    #
+    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+    #
+    for file in root.filename:
+        path.append(file)
     plist = []
     plt.ioff()
-    return metapath,plist
+    return plist, path
 
-def FirstTBase(plist,archive,file):
+def FirsttBase(plist,archive,file):
+    pbar1 = tqdm(total=1,position=0,desc="FirstBase ")
     split = file.split("-")
     if "\\c" in split[0]:
         company=split[0][::-1][:split[0][::-1].find("\\")][::-1]
@@ -94,8 +64,8 @@ def FirstTBase(plist,archive,file):
                                 if os.path.exists(os.path.join(root,name).replace(".vrt","_DEM.vrt")) == True:
                                     candidates.append(os.path.join(root,name).replace("\\","/")) 
     dif = []
-    for file in candidates:
-        dif.append(float(date)-float(re.findall(r"\d+",file)[-1]))  
+    for cand in candidates:
+        dif.append(float(date)-float(re.findall(r"\d+",cand)[-1]))  
     dif = np.array(dif)                                      
     if (dif<=0).all() == True:
         print("Found zero suitable orthomosaics in the past")
@@ -107,42 +77,14 @@ def FirstTBase(plist,archive,file):
                 base = candidates[i]
     else:
         base = candidates[ind[0]]
+        
+    pbar1.update(1)
+    pbar1.close()
+    
+    print("BASE:", base)
+    print("FILE:", file)
+    
     return plist,base
-
-def calc_distance(lat1, lon1, lat2, lon2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    m = 1000 * 6371 * c
-    return m
-
-def calc_pixsize(array,gt):
-    lon1 = gt[0] 
-    lat1 = gt[3] 
-    lon2 = gt[0] + gt[1]*array.shape[0]
-    lat2 = gt[3] + gt[4]*array.shape[0]
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    ysize = dist/array.shape[0]  
-    lon2 = gt[0] + gt[2]*array.shape[1]
-    lat2 = gt[3] + gt[5]*array.shape[1]
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    xsize = dist/array.shape[1]
-    return xsize, ysize   
-
-def calc_pixsize2(s1,s2,gt):
-    lon1 = gt[0] 
-    lat1 = gt[3] 
-    lon2 = gt[0] + gt[1]*s1
-    lat2 = gt[3] + gt[4]*s1
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    ysize = dist/s1 
-    lon2 = gt[0] + gt[2]*s2
-    lat2 = gt[3] + gt[5]*s2
-    dist = calc_distance(lat1,lon1,lat2,lon2)
-    xsize = dist/s2
-    return xsize, ysize 
 
 def OrtOpenDow(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
@@ -188,12 +130,15 @@ def OrtOpenDow(plist,path):
  
 def DemOpenDow(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    if "-GR.tif" in path:
-        temp = path.strip("-GR.tif")+"_DEM-GR.tif"
-    elif "_GR.vrt" in path:
-        temp = path.strip("_GR.vrt")+"_DEM_GR.vrt"
+    if "_GR.vrt" in path:
+        if "-GR" in path:
+            temp = path[:-10]+"_DEM-GR_GR.vrt"
+        else:
+            temp = path[:-7]+"_DEM_GR.vrt"
+    elif "-GR.tif" in path:
+        temp = path[:-7]+"_DEM-GR.tif"
     else:
-        temp = path.strip(".tif")+"_DEM.tif"
+        temp = path[:-4]+"_DEM.tif"
     file                               = gdal.Open(temp)
     gt                                 = file.GetGeoTransform()
     x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
@@ -227,6 +172,84 @@ def DemOpenDow(plist,path,Img0C):
     plt.close()
     plist.append(p)
     return plist,mask_b,gt,ridges
+
+def CapFigures(plist,path):
+    pbar1 = tqdm(total=1,position=0,desc="CapFigures")
+    dpiset = 1000
+    filename = path.strip('.tif') + ('_LOG.pdf')
+    if os.path.exists(filename.replace("\\","/")):
+        os.remove(filename)   
+    pp = PdfPages(filename)
+    for fig in plist:
+        fig.savefig(pp, format='pdf',dpi=dpiset)
+    plist = np.array(plist)
+    plist = []
+    pp.close()
+    pbar1.update(1)
+    pbar1.close()
+    return plist
+
+def hifit(origin_x,origin_y,CVa,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    W = np.diag(CVa**-3)
+    W = (W/np.sum(W))*len(CVa)
+    fit = (A.T * W * A).I * A.T * W * b
+    return fit
+
+## META functions:
+
+def calc_distance(lat1, lon1, lat2, lon2):
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    m = 1000 * 6371 * c
+    return m
+
+def calc_pixsize(array,gt):
+    lon1 = gt[0] 
+    lat1 = gt[3] 
+    lon2 = gt[0] + gt[1]*array.shape[0]
+    lat2 = gt[3] + gt[4]*array.shape[0]
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    ysize = dist/array.shape[0]  
+    lon2 = gt[0] + gt[2]*array.shape[1]
+    lat2 = gt[3] + gt[5]*array.shape[1]
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    xsize = dist/array.shape[1]
+    return xsize, ysize   
+
+def calc_pixsize2(s1,s2,gt):
+    lon1 = gt[0] 
+    lat1 = gt[3] 
+    lon2 = gt[0] + gt[1]*s1
+    lat2 = gt[3] + gt[4]*s1
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    ysize = dist/s1 
+    lon2 = gt[0] + gt[2]*s2
+    lat2 = gt[3] + gt[5]*s2
+    dist = calc_distance(lat1,lon1,lat2,lon2)
+    xsize = dist/s2
+    return xsize, ysize 
+
+def moving_average(a, n=3) :
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
+
+def rangemaker(num,thMeaningfulLength):
+    span = int(thMeaningfulLength/5)
+    range_array = np.zeros(2*span+1)
+    for i in range(len(range_array)):
+        range_array[i]=int(num-span+i)
+    return range_array
 
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
@@ -465,60 +488,7 @@ def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
                     break
     return a, b
 
-def moving_average(a, n=3) :
-    ret = np.cumsum(a, dtype=float)
-    ret[n:] = ret[n:] - ret[:-n]
-    return ret[n - 1:] / n
-
-def rangemaker(num,thMeaningfulLength):
-    span = int(thMeaningfulLength/5)
-    range_array = np.zeros(2*span+1)
-    for i in range(len(range_array)):
-        range_array[i]=int(num-span+i)
-    return range_array
-
-def CapFigures(plist,path):
-    dpiset = 1000
-    filename = path.strip('.tif') + ('_LOG.pdf')
-    if os.path.exists(filename.replace("\\","/")):
-        os.remove(filename)   
-    pp = PdfPages(filename)
-    for fig in plist:
-        fig.savefig(pp, format='pdf',dpi=dpiset)
-    plist = np.array(plist)
-    plist = []
-    pp.close()
-    return plist
-
-def fit(origin_x,origin_y,CVa,offset):
-    tmp_A = []
-    tmp_b = []
-    for i in range(len(origin_x)):
-        tmp_A.append([origin_x[i], origin_y[i], 1])
-        tmp_b.append(offset[i])
-    b = np.matrix(tmp_b).T
-    A = np.matrix(tmp_A)
-    W = np.diag(CVa**-3)
-    W = (W/np.sum(W))*len(CVa)
-    fit = (A.T * W * A).I * A.T * W * b
-    #errors = b - A * fit
-    #residual = np.linalg.norm(errors)
-    return fit
-
-def hifit(origin_x,origin_y,CVa,offset):
-    tmp_A = []
-    tmp_b = []
-    for i in range(len(origin_x)):
-        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
-        tmp_b.append(offset[i])
-    b = np.matrix(tmp_b).T
-    A = np.matrix(tmp_A)
-    W = np.diag(CVa**-3)
-    W = (W/np.sum(W))*len(CVa)
-    fit = (A.T * W * A).I * A.T * W * b
-    return fit
-
-## Archived
+## Archived:
 
 #def InboxxFiles(num):
 #    plt.close("all")
@@ -537,21 +507,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #        metapath.append(path)
 #    plist = []
 #    plt.ioff()
-#    return metapath,plist
-    
-#def ChronicFile(folder):
-#    plt.close("all")
-#    path = []    
-#    root = Tk()
-#    root.withdraw()
-#    #
-#    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-#    #
-#    for file in root.filename:
-#        path.append(file)
-#    plist = []
-#    plt.ioff()
-#    return plist, path  
+#    return metapath,plist  
 
 #def SelectFiles():
 #    plt.close("all")
@@ -584,6 +540,51 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plist = []
 #    plt.ioff()
 #    return path,plist
+    
+#def ChrInbFiles(num):
+#    plt.close("all")
+#    metapath = []
+#    for i in range(num):
+#        path = []
+#        root = Tk()
+#        root.withdraw()
+#        #
+#        root.filename =  filedialog.askopenfilename(initialdir = r"C:\Users\VanBoven\Documents\100 Ortho Inbox" ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#        #
+#        inboxfile = root.filename
+#        split = inboxfile.split("-")
+#        company=split[0][::-1][:split[0][::-1].find("/")][::-1]
+#        parcel=split[1]
+#        date=split[2].replace(".tif","")        
+#       
+#        candidates = []
+#        for root, dirs, files in os.walk(r"D:\VanBovenDrive\VanBoven MT\Archive", topdown=True):
+#            for name in files:
+#                if ".tif" in name:
+#                    if "_DEM" not in name:
+#                        if company in name:
+#                            if parcel in name:
+#                                if "GR" in name:
+#                                    if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+#                                        candidates.append(os.path.join(root,name).replace("\\","/"))
+#                                else:    
+#                                    if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+#                                        candidates.append(os.path.join(root,name).replace("\\","/"))    
+#        dif = []
+#        for file in candidates:
+#            dif.append(float(date)-float(re.findall(r"\d+",file)[-1]))  
+#        dif = np.array(dif)                                      
+#        if (dif<=0).all() == True:
+#            print("Found zero suitable orthomosaics in the past")
+#        dif[dif<=0]=np.NaN
+#        ind = np.where(dif==np.nanmin(dif))[0][0]
+#        base = candidates[ind]
+#        path.append(base)
+#        path.append(inboxfile)
+#        metapath.append(path)
+#    plist = []
+#    plt.ioff()
+#    return metapath,plist
     
 #def OrtOpening(plist,path):
 #    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
@@ -666,3 +667,16 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plt.close()
 #    plist.append(p)
 #    return plist,gt,fx,fy,mask_b,ridges
+    
+#def fit(origin_x,origin_y,CVa,offset):
+#    tmp_A = []
+#    tmp_b = []
+#    for i in range(len(origin_x)):
+#        tmp_A.append([origin_x[i], origin_y[i], 1])
+#        tmp_b.append(offset[i])
+#    b = np.matrix(tmp_b).T
+#    A = np.matrix(tmp_A)
+#    W = np.diag(CVa**-3)
+#    W = (W/np.sum(W))*len(CVa)
+#    fit = (A.T * W * A).I * A.T * W * b
+#    return fit

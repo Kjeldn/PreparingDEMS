@@ -1,6 +1,7 @@
 import os
 import csv
 import gdal
+from tqdm import tqdm
 from io import StringIO
 from shutil import move
 from tempfile import mkstemp
@@ -10,7 +11,9 @@ from tempfile import mkstemp
 #folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Osseweyer'
 #folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Hein de Schutter'
 
-def GeoreGeore(file):
+def Georegistr(file):
+    pbar1 = tqdm(total=1,position=0,desc="CreateVRT ")
+    flag = 0
     if "\\" in file:
         folder = file[::-1][file[::-1].find("\\"):][::-1]
     else:
@@ -18,8 +21,12 @@ def GeoreGeore(file):
     path = []
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:
-            if ".tif" in name:
-                if "_DEM" not in name:
+            if "tif" in name:
+                if "GR" in name:
+                    if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                        if os.path.exists(os.path.join(root,name).replace(".tif",".points")) == True:
+                            path.append(os.path.join(root,name).replace("\\","/"))    
+                else:
                     if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
                         if os.path.exists(os.path.join(root,name).replace(".tif",".points")) == True:
                             path.append(os.path.join(root,name).replace("\\","/"))     
@@ -28,7 +35,10 @@ def GeoreGeore(file):
     pattern = "    <SourceDataset relativeToVRT=\"0\"></SourceDataset>"
     
     for tif in path:
-        dem = tif.replace(".tif","_DEM.tif")
+        if "GR" in tif:
+            dem = tif.replace("-GR.tif","_DEM-GR.tif")
+        else:
+            dem = tif.replace(".tif","_DEM.tif")
         points = tif.replace(".tif",".points")
         
         gt_t = gdal.Open(tif).GetGeoTransform()
@@ -83,3 +93,7 @@ def GeoreGeore(file):
                     new_file.write(line.replace(pattern, subst))
         os.remove(dem_d)
         move(abs_path, dem_d)
+        flag = 1
+        pbar1.update(1)
+        pbar1.close()
+        return flag

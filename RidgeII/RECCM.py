@@ -105,10 +105,14 @@ def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         plt.scatter(y1,x1,c='b',s=1) 
         plt.close()
         plist.append(p)
-        #print("Status    : ("+str(x_off)+"m,"+str(y_off)+"m), CV: "+str(round(CV1,2)))  
     return plist,x_off,y_off,CV1
 
 def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
+    # Nullify impact of Ort + Canny + SinglMatch:
+    x_off = 0
+    y_off = 0
+    CV1 = 1.5
+
     ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
@@ -127,17 +131,9 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
     polygon = Polygon(np.array(biggest_contour[:,0]))
-    ref_area = polygon.area
     polygon = polygon.buffer(-w)
-    if polygon.type == 'MultiPolygon':
+    while polygon.type == 'MultiPolygon':
         polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]    
-    #v=w
-    #while polygon.is_empty or polygon.area<0.4*ref_area:
-    #    v -= int(2/ps0F)
-    #    polygon = Polygon(np.array(biggest_contour[:,0]))
-    #    polygon = polygon.buffer(-v)
-    #if v != w:
-    #    print("WARNING   : Polygon-buffer: "+str(v*ps0F)+" < 25...")
     x,y = polygon.exterior.xy   
     distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
     distance = distance/distance[-1]
@@ -149,6 +145,8 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
     if polygon.buffer(-2*w).is_empty == False:
         polygon = polygon.buffer(-2*w)
+        while polygon.type == 'MultiPolygon':
+            polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
         x,y = polygon.exterior.xy   
         distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
         distance = distance/distance[-1]
@@ -162,22 +160,16 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         for y in range(circle1.shape[1]):
             if (x-w)**2 + (y-w)**2 < w**2:
                 circle1[x,y]=1
-    #circle1[circle1==0]=np.NaN
     circle1 = (circle1).astype(np.uint8)
     circle2 = np.zeros((2*max_dist,2*max_dist))
     for x in range(circle2.shape[0]):
         for y in range(circle2.shape[1]):
             if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
                 circle2[x,y]=1
-    #circle2[circle2==0]=np.NaN
     circle2 = (circle2).astype(np.uint8)
     return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
 def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
-    x_off=0
-    y_off=0
-    CV1=1.5
-    
     set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
@@ -197,29 +189,9 @@ def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,ci
     for re in results:
         x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         pbar.update(1)
-        #del re
     pool.close()
     pool.join()
     x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
-#    from multiprocessing import Queue
-#    from multiprocessing import Process
-#    work_queue = Queue()
-#    done_queue = Queue()
-#    processes = []
-#    for i in range(num_batches):
-#        work_queue.put(grid[i*N:(i+1)*N])
-#    for w in range(num_workers):
-#        p = Process(target=func,args=(work_queue,done_queue))
-#        p.start()
-#        processes.append(p)
-#        work_queue.put('STOP')
-#    for p in processes:
-#        p.join()
-#    done_queue.put('STOP')
-#    results = []
-#    for status in iter(done_queue.get, 'STOP'):
-#        if status is not None:
-#            results.append(status)
     p = plt.figure()
     plt.subplot(1,2,1)
     plt.title("Patch")
@@ -323,7 +295,6 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plt.close()
     plist.append(p)
     clist = np.array(clist)    
-    
     indices = np.where(CVa>-1)[0]
     dist_range = [1.5,1,0.5,0.25,0.1]
     for dist in dist_range:
@@ -335,8 +306,7 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
         delta_y = dy - supposed_dy
         distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
         radius = dist
-        indices = np.where(distance.T <= radius)[0]
-        
+        indices = np.where(distance.T <= radius)[0] 
     inv_indices = []
     for i in range(len(dx)):
         if i not in indices:
@@ -381,8 +351,9 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plist.append(p)
     return plist,x0,y0,x1,y1,CVa,dx,dy
            
-def GeoPointss(file,x0,y0,x1,y1,gt0F,gt1F):
-    pbar3 = tqdm(total=1,position=0,desc="GeoPoints ")
+def MakePoints(file,x0,y0,x1,y1,gt0F,gt1F):
+    pbar3 = tqdm(total=1,position=0,desc="MakePoints")
+    flag=0
     target_lat = gt0F[3]+gt0F[5]*x0
     target_lon = gt0F[0]+gt0F[1]*y0
     origin_lat = gt1F[3]+gt1F[5]*x1
@@ -395,8 +366,10 @@ def GeoPointss(file,x0,y0,x1,y1,gt0F,gt1F):
     for i in range(len(target_lon)):
         f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
     f.close()
+    flag=1
     pbar3.update(1)
     pbar3.close()
+    return flag
     
 ### Archived:
  
