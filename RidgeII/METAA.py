@@ -16,56 +16,32 @@ from tkinter import *
 import re
 import time
 from matplotlib.backends.backend_pdf import PdfPages
+import time
 
 def SelectFile(folder):
     plt.close("all")
-    path = []    
+    pathlist = []    
     root = Tk()
     root.withdraw()
     #
     root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
     #
-    for file in root.filename:
-        path.append(file)
+    for path in root.filename:
+        pathlist.append(path)
+    pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
     plist = []
     plt.ioff()
-    return plist, path
+    return plist, pathlist
 
-def FirsttBase(plist,archive,file):
+def FirsttBase(plist,archive,rtu,path):
     pbar1 = tqdm(total=1,position=0,desc="FirstBase ")
-    split = file.split("-")
-    if "\\c" in split[0]:
-        company=split[0][::-1][:split[0][::-1].find("\\")][::-1]
-    elif "/c" in split[0]:
-        company=split[0][::-1][:split[0][::-1].find("/")][::-1]
-    parcel=split[1]
-    date=split[2].replace(".tif","")          
-    candidates = []
-    for root, dirs, files in os.walk(archive, topdown=True):
-        for name in files:
-            if ".tif" in name:
-                if "_DEM" not in name:
-                    if company in name:
-                        if parcel in name:
-                            if "GR" in name:
-                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
-                            else:    
-                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))    
-            elif ".vrt" in name:
-                if "_DEM" not in name:
-                    if company in name:
-                        if parcel in name:
-                            if "GR" in name:
-                                if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
-                            else:    
-                                if os.path.exists(os.path.join(root,name).replace(".vrt","_DEM.vrt")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/")) 
+    company,parcel,date = filename_to_info(path_to_filename(path)) 
+    candidates = walk_folder(archive,company,parcel)
+    candidates_rtu = walk_folder(rtu,company,parcel)
+    candidates.extend(candidates_rtu)
     dif = []
     for cand in candidates:
-        dif.append(float(date)-float(re.findall(r"\d+",cand)[-1]))  
+        dif.append(float(date)-float(filename_to_info(path_to_filename(cand))[-1]))  
     dif = np.array(dif)                                      
     if (dif<=0).all() == True:
         print("Found zero suitable orthomosaics in the past")
@@ -73,27 +49,46 @@ def FirsttBase(plist,archive,file):
     ind = np.where(dif==np.nanmin(dif))[0][:]
     if len(ind) > 1:
         for i in ind:
-            if "GR" in candidates[i]:
+            if candidates[i][-6:] == "GR.vrt":
                 base = candidates[i]
+                flag = 1
+        if flag == 0:
+            for i in ind:
+                if candidates[i][-6:-4] == "GR":
+                    base = candidates[i]
+                    flag = 1
+        if flag == 0:
+            base = candidates[0]
     else:
-        base = candidates[ind[0]]
-        
+        base = candidates[ind[0]]        
     pbar1.update(1)
-    pbar1.close()
-    
-    print("BASE:", base)
-    print("FILE:", file)
-    
+    pbar1.close()    
+    print("BASE:", path_to_filename(base))
+    print("FILE:", path_to_filename(path))
     return plist,base
+
+def TrafficPol(path,rtu,nrtu,dstr,grid,x0):
+    if len(x0) > 0.6*len(grid):
+        os.move(path,rtu+"\\"+path_to_filename(path))                                                                     # Ort
+        os.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")                                       # Ort vrt
+        os.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))                                 # Dem
+        os.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   # Dem vrt
+        os.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path))                                                      # .points
+    else:
+        os.move(path,nrtu+"\\"+path_to_filename(path))                                                                     # Ort
+        os.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))                                 # Dem
+        os.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")                                       # Ort vrt
+        os.move(path_to_path_dem(path)[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   # Dem vrt
+        os.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path))                                                      # .points
 
 def OrtOpenDow(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
-    gt                                 = file.GetGeoTransform()
+    gt                                 = file.GetGeoTransform()                
     x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
     w = round(file.RasterXSize/(0.5/y_s))
     h = round(file.RasterYSize/(0.5/x_s))
-    dest = path.strip(".tif")+"_s.vrt"
+    dest = path[:-4]+"_s.vrt"
     time.sleep(0.5)
     gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)  
     file_s                               = gdal.Open(dest)
@@ -130,22 +125,14 @@ def OrtOpenDow(plist,path):
  
 def DemOpenDow(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
-    if "_GR.vrt" in path:
-        if "-GR" in path:
-            temp = path[:-10]+"_DEM-GR_GR.vrt"
-        else:
-            temp = path[:-7]+"_DEM_GR.vrt"
-    elif "-GR.tif" in path:
-        temp = path[:-7]+"_DEM-GR.tif"
-    else:
-        temp = path[:-4]+"_DEM.tif"
-    file                               = gdal.Open(temp)
+    path_dem                           = path_to_path_dem(path)
+    file                               = gdal.Open(path_dem)
     gt                                 = file.GetGeoTransform()
     x_s, y_s                           = calc_pixsize2(file.RasterXSize,file.RasterYSize,gt)
     w = round(file.RasterXSize/(0.05/y_s))
     h = round(file.RasterYSize/(0.05/x_s))
-    dest = temp.strip(".tif")+"_s.vrt"
-    gdal.Warp(dest,temp,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
+    dest = path_dem[:-4]+"_s.vrt"
+    gdal.Warp(dest,path_dem,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)      
     file_s                             = gdal.Open(dest)   
     gt                                 = file_s.GetGeoTransform()
     dem                                = file_s.GetRasterBand(1).ReadAsArray() 
@@ -204,6 +191,63 @@ def hifit(origin_x,origin_y,CVa,offset):
 
 ## META functions:
 
+def path_to_filename(path):
+    if "\\" in path:
+        if "/" in path:
+            index = min(path[::-1].find("\\"),path[::-1].find("/"))
+            filename = path[::-1][:index][::-1]
+        else:
+            filename = path[::-1][:path[::-1].find("\\")][::-1]
+    elif "/" in path:
+        filename = path[::-1][:path[::-1].find("/")][::-1]
+    return filename
+
+def filename_to_info(filename):
+    file=filename[:-4]
+    split = file.split("-")
+    company=split[0]
+    parcel=split[1]
+    date=split[2]
+    if len(date) == 8:
+        date = date+"0000"
+    return company,parcel,date
+
+def path_to_path_dem(path):
+    if path[-4:] == ".vrt":
+        path_dem = path[:-4]
+        if path_dem[-3:] == "-GR":
+            path_dem = path_dem[:-3] + "_DEM-GR.vrt"
+        else:
+            path_dem = path_dem + "_DEM.vrt"
+    elif path[-4:] == ".tif":
+        path_dem = path[:-4]
+        if path_dem[-3:] == "-GR":
+            path_dem = path_dem[:-3] + "_DEM-GR.tif"
+        else:
+            path_dem = path_dem + "_DEM.tif"
+    return path_dem
+
+def walk_folder(folder,company,parcel):
+    candidates = []
+    for root, dirs, files in os.walk(folder, topdown=True):
+        for name in files:
+            if name[:-4] == ".tif" or name[:-4] == ".vrt":
+                if filename_to_info(name)[0] == company:
+                    if filename_to_info(name)[1] == parcel:
+                        if name[-7:] == "-GR.tif":
+                            if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                                candidates.append(os.path.join(root,name).replace("\\","/"))
+                        elif name[-7:] == "-GR.vrt":
+                             if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                        elif name[-4:] == ".vrt":
+                            if os.path.exists(os.path.join(root,name).replace(".vrt","_DEM.vrt")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                        else:
+                            if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                candidates.append(os.path.join(root,name).replace("\\","/"))    
+    return candidates
+        
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
     dlon = lon2 - lon1

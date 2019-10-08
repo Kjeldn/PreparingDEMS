@@ -69,7 +69,7 @@ def Georegistr(file):
                              transformerOptions=['NUM_THREADS=ALL_CPUS'])
         
         tops = gdal.TranslateOptions(format='VRT',outputType=gdal.GDT_Byte,outputSRS='EPSG:4326',GCPs=gcp_t)
-        tif_d = tif.replace(".tif","_GR.vrt")
+        tif_d = tif.replace(".tif","-GR.vrt")
         subst   = "    <SourceDataset relativeToVRT=\"1\">"+tif[::-1][:tif[::-1].find("/")][::-1]+"</SourceDataset>"
         temp = gdal.Translate('',tif,options=tops)
         gdal.Warp(tif_d,temp,options=wops)
@@ -82,7 +82,7 @@ def Georegistr(file):
         move(abs_path, tif_d)
         
         tops = gdal.TranslateOptions(format='VRT',outputType=gdal.GDT_Float32,outputSRS='EPSG:4326',GCPs=gcp_d)
-        dem_d = dem.replace(".tif","_GR.vrt")
+        dem_d = dem.replace(".tif","-GR.vrt")
         subst   = "    <SourceDataset relativeToVRT=\"1\">"+dem[::-1][:dem[::-1].find("/")][::-1]+"</SourceDataset>"
         temp = gdal.Translate('',dem,options=tops)
         gdal.Warp(dem_d,temp,options=wops)
