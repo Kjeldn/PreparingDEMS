@@ -11,6 +11,7 @@ from tqdm import tqdm
 import copy
 import sys
 import os
+import shutil
 from tkinter import filedialog
 from tkinter import *
 import re
@@ -18,23 +19,19 @@ import time
 from matplotlib.backends.backend_pdf import PdfPages
 import time
 
-def SelectFile(folder):
-    plt.close("all")
-    pathlist = []    
-    root = Tk()
-    root.withdraw()
-    #
-    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
-    #
-    for path in root.filename:
-        pathlist.append(path)
+def FindFile(inbox):
+    pathlist=[]
+    for root, dirs, files in walklevel(inbox, level=0):
+        for name in files:
+            if name[-4:] == ".tif":
+                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                    pathlist.append(os.path.join(root,name).replace("\\","/"))
     pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
     plist = []
     plt.ioff()
-    return plist, pathlist
-
-def FirsttBase(plist,archive,rtu,path):
-    pbar1 = tqdm(total=1,position=0,desc="FirstBase ")
+    return plist,pathlist
+    
+def FindBase(plist,pathlist,archive,rtu,path):
     company,parcel,date = filename_to_info(path_to_filename(path)) 
     candidates = walk_folder(archive,company,parcel)
     candidates_rtu = walk_folder(rtu,company,parcel)
@@ -47,6 +44,7 @@ def FirsttBase(plist,archive,rtu,path):
         print("Found zero suitable orthomosaics in the past")
     dif[dif<=0]=np.NaN
     ind = np.where(dif==np.nanmin(dif))[0][:]
+    flag = 0
     if len(ind) > 1:
         for i in ind:
             if candidates[i][-6:] == "GR.vrt":
@@ -60,28 +58,21 @@ def FirsttBase(plist,archive,rtu,path):
         if flag == 0:
             base = candidates[0]
     else:
-        base = candidates[ind[0]]        
-    pbar1.update(1)
-    pbar1.close()    
-    print("BASE:", path_to_filename(base))
-    print("FILE:", path_to_filename(path))
+        base = candidates[ind[0]]     
+    flag = "File source unknown..."
+    if base[0:1] == "D":
+        flag = "arch"
+    elif base[0:1] == "C":
+        flag = "rtu"
+    for i in range(len(pathlist)):
+        if path == pathlist[i]:
+            ind = i+1
+    print("\n")
+    print("BASE:", path_to_filename(base), "("+flag+")")
+    print("FILE:", path_to_filename(path), "("+str(ind)+"/"+str(len(pathlist))+")")
     return plist,base
 
-def TrafficPol(path,rtu,nrtu,dstr,grid,x0):
-    if len(x0) > 0.6*len(grid):
-        os.move(path,rtu+"\\"+path_to_filename(path))                                                                     # Ort
-        os.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")                                       # Ort vrt
-        os.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))                                 # Dem
-        os.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   # Dem vrt
-        os.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path))                                                      # .points
-    else:
-        os.move(path,nrtu+"\\"+path_to_filename(path))                                                                     # Ort
-        os.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))                                 # Dem
-        os.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")                                       # Ort vrt
-        os.move(path_to_path_dem(path)[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   # Dem vrt
-        os.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path))                                                      # .points
-
-def OrtOpenDow(plist,path):
+def OpenOrth(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
     gt                                 = file.GetGeoTransform()                
@@ -123,7 +114,7 @@ def OrtOpenDow(plist,path):
     pbar1.close()
     return plist,img_s,img_b,mask_b,gt
  
-def DemOpenDow(plist,path,Img0C):
+def OpenDEMs(plist,path,Img0C):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     path_dem                           = path_to_path_dem(path)
     file                               = gdal.Open(path_dem)
@@ -160,7 +151,7 @@ def DemOpenDow(plist,path,Img0C):
     plist.append(p)
     return plist,mask_b,gt,ridges
 
-def CapFigures(plist,path):
+def SaveFigs(plist,path,base,rec,GCPstat):
     pbar1 = tqdm(total=1,position=0,desc="CapFigures")
     dpiset = 1000
     filename = path.strip('.tif') + ('_LOG.pdf')
@@ -171,23 +162,42 @@ def CapFigures(plist,path):
         fig.savefig(pp, format='pdf',dpi=dpiset)
     plist = np.array(plist)
     plist = []
+    f = open(rec+"\\receipt.txt", "a")
+    f.write("\n")
+    f.write("\n"+time.strftime("%Y/%m/%d")+" - "+time.strftime("%H:%M"))
+    f.write("\n"+"BASE: "+base)
+    f.write("\n"+"FILE: "+path)
+    f.write("\n"+GCPstat)
+    f.close()
     pp.close()
     pbar1.update(1)
     pbar1.close()
     return plist
 
-def hifit(origin_x,origin_y,CVa,offset):
-    tmp_A = []
-    tmp_b = []
-    for i in range(len(origin_x)):
-        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
-        tmp_b.append(offset[i])
-    b = np.matrix(tmp_b).T
-    A = np.matrix(tmp_A)
-    W = np.diag(CVa**-3)
-    W = (W/np.sum(W))*len(CVa)
-    fit = (A.T * W * A).I * A.T * W * b
-    return fit
+def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
+    pbar1 = tqdm(total=1,position=0,desc="MoveFiles ")
+    flag = 0
+    if f2 > 0.6*len(grid):
+        shutil.move(path,rtu+"\\"+path_to_filename(path))
+        shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
+        shutil.copy(path_to_path_dem(path),rtu+"\\"+path_to_filename(path_to_path_dem(path)))
+        shutil.copy(path_to_path_dem(path)[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")
+        shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
+        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
+        shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
+        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
+        flag = 1                           
+    else:
+        shutil.move(path,nrtu+"\\"+path_to_filename(path))
+        shutil.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))
+        shutil.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
+        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")
+        shutil.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path)[:-4]+".points")
+        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
+        flag = 2
+    pbar1.update(1)
+    pbar1.close()
+    return flag
 
 ## META functions:
 
@@ -203,13 +213,24 @@ def path_to_filename(path):
     return filename
 
 def filename_to_info(filename):
+    company = " "
+    parcel = " "
+    date = " "
     file=filename[:-4]
     split = file.split("-")
-    company=split[0]
-    parcel=split[1]
-    date=split[2]
-    if len(date) == 8:
-        date = date+"0000"
+    if len(split) == 3:
+        company=split[0]
+        parcel=split[1]
+        date=split[2]
+        if len(date) == 8:
+            date = date+"0000"
+    if len(split) == 4:
+        if split[3] == "GR":
+            company=split[0]
+            parcel=split[1]
+            date=split[2]
+            if len(date) == 8:
+                date = date+"0000"
     return company,parcel,date
 
 def path_to_path_dem(path):
@@ -231,22 +252,29 @@ def walk_folder(folder,company,parcel):
     candidates = []
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:
-            if name[:-4] == ".tif" or name[:-4] == ".vrt":
+            if name[-4:] == ".tif" or name[-4:] == ".vrt":
                 if filename_to_info(name)[0] == company:
                     if filename_to_info(name)[1] == parcel:
                         if name[-7:] == "-GR.tif":
                             if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
                                 candidates.append(os.path.join(root,name).replace("\\","/"))
                         elif name[-7:] == "-GR.vrt":
-                             if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
-                        elif name[-4:] == ".vrt":
-                            if os.path.exists(os.path.join(root,name).replace(".vrt","_DEM.vrt")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                            if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
+                                candidates.append(os.path.join(root,name).replace("\\","/"))
                         else:
                             if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
                                 candidates.append(os.path.join(root,name).replace("\\","/"))    
     return candidates
+
+def walklevel(some_dir, level=1):
+    some_dir = some_dir.rstrip(os.path.sep)
+    assert os.path.isdir(some_dir)
+    num_sep = some_dir.count(os.path.sep)
+    for root, dirs, files in os.walk(some_dir):
+        yield root, dirs, files
+        num_sep_this = root.count(os.path.sep)
+        if num_sep + level <= num_sep_this:
+            del dirs[:]
         
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
@@ -532,7 +560,35 @@ def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
                     break
     return a, b
 
+def hifit(origin_x,origin_y,CVa,offset):
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(origin_x)):
+        tmp_A.append([origin_x[i], origin_y[i], origin_x[i]*origin_y[i], origin_x[i]**2, origin_y[i]**2, 1])
+        tmp_b.append(offset[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    W = np.diag(CVa**-3)
+    W = (W/np.sum(W))*len(CVa)
+    fit = (A.T * W * A).I * A.T * W * b
+    return fit
+
 ## Archived:
+
+#def SelectFile(folder):
+#    plt.close("all")
+#    pathlist = []    
+#    root = Tk()
+#    root.withdraw()
+#    #
+#    root.filename =  filedialog.askopenfilename(multiple=True,initialdir = folder ,title = "Select Orthomosaics for Geo-Registration",filetypes = (("GeoTiff files","*.tif"),("all files","*.*")))
+#    #
+#    for path in root.filename:
+#        pathlist.append(path)
+#    pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
+#    plist = []
+#    plt.ioff()
+#    return plist,pathlist
 
 #def InboxxFiles(num):
 #    plt.close("all")

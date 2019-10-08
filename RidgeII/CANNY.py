@@ -11,7 +11,7 @@ warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 warnings.filterwarnings("ignore")
 from tqdm import tqdm
 
-def CannyLines(plist,Img0C,img_b,mask_b):
+def CannyLin(plist,Img0C,img_b,mask_b):
     pixel_size = 0.5
     if pixel_size == 0.05:
         size=6

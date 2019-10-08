@@ -24,7 +24,7 @@ from functools import partial
 from scipy import optimize
 import copy
 
-def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
+def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
     md = 6
     pbar = tqdm(total=1,position=0,desc="RECC(c)   ")
@@ -107,7 +107,7 @@ def SinglMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         plist.append(p)
     return plist,x_off,y_off,CV1
 
-def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
+def IniMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     # Nullify impact of Ort + Canny + SinglMatch:
     x_off = 0
     y_off = 0
@@ -169,7 +169,7 @@ def InitiMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     circle2 = (circle2).astype(np.uint8)
     return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
 
-def MultiMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
+def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
     set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
@@ -269,7 +269,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
 
-def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
+def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     size0 = len(x0)
     indices = np.where(CVa>0)[0]
     x0        = x0[indices]
@@ -334,7 +334,8 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     CVa       = CVa[indices]
     clist     = clist[indices]
     size2=len(x0)  
-    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
+    GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
+    print(GCPstat) 
     clist = list(clist)
     p = plt.figure()
     plt.subplot(1,2,1)
@@ -349,9 +350,9 @@ def RemOutSlop(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close()
     plist.append(p)
-    return plist,x0,y0,x1,y1,CVa,dx,dy
+    return plist,x0,y0,x1,y1,CVa,dx,dy,GCPstat
            
-def MakePoints(file,x0,y0,x1,y1,gt0F,gt1F):
+def MakePnts(file,x0,y0,x1,y1,gt0F,gt1F):
     pbar3 = tqdm(total=1,position=0,desc="MakePoints")
     flag=0
     target_lat = gt0F[3]+gt0F[5]*x0
