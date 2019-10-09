@@ -1,23 +1,35 @@
-import gdal
+import os
 import cv2
+import gdal
+import time
+import shutil
+import warnings
 import numpy as np
 import numpy.matlib
-from random import randint
-from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
-import warnings
-import matplotlib.pyplot as plt
-warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
-import copy
-import sys
-import os
-import shutil
-from tkinter import filedialog
-from tkinter import *
-import re
-import time
+from random import randint
+import matplotlib.pyplot as plt
+from math import cos, sin, asin, sqrt, radians
 from matplotlib.backends.backend_pdf import PdfPages
-import time
+
+warnings.simplefilter(action = "ignore", category = RuntimeWarning)
+
+def GetDirs(PC):
+    if PC == "STAMPERTJE":
+        inbox   = r"C:\Users\VanBoven\Documents\100 Ortho Inbox"
+        archive = r"D:\VanBovenDrive\VanBoven MT\Archive"
+        rtu     = r"C:\Users\VanBoven\Documents\100 Ortho Inbox\2_ready_to_upload"
+        nrtu    = r"C:\Users\VanBoven\Documents\100 Ortho Inbox\4_not_ready_to_upload"
+        dstr    = r"C:\Users\VanBoven\Documents\100 Ortho Inbox\00_rectified_DEMs_points"
+        rec     = r"C:\Users\VanBoven\Documents\100 Ortho Inbox\9_receipt"
+    if PC == "Martijn":
+        inbox   = r"\\STAMPERTJE\100 Ortho Inbox"
+        archive = r"\\STAMPERTJE\Data\VanBovenDrive\VanBoven MT\Archive"
+        rtu     = r"\\STAMPERTJE\100 Ortho Inbox\2_ready_to_upload"
+        nrtu    = r"\\STAMPERTJE\100 Ortho Inbox\4_not_ready_to_upload"
+        dstr    = r"\\STAMPERTJE\100 Ortho Inbox\00_rectified_DEMs_points"
+        rec     = r"\\STAMPERTJE\100 Ortho Inbox\9_receipt"
+    return inbox,archive,rtu,nrtu,dstr,rec 
 
 def FindFile(inbox):
     pathlist=[]

@@ -1,23 +1,19 @@
 import METAA
+
 import cv2
+import copy
+import warnings
 import numpy as np
 import numpy.matlib
-import matplotlib.pyplot as plt
-from random import randint
-from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
-import warnings
-import copy
-warnings.simplefilter(action = "ignore", category = RuntimeWarning)
-warnings.filterwarnings("ignore")
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from math import sqrt, log, exp, atan2
+
+warnings.filterwarnings("ignore")
+warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
 def CannyLin(plist,Img0C,img_b,mask_b):
-    pixel_size = 0.5
-    if pixel_size == 0.05:
-        size=6
-    else:
-        size=5
-    pbar1 = tqdm(total=size,position=0,desc="CannyPF   ")
+    pbar1 = tqdm(total=5,position=0,desc="CannyPF   ")
     rows = img_b.shape[0]
     cols = img_b.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)

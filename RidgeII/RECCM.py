@@ -1,28 +1,21 @@
 import METAA
+
+import os
 import cv2
+import copy
+import warnings
 import numpy as np
 import numpy.matlib
-import matplotlib.pyplot as plt
-import gdal
-import os
-from random import randint
-from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
-import warnings
-warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 from tqdm import tqdm
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
-from shapely.ops import triangulate
-from scipy.interpolate import interp1d
-from tempfile import mkstemp
-from shutil import move
-from mpl_toolkits.mplot3d import Axes3D
+from functools import partial
+import matplotlib.pyplot as plt
 from multiprocessing import Pool
+from scipy.interpolate import interp1d
+from shapely.geometry.polygon import Polygon
 from multiprocessing import cpu_count as cpu
 from multiprocessing import set_start_method
-from functools import partial
-from scipy import optimize
-import copy
+
+warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
 def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
@@ -220,7 +213,7 @@ def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circ
     return plist,x0,y0,x1,y1,CVa,dx,dy
              
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
-    CVa        = np.zeros(len(grid)) 
+    CV         = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
     xog        = np.zeros(len(grid)).astype(int)
@@ -231,7 +224,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     y1         = np.zeros(len(grid)).astype(int)
     lat        = np.zeros(len(grid))
     lon        = np.zeros(len(grid))
-    RECC_total = np.zeros(Edges1F.shape)
+    #RECC_total = np.zeros(Edges1F.shape)
     for i in range(len(grid)):
         x0[i] = grid[i][1]
         y0[i] = grid[i][0]
@@ -254,29 +247,33 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]
         RECC_area[c2==0]=np.NaN
-        RECC_total.fill(np.NaN)
-        if RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md].shape != (2*(md),2*(md)):
-            continue
-        RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md] = RECC_area
-        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
-        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
-        y1[i]    = np.where(RECC_total >= max_one)[1][0]  
-        x1[i]    = np.where(RECC_total >= max_one)[0][0]
-        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
-        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
-        CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
+        #RECC_total.fill(np.NaN)
+        #if RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md].shape != (2*(md),2*(md)):
+        #    continue
+        #RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md] = RECC_area
+        max_one  = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-1)[-1]
+        max_n    = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-4-1)[-4-1]
+        x,y = np.where(RECC_area >= max_one)
+        y1[i]    = y[0] 
+        x1[i]    = x[0]
+        x,y = np.where(RECC_area >= max_n)
+        y_n = y[0:-1]
+        x_n = x[0:-1]
+        CV[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4 
+        x1[i] = x1[i] + xof[i]-md
+        y1[i] = y1[i] + yof[i]+md
     dx = (x1-xof)*0.05
     dy = (y1-yof)*0.05
-    return x0,y0,xog,yog,xof,yof,x1,y1,CVa,dx,dy
+    return x0,y0,xog,yog,xof,yof,x1,y1,CV,dx,dy
 
-def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
+def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     size0 = len(x0)
-    indices = np.where(CVa>0)[0]
+    indices = np.where(CV>0)[0]
     x0        = x0[indices]
     y0        = y0[indices]
     x1        = x1[indices]
     y1        = y1[indices]
-    CVa       = CVa[indices]
+    CV        = CV[indices]
     dx        = dx[indices]
     dy        = dy[indices]
     size1=len(x0)
@@ -295,11 +292,11 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plt.close()
     plist.append(p)
     clist = np.array(clist)    
-    indices = np.where(CVa>-1)[0]
+    indices = np.where(CV>-1)[0]
     dist_range = [1.5,1,0.5,0.25,0.1]
     for dist in dist_range:
-        fdx = METAA.hifit(x0[indices],y0[indices],CVa[indices],dx[indices])
-        fdy = METAA.hifit(x0[indices],y0[indices],CVa[indices],dy[indices])
+        fdx = METAA.hifit(x0[indices],y0[indices],CV[indices],dx[indices])
+        fdy = METAA.hifit(x0[indices],y0[indices],CV[indices],dy[indices])
         supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
         supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
         delta_x = dx - supposed_dx
@@ -331,7 +328,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     y0        = y0[indices]
     x1        = x1[indices]
     y1        = y1[indices]
-    CVa       = CVa[indices]
+    CV        = CV[indices]
     clist     = clist[indices]
     size2=len(x0)  
     GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
@@ -350,7 +347,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CVa,dx,dy):
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close()
     plist.append(p)
-    return plist,x0,y0,x1,y1,CVa,dx,dy,GCPstat
+    return plist,x0,y0,x1,y1,CV,dx,dy,GCPstat
            
 def MakePnts(file,x0,y0,x1,y1,gt0F,gt1F):
     pbar3 = tqdm(total=1,position=0,desc="MakePoints")

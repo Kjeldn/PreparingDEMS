@@ -6,11 +6,6 @@ from io import StringIO
 from shutil import move
 from tempfile import mkstemp
 
-#folder  = r'C:\Users\VanBoven\Documents\100 Ortho Inbox\1_ready_to_rectify'
-#folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Aart Maris'
-#folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Osseweyer'
-#folder  = r'D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Hein de Schutter'
-
 def MakeVRTs(file):
     pbar1 = tqdm(total=1,position=0,desc="CreateVRTs")
     flag = 0
@@ -93,7 +88,8 @@ def MakeVRTs(file):
                     new_file.write(line.replace(pattern, subst))
         os.remove(dem_d)
         move(abs_path, dem_d)
-        flag = len(gcp_t)
-        pbar1.update(1)
-        pbar1.close()
-        return flag
+        
+    flag = len(gcp_t)
+    pbar1.update(1)
+    pbar1.close()
+    return flag
