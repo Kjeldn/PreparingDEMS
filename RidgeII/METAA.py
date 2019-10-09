@@ -60,6 +60,9 @@ def FindFile(inbox):
             if name[-4:] == ".tif":
                 if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
                     pathlist.append(os.path.join(root,name).replace("\\","/"))
+            if name[-7:] == "-GR.tif":
+                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                    pathlist.append(os.path.join(root,name).replace("\\","/"))
     pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
     plist = []
     plt.ioff()
