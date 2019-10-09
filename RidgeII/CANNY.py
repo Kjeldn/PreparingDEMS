@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore")
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
 def CannyLin(plist,Img0C,img_b,mask_b):
+    pixel_size=0.5
     pbar1 = tqdm(total=5,position=0,desc="CannyPF   ")
     rows = img_b.shape[0]
     cols = img_b.shape[1]

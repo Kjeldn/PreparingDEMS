@@ -11,6 +11,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from scipy.interpolate import interp1d
+from mpl_toolkits.mplot3d import Axes3D
 from shapely.geometry.polygon import Polygon
 from multiprocessing import cpu_count as cpu
 from multiprocessing import set_start_method
@@ -261,7 +262,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
         x_n = x[0:-1]
         CV[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4 
         x1[i] = x1[i] + xof[i]-md
-        y1[i] = y1[i] + yof[i]+md
+        y1[i] = y1[i] + yof[i]-md
     dx = (x1-xof)*0.05
     dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CV,dx,dy

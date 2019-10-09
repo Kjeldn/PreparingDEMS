@@ -52,7 +52,7 @@ f2       | int    | Flag for creation of .vrt files
 f3       | int    | Flag for moving files to corresponding folders
 """ 
 
-inbox,archive,rtu,nrtu,dstr,rec = METAA.GetDirs("Martijn")
+inbox,archive,rtu,nrtu,dstr,rec = METAA.GetDirs("STAMPERTJE")
 if __name__ == '__main__':
     plist,pathlist = METAA.FindFile(inbox)
     for path in pathlist:
