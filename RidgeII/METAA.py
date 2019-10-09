@@ -14,6 +14,19 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
+
+"""
+Returns multiple strings containing paths to the correct folders depending on
+what PC is being used.
+---
+PC       | str    | Name of the PC being used
+inbox    | str    | Path to inbox  
+archive  | str    | Path to archive
+rtu      | str    | Path to ready to upload 
+nrtu     | str    | Path to not ready to upload
+dstr     | str    | Path to rectified dems and points
+rec      | str    | Path to receipt
+"""
 def GetDirs(PC):
     if PC == "STAMPERTJE":
         inbox   = r"C:\Users\VanBoven\Documents\100 Ortho Inbox"
@@ -31,9 +44,18 @@ def GetDirs(PC):
         rec     = r"\\STAMPERTJE\100 Ortho Inbox\9_receipt"
     return inbox,archive,rtu,nrtu,dstr,rec 
 
+
+"""
+Finds orthomosaics that also have a corresponding DEM in the ortho inbox, 
+consequently sorts the list of orthomosaics based on date (earliest first).
+---
+inbox    | str    | Path to inbox  
+plist    | list   | List for figures
+pathlist | list   | List with paths to suitable files in the inbox
+"""
 def FindFile(inbox):
     pathlist=[]
-    for root, dirs, files in walklevel(inbox, level=0):
+    for root, dirs, files in walk_level(inbox, level=0):
         for name in files:
             if name[-4:] == ".tif":
                 if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
@@ -42,7 +64,20 @@ def FindFile(inbox):
     plist = []
     plt.ioff()
     return plist,pathlist
-    
+
+
+"""
+Given a path to a orthomosaic in the ortho inbox, the function checks both the
+archive and the ready to upload folder for orthomosaics plus DEM pairs that
+could be used for georegistration. The most recent pair is selected.
+---
+plist    | list   | List for figures
+pathlist | list   | List with paths to suitable files in the inbox
+archive  | str    | Path to archive
+rtu      | str    | Path to ready to upload 
+path     | str    | Path to the orthomosaic up for georegistration
+base     | str    | Path to the orthomosaic that will be used as base
+"""  
 def FindBase(plist,pathlist,archive,rtu,path):
     company,parcel,date = filename_to_info(path_to_filename(path)) 
     candidates = walk_folder(archive,company,parcel)
@@ -84,6 +119,19 @@ def FindBase(plist,pathlist,archive,rtu,path):
     print("FILE:", path_to_filename(path), "("+str(ind)+"/"+str(len(pathlist))+")")
     return plist,base
 
+
+"""
+Preprocessing for CannyPF and CannyLines. Takes the path to an orthomosaic,
+rescales the file temporarily using GDAL, equalises the L band based on CDF,
+converts it to greyscale, and blurs the image.
+---
+plist    | list   | List for figures
+path     | str    | Path to the orthomosaic up for georegistration
+img_s    | 3D arr | Rescaled and equalised orthomosaic                         (Img0C/Img1C)
+img_b    | 2D arr | Rescaled, equalised, grayscaled and blurred orthomosaic    (ImgB0C/ImgB1C)
+mask_b   | 2D arr | Binary map defining edges of orthomosaic                   (MaskB0C/MaskB1C)
+gt       | tuple  | Geotransform corresponding to img_s, img_b and mask_b      (gt0C/gt1C)
+"""
 def OpenOrth(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
     file                               = gdal.Open(path)
@@ -94,10 +142,10 @@ def OpenOrth(plist,path):
     dest = path[:-4]+"_s.vrt"
     time.sleep(0.5)
     gdal.Warp(dest,path,width=w,format='VRT',height=h,resampleAlg='average',dstAlpha=True,dstNodata=255)  
-    file_s                               = gdal.Open(dest)
-    B_s                                  = file_s.GetRasterBand(1).ReadAsArray()
-    G_s                                  = file_s.GetRasterBand(2).ReadAsArray()
-    R_s                                  = file_s.GetRasterBand(3).ReadAsArray()
+    file_s                             = gdal.Open(dest)
+    B_s                                = file_s.GetRasterBand(1).ReadAsArray()
+    G_s                                = file_s.GetRasterBand(2).ReadAsArray()
+    R_s                                = file_s.GetRasterBand(3).ReadAsArray()
     gt = file_s.GetGeoTransform()
     img_s                              = np.zeros([B_s.shape[0],B_s.shape[1],3], np.uint8)
     mask                               = np.zeros(B_s.shape)
@@ -125,8 +173,20 @@ def OpenOrth(plist,path):
     pbar1.update(1)
     pbar1.close()
     return plist,img_s,img_b,mask_b,gt
- 
-def OpenDEMs(plist,path,Img0C):
+
+
+"""
+Takes the path to an orthomosaic and converts it to the path to the 
+corresponding DEM. It rescales the file temporarily using GDAL, consequently 
+ridges are extracted using filters of varying sizes.
+---
+plist    | list   | List for figures
+path     | str    | Path to the orthomosaic up for georegistration
+mask_b   | 2D arr | Binary map defining edges of orthomosaic                   (MaskB0F/MaskB1F)
+gt       | tuple  | Geotransform corresponding to mask_b and ridges            (gt0F/gt1F)
+ridges   | 2D arr | Binary map with edges or ridges found in DEM data          (Edges0F/Edges1F)  
+"""
+def OpenDEMs(plist,path):
     pbar1 = tqdm(total=1,position=0,desc="DemOpening")
     path_dem                           = path_to_path_dem(path)
     file                               = gdal.Open(path_dem)
@@ -163,6 +223,17 @@ def OpenDEMs(plist,path,Img0C):
     plist.append(p)
     return plist,mask_b,gt,ridges
 
+
+"""
+Takes the current plist, places all the figures in a .pdf file, and erases the
+plist. Also writes a small log on the receipt.txt file.
+---
+plist    | list   | List for figures
+path     | str    | Path to the orthomosaic up for georegistration
+base     | str    | Path to the orthomosaic that will be used as base
+rec      | str    | Path to receipt
+GCPstat  | str    | Contains the status of matches or GCP's after outlier removal
+"""
 def SaveFigs(plist,path,base,rec,GCPstat):
     pbar1 = tqdm(total=1,position=0,desc="CapFigures")
     dpiset = 1000
@@ -186,9 +257,28 @@ def SaveFigs(plist,path,base,rec,GCPstat):
     pbar1.close()
     return plist
 
+
+"""
+When 60% or more of the grid has succesfully been matched the function moves 
+the orthomosaic and its .vrt to the 'ready to upload' folder, the .points, DEM, 
+and its .vrt are moved to the 'rectified dems and points' folder. Furthermore,
+a copy of the DEM and its .vrt are also placed in the 'ready to upload' folder 
+for possible use as base.
+When the criteria is not met everything is moved to the 'not ready to upload' 
+folder. The log is always moved to the 'receipt' folder.
+---
+path     | str    | Path to the orthomosaic up for georegistration
+rtu      | str    | Path to ready to upload 
+nrtu     | str    | Path to not ready to upload
+dstr     | str    | Path to rectified dems and points
+rec      | str    | Path to receipt
+grid     | list   | List of 200 or 300 x,y tuples that form a grid in Edges0F
+f2       | int    | Flag for creation of .vrt files
+f3       | int    | Flag for moving files to corresponding folders
+"""
 def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
     pbar1 = tqdm(total=1,position=0,desc="MoveFiles ")
-    flag = 0
+    f3 = 0
     if f2 > 0.6*len(grid):
         shutil.move(path,rtu+"\\"+path_to_filename(path))
         shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
@@ -198,7 +288,7 @@ def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
         shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
         shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
         shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
-        flag = 1                           
+        f3 = 1                           
     else:
         shutil.move(path,nrtu+"\\"+path_to_filename(path))
         shutil.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))
@@ -206,13 +296,23 @@ def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
         shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")
         shutil.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path)[:-4]+".points")
         shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
-        flag = 2
+        f3 = 2
     pbar1.update(1)
     pbar1.close()
-    return flag
+    return f3
 
-## META functions:
 
+"""
+###############################################################################
+Meta functions below.
+Used in METAA, CANNY, and RECCM, but not directly in Controller.py.
+###############################################################################
+"""
+
+
+"""
+Strips a full path to return only the name of the file.
+"""
 def path_to_filename(path):
     if "\\" in path:
         if "/" in path:
@@ -224,6 +324,10 @@ def path_to_filename(path):
         filename = path[::-1][:path[::-1].find("/")][::-1]
     return filename
 
+
+"""
+Extracts company, parcel, and date information from the filename.
+"""
 def filename_to_info(filename):
     company = " "
     parcel = " "
@@ -245,6 +349,10 @@ def filename_to_info(filename):
                 date = date+"0000"
     return company,parcel,date
 
+
+"""
+Adjusts the path of an orthomosaic to the corresponding path for the DEM.
+"""
 def path_to_path_dem(path):
     if path[-4:] == ".vrt":
         path_dem = path[:-4]
@@ -260,6 +368,11 @@ def path_to_path_dem(path):
             path_dem = path_dem + "_DEM.tif"
     return path_dem
 
+
+"""
+Walks a folder top down and returns every orthomosaic that belongs to the same 
+company and the same parcel, and also has a corresponding DEM.
+"""
 def walk_folder(folder,company,parcel):
     candidates = []
     for root, dirs, files in os.walk(folder, topdown=True):
@@ -278,7 +391,11 @@ def walk_folder(folder,company,parcel):
                                 candidates.append(os.path.join(root,name).replace("\\","/"))    
     return candidates
 
-def walklevel(some_dir, level=1):
+
+"""
+Adjusted os.walk that allows for levels of top down.
+"""
+def walk_level(some_dir, level=1):
     some_dir = some_dir.rstrip(os.path.sep)
     assert os.path.isdir(some_dir)
     num_sep = some_dir.count(os.path.sep)
@@ -287,7 +404,11 @@ def walklevel(some_dir, level=1):
         num_sep_this = root.count(os.path.sep)
         if num_sep + level <= num_sep_this:
             del dirs[:]
-        
+
+
+"""
+Calculates the distance in meters for two pairs of lattitude and longitude.        
+"""        
 def calc_distance(lat1, lon1, lat2, lon2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
     dlon = lon2 - lon1
@@ -297,6 +418,11 @@ def calc_distance(lat1, lon1, lat2, lon2):
     m = 1000 * 6371 * c
     return m
 
+
+"""
+Calculates the size of a pixel in both the x and y direction based on the 
+geotransform and array of a file.
+"""
 def calc_pixsize(array,gt):
     lon1 = gt[0] 
     lat1 = gt[3] 
@@ -310,6 +436,11 @@ def calc_pixsize(array,gt):
     xsize = dist/array.shape[1]
     return xsize, ysize   
 
+
+"""
+Calculates the size of a pixel in both the x and y direction based on the 
+geotransform and size of a file. (No need to load the file)
+"""
 def calc_pixsize2(s1,s2,gt):
     lon1 = gt[0] 
     lat1 = gt[3] 
@@ -323,18 +454,21 @@ def calc_pixsize2(s1,s2,gt):
     xsize = dist/s2
     return xsize, ysize 
 
+
+"""
+Returns the moving average of a function for a given window size.
+"""
 def moving_average(a, n=3) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
 
-def rangemaker(num,thMeaningfulLength):
-    span = int(thMeaningfulLength/5)
-    range_array = np.zeros(2*span+1)
-    for i in range(len(range_array)):
-        range_array[i]=int(num-span+i)
-    return range_array
 
+"""
+Pixel linking function for CannyLines. Given an x,y it finds the next x,y based
+on the orientation of pixels.
+next1: Considers only pixels directly connected.
+"""
 def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
     X_OFFSET = [0, 1, 0,-1, 1,-1,-1, 1]
     Y_OFFSET = [1, 0,-1, 0, 1, 1,-1,-1]
@@ -361,6 +495,13 @@ def next1(xSeed,ySeed,rows,cols,maskMap,orientationMap):
                         break
     return a, b
 
+
+"""
+Pixel linking function for CannyLines. Given an x,y it finds the next x,y based
+on the orientation of pixels.
+next2: Considers only pixels in a directed cone based on the orientation of
+        the line segment.
+"""
 def next2(xSeed,ySeed,rows,cols,residualmap,boe,s):
     if s >= 3:
         if boe == 0:
@@ -420,52 +561,59 @@ def next2(xSeed,ySeed,rows,cols,residualmap,boe,s):
                     break
     return a, b
 
+
+
+"""
+Pixel linking function for CannyLines. Given an x,y it finds the next x,y based
+on the orientation of pixels.
+next3: Same as next2, but the cone is bigger / more flexible.
+"""
 def next3(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
     if s >= 3:
         if boe == 0:
             # 5
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]
         elif boe == 1:
             # 1
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]
     elif s < 3 and s > 1/3:
         if boe == 0:
             # 6
-            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2]#, 1,-1]#, 1, 0, 1]
-            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0]#,-1, 1]#, 0, 1, 1]
+            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2, 1,-1]#, 1, 0, 1]
+            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0,-1, 1]#, 0, 1, 1]
         elif boe == 1:
             # 2
-            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2]#,-1, 1]#,-1, 0,-1]
-            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0]#, 1,-1]#, 0,-1,-1]
+            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2,-1, 1]#,-1, 0,-1]
+            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0, 1,-1]#, 0,-1,-1]
     elif s >= -1/3 and s <= 1/3:
         if boe == 0:
             # 7
-            X_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]         
-            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1, 1,-1, 0]
+            X_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]         
+            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1, 1,-1, 0]
         elif boe == 1:
             # 3
-            X_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]         
-            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#, 1,-1,-1, 1, 0]
+            X_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]         
+            Y_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2, 1,-1,-1, 1, 0]
     elif s < -1/3 and s > -3:
         if boe == 0:
             # 8
-            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2]#, 1,-1]#, 1, 0, 1]
-            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0]#, 1,-1]#, 0,-1,-1]
+            X_OFFSET = [-1,-1, 0,-2,-1,-2, 0,-2, 1,-1]#, 1, 0, 1]
+            Y_OFFSET = [ 1, 0, 1, 2, 2, 1, 2, 0, 1,-1]#, 0,-1,-1]
         elif boe == 1:
             # 4
-            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2]#,-1, 1]#,-1, 0,-1]
-            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0]#,-1, 1]#, 0, 1, 1]
+            X_OFFSET = [ 1, 1, 0, 2, 1, 2, 0, 2,-1, 1]#,-1, 0,-1]
+            Y_OFFSET = [-1, 0,-1,-2,-2,-1,-2, 0,-1, 1]#, 0, 1, 1]
     elif s <= -3:
         if boe == 0:
             # 1
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]         
-            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2]#, 0, 0,-1,-1,-1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]         
+            Y_OFFSET = [ 1, 1, 1, 2, 2, 2, 2, 2, 0, 0,-1,-1,-1]
         elif boe == 1:
             # 5
-            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2]#,-1, 1,-1, 1, 0]  
-            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2]#, 0, 0, 1, 1, 1]
+            X_OFFSET = [ 0,-1, 1, 0,-1, 1,-2, 2,-1, 1,-1, 1, 0]  
+            Y_OFFSET = [-1,-1,-1,-2,-2,-2,-2,-2, 0, 0, 1, 1, 1]
     a=-1
     b=-1
     for i in range(len(X_OFFSET)):
@@ -479,6 +627,13 @@ def next3(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
                     break
     return a, b
 
+
+"""
+Pixel linking function for CannyLines. Given an x,y it finds the next x,y based
+on the orientation of pixels.
+next4: Assembles a cone based on the slope (s), which allows for even more 
+        potential cones and a more accurate representation.
+"""
 def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
     INNER_RING_X = np.array([ 0, 1, 1, 1, 0,-1,-1,-1])
     INNER_RING_Y = np.array([ 1, 1, 0,-1,-1,-1, 0, 1])
@@ -572,6 +727,11 @@ def next4(xSeed,ySeed,rows,cols,residualmap,boe,s,edgeChain):
                     break
     return a, b
 
+
+"""
+Uses the weighted least-squares estimator to fit the second 
+order function f(x,y) = ax+by+cxy+dx^2+ey^2+f, equals offset.
+"""
 def hifit(origin_x,origin_y,CVa,offset):
     tmp_A = []
     tmp_b = []
@@ -585,7 +745,14 @@ def hifit(origin_x,origin_y,CVa,offset):
     fit = (A.T * W * A).I * A.T * W * b
     return fit
 
-## Archived:
+
+"""
+###############################################################################
+Archived functions below.
+Mostly replaced by improved functions.
+###############################################################################
+"""
+
 
 #def SelectFile(folder):
 #    plt.close("all")
@@ -601,7 +768,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plist = []
 #    plt.ioff()
 #    return plist,pathlist
-
+#
 #def InboxxFiles(num):
 #    plt.close("all")
 #    metapath = []
@@ -620,7 +787,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plist = []
 #    plt.ioff()
 #    return metapath,plist  
-
+#
 #def SelectFiles():
 #    plt.close("all")
 #    root = Tk()
@@ -652,7 +819,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plist = []
 #    plt.ioff()
 #    return path,plist
-    
+#    
 #def ChrInbFiles(num):
 #    plt.close("all")
 #    metapath = []
@@ -697,7 +864,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plist = []
 #    plt.ioff()
 #    return metapath,plist
-    
+#    
 #def OrtOpening(plist,path):
 #    pbar1 = tqdm(total=1,position=0,desc="OrtOpening")
 #    file                               = gdal.Open(path)
@@ -736,7 +903,7 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    pbar1.update(1)
 #    pbar1.close()
 #    return plist,img_s, img_b, mask_b, gt, fact_x_ps1, fact_y_ps1
-    
+#    
 #def DemOpening(plist,path,Img0C):
 #    pbar1 = tqdm(total=1,position=0,desc="DemOpening")
 #    if "-GR.tif" in path:
@@ -779,7 +946,14 @@ def hifit(origin_x,origin_y,CVa,offset):
 #    plt.close()
 #    plist.append(p)
 #    return plist,gt,fx,fy,mask_b,ridges
-    
+#
+#def rangemaker(num,thMeaningfulLength):
+#    span = int(thMeaningfulLength/5)
+#    range_array = np.zeros(2*span+1)
+#    for i in range(len(range_array)):
+#        range_array[i]=int(num-span+i)
+#    return range_array
+#    
 #def fit(origin_x,origin_y,CVa,offset):
 #    tmp_A = []
 #    tmp_b = []

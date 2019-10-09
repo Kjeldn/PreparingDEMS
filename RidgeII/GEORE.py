@@ -6,13 +6,24 @@ from io import StringIO
 from shutil import move
 from tempfile import mkstemp
 
-def MakeVRTs(file):
+
+"""
+Given a path to an orthomosaic, it finds the corresponding DEM, and the 
+corresponding .points file. The .points file is loaded and converted to both
+a GCP list for the orthomosaic and a GCP list for the DEM, after the images 
+are georegisterd.
+The .vrt files are manually adjusted to have a relative path, this means 
+that the .vrt and the .tif need to be in the same folder to work.
+---
+path     | str    | Path to the orthomosaic up for georegistration
+"""
+def MakeVRTs(path):
     pbar1 = tqdm(total=1,position=0,desc="CreateVRTs")
     flag = 0
-    if "\\" in file:
-        folder = file[::-1][file[::-1].find("\\"):][::-1]
+    if "\\" in path:
+        folder = path[::-1][path[::-1].find("\\"):][::-1]
     else:
-        folder = file[::-1][file[::-1].find("/"):][::-1]
+        folder = path[::-1][path[::-1].find("/"):][::-1]
     path = []
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:

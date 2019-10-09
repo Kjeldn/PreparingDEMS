@@ -12,27 +12,41 @@ from math import sqrt, log, exp, atan2
 warnings.filterwarnings("ignore")
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-def CannyLin(plist,Img0C,img_b,mask_b):
-    pixel_size=0.5
+
+"""
+Combined function that performs both CannyPF and CannyLines (Lu et al. 2015). 
+Takes only the grayscale image (full image included for plots) and returns a
+binary map with edges.
+---
+plist    | list   | List for plots
+img      | 3D arr | Rescaled and equalised orthomosaic                         (Img0C/Img1C)
+img_b    | 2D arr | Rescaled, equalised, grayscaled and blurred orthomosaic    (ImgB0C/ImgB1C)
+mask_b   | 2D arr | Binary map defining edges of orthomosaic                   (MaskB0C/MaskB1C)
+"""
+def CannyLin(plist,img,img_b,mask_b):
+    """
+    (1/2) CannyPF procedure. Takes grayscale image and returns edges, gradient
+    values, and orientation values. The edgemap is created using cv2.Canny,
+    whose thresholds are set by examining the gradientMap of the image.
+    ---
+    gradientMap    | 2D arr | Gradient in pixelvalue, created using double Sobel kernels
+    edgemap        | 2D arr | Binary map created using CannyPF procedure
+    orientationMap | 2D arr | Angle of gradient in pixel values
+    gradientPoints | list   | List with coordinates of pixels in edgemap
+    gradientValues | list   | List with the value of gradientMap for pixels in edgemap
+    """
     pbar1 = tqdm(total=5,position=0,desc="CannyPF   ")
     rows = img_b.shape[0]
     cols = img_b.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
     gNoise = 1.33333
     VMGradient = 70
-    k=3
     gradientMap = np.zeros(img_b.shape)
-    dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
-    dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
     pbar1.update(1)
     dx[mask_b>=10**-10]=0
     dy[mask_b>=10**-10]=0
-    if k == 5:
-        dx = dx/13.4
-        dy = dy/13.4
-    if k == 7:
-        dx = dx/47.5
-        dy = dy/47.5
     totalNum = 0
     histogram = np.zeros(255*8)
     for i in range(gradientMap.shape[0]):
@@ -95,19 +109,18 @@ def CannyLin(plist,Img0C,img_b,mask_b):
     gradientPoints = gradientPoints[::-1]
     gradientValues = gradientValues[::-1]  
     pbar1.update(1)
-    if pixel_size == 0.05: # SECOND PIXELSIZE
-        mask2 = np.zeros(img_b.shape)
-        mask2[img_b==0] = 1
-        for x in range(edgemap.shape[0]):
-            for y in range(edgemap.shape[1]):
-                if edgemap[x,y] == 255:
-                    if np.sum(mask2[x-2:x+2,y-2:y+2]) >= 1:
-                        edgemap[x,y] = 0
-        pbar1.update(1)
     pbar1.close()
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
+    """
+    (2/2) Partial CannyLines procedure. Takes the edgemap created by CannyPF 
+    (and more information), and returns 'meaningful' line segments within 
+    the map.
+    ---
+    EdgeChainsA | list   | List of list that contain tuples of coordinates within a 'chain' or 'line segment'.
+    mapA        | 2D arr | Binary map that contains only the linked pixels that are in a line segment.
+    """
     pbar2 = tqdm(total=6,position=0,desc="CannyLines")
     # [A] Initial Chains
     edgeChainsA = []    
@@ -128,24 +141,24 @@ def CannyLin(plist,Img0C,img_b,mask_b):
             chain = np.array(chain)       
     pbar2.update(1)
     # [B] Splitting orientation shifts
-    edgeChainsB = copy.deepcopy(edgeChainsA)
-    for i in range(len(edgeChainsB)-1,-1,-1):
-        if len(edgeChainsB[i]) >= 2*thMeaningfulLength: 
-            orientationchain = []
-            for x in edgeChainsB[i]:
-                orientationchain.append(orientationMap[x[0],x[1]])
-            av = METAA.moving_average(orientationchain, n=7)
-            avchain = np.zeros(len(orientationchain))
-            avchain[0:3] = av[0]
-            avchain[3:-3] = av
-            avchain[-3:] = av[-1]
-            d = np.diff(avchain)
-            for j in range(len(d)):
-                if abs(d[j]) >= 0.3:
-                    edgeChainsB.append(edgeChainsB[i][0:j])
-                    edgeChainsB.append(edgeChainsB[i][j:])
-                    del edgeChainsB[i] 
-    edgeChainsB = [x for x in edgeChainsB if x != []] 
+#    edgeChainsB = copy.deepcopy(edgeChainsA)
+#    for i in range(len(edgeChainsB)-1,-1,-1):
+#        if len(edgeChainsB[i]) >= 2*thMeaningfulLength: 
+#            orientationchain = []
+#            for x in edgeChainsB[i]:
+#                orientationchain.append(orientationMap[x[0],x[1]])
+#            av = METAA.moving_average(orientationchain, n=7)
+#            avchain = np.zeros(len(orientationchain))
+#            avchain[0:3] = av[0]
+#            avchain[3:-3] = av
+#            avchain[-3:] = av[-1]
+#            d = np.diff(avchain)
+#            for j in range(len(d)):
+#                if abs(d[j]) >= 0.3:
+#                    edgeChainsB.append(edgeChainsB[i][0:j])
+#                    edgeChainsB.append(edgeChainsB[i][j:])
+#                    del edgeChainsB[i] 
+#    edgeChainsB = [x for x in edgeChainsB if x != []] 
     pbar2.update(1)
     # [B] Line fitting     
 #    metaLinesB = []
@@ -325,7 +338,7 @@ def CannyLin(plist,Img0C,img_b,mask_b):
     temp[temp==0]=np.NaN
     p = plt.figure()
     plt.title('Edges 0.5m')
-    plt.imshow(Img0C)
+    plt.imshow(img)
     plt.imshow(temp,cmap='spring')
     plt.close()
     plist.append(p)

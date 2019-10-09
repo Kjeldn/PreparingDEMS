@@ -18,6 +18,22 @@ from multiprocessing import set_start_method
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
+
+"""
+Takes the edges found in the orthomosaics on a coarse scale and produces one
+single match of the whole images in order to find a rough offset that aids the
+upcoming fine matching procedure.
+---
+plist    | list   | List for plots
+Edges1C  | 2D arr | Binary map found by CannyLin for orthomosaic up for georegistration
+gt1C     | tuple  | Geotransform corresponding to Edges1C
+Edges0C  | 2D arr | Binary map found by CannyLin for base orthomosaic
+gt0C     | tuple  | Geotransform corresponding to Edges0C
+MaskB0C  | 2D arr | Binary map defining edges of base orthomosaic
+x_off    | int    | X-offset found in meters
+y_off    | int    | Y-offset found in meters 
+CV1      | float  | Concentration value for the given match
+"""
 def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
     md = 6
@@ -101,7 +117,25 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         plist.append(p)
     return plist,x_off,y_off,CV1
 
-def IniMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
+
+"""
+Setup certain variables before matching GCPs in DEM data. Define the grid, 
+buffer Edges1F, define w and md, and create clipping circles.
+---
+plist    | list   | List for plots
+Edges0F  | 2D arr | Binary map from DEM up for georegistration
+Edges1F  | 2D arr | Binary map from DEM corresponding to base
+MaskB0F  | 2D arr | Binary map defining edges of orthomosaic
+x_off    | int    | X-offset found by OneMatch function using Edges0C and Edges1C
+y_off    | int    | Y-offset found by OneMatch function using Edges0C and Edges1C
+CV1      | float  | Concentration value for the match produced by OneMatch
+Edges1Fa | 2D arr | Buffered version of Edges1F to prevent out of bounds
+grid     | list   | List of 200 or 300 x,y tuples that form a grid in Edges0F
+md       | int    | Maximum distance, the maximum feasable error in pixels
+c1       | 2D arr | Binary circle for clipping a patch
+c2       | 2D arr | Binary circle for clipping of a search map
+"""
+def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     # Nullify impact of Ort + Canny + SinglMatch:
     x_off = 0
     y_off = 0
@@ -110,9 +144,9 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
     ps0F = 0.05
     w = int(25/ps0F)
     buffer = 2*w
-    edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
-    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
-    edges1Fa=(edges1Fa).astype(np.uint8)
+    Edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
+    Edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
+    Edges1Fa=(Edges1Fa).astype(np.uint8)
     if CV1>=4:
         md = 8
         x_off=0;y_off=0
@@ -120,7 +154,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         md = 4
     else:
         md = 4 + 4*((CV1-1.5)/2.5)
-    max_dist = int((md)/(ps0F))
+    md = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
@@ -149,21 +183,49 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,CV1,x_off,y_off):
         x_regular, y_regular = fx(alpha), fy(alpha)
         for i in range(len(x_regular)):
             grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
-    circle1 = np.zeros((2*w,2*w))
-    for x in range(circle1.shape[0]):
-        for y in range(circle1.shape[1]):
+    c1 = np.zeros((2*w,2*w))
+    for x in range(c1.shape[0]):
+        for y in range(c1.shape[1]):
             if (x-w)**2 + (y-w)**2 < w**2:
-                circle1[x,y]=1
-    circle1 = (circle1).astype(np.uint8)
-    circle2 = np.zeros((2*max_dist,2*max_dist))
-    for x in range(circle2.shape[0]):
-        for y in range(circle2.shape[1]):
-            if (x-max_dist)**2 + (y-max_dist)**2 < max_dist**2:
-                circle2[x,y]=1
-    circle2 = (circle2).astype(np.uint8)
-    return plist,edges1Fa,x_off,y_off,grid,max_dist,circle1,circle2
+                c1[x,y]=1
+    c1 = (c1).astype(np.uint8)
+    c2 = np.zeros((2*md,2*md))
+    for x in range(c2.shape[0]):
+        for y in range(c2.shape[1]):
+            if (x-md)**2 + (y-md)**2 < md**2:
+                c2[x,y]=1
+    c2 = (c2).astype(np.uint8)
+    return plist,Edges1Fa,x_off,y_off,grid,md,c1,c2
 
-def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circle2,gt0F,gt1F):
+
+"""
+Function that controls the actual matching of each grid point to a patch in 
+the DEM up for georegistration. Takes output from IniMatch as input, divides 
+the grid in a number of batches, which are distributed over a number of logical
+processors. The actual matching is carried out by BatchMatch.
+---
+plist    | list   | List for plots
+Edges0F  | 2D arr | Binary map from DEM up for georegistration
+Edges1F  | 2D arr | Binary map from DEM corresponding to base
+Edges1Fa | 2D arr | Buffered version of Edges1F to prevent out of bounds
+x_off    | int    | X-offset found by OneMatch function using Edges0C and Edges1C
+y_off    | int    | Y-offset found by OneMatch function using Edges0C and Edges1C
+CV1      | float  | Concentration value for the match produced by OneMatch
+grid     | list   | List of 200 or 300 x,y tuples that form a grid in Edges0F
+md       | int    | Maximum distance, the maximum feasable error in pixels
+c1       | 2D arr | Binary circle for clipping a patch
+c2       | 2D arr | Binary circle for clipping of a search map
+gt0F     | tuple  | Geotransform corresponding to Edges0F
+gt1F     | tuple  | Geotransform corresponding to Edges1F
+x0       | 1D arr | Array containing x-pixel in Edges0F
+y0       | 1D arr | Array containing y-pixel in Edges0F
+x1       | 1D arr | Array containing x-pixel in Edges1F corresponding to x0
+y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0
+CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
+dx       | 1D arr | Array containing x-offset in meters for each match
+dy       | 1D arr | Array containing y-offset in meters for each match
+"""
+def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,x_off,y_off,CV1,grid,md,circle1,circle2,gt0F,gt1F):
     set_start_method('spawn', force=True)
     ps0F = 0.05
     w = int(25/ps0F)
@@ -178,14 +240,14 @@ def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circ
         num_batches = int(num_workers*bpw)
     N=int(np.ceil(len(grid)/num_batches))
     pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
-    x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CVa=[];dx=[];dy=[];
+    x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CV=[];dx=[];dy=[];
     results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)    
     for re in results:
-        x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CVa.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
+        x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CV.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
         pbar.update(1)
     pool.close()
     pool.join()
-    x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CVa=np.array(CVa);dx=np.array(dx);dy=np.array(dy)
+    x0=np.array(x0);y0=np.array(y0);xog=np.array(xog);yog=np.array(yog);xof=np.array(xof);yof=np.array(yof);x1=np.array(x1);y1=np.array(y1);CV=np.array(CV);dx=np.array(dx);dy=np.array(dy)
     p = plt.figure()
     plt.subplot(1,2,1)
     plt.title("Patch")
@@ -211,8 +273,41 @@ def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,CV1,x_off,y_off,grid,md,circle1,circ
     plist.append(p)
     pbar.update(1)
     pbar.close()
-    return plist,x0,y0,x1,y1,CVa,dx,dy
-             
+    return plist,x0,y0,x1,y1,CV,dx,dy
+   
+    
+"""
+Function that carries out the Relative Edge Cross Correlation (RECC) matching 
+for a part of the grid. Note therefore that the grid passed to this function is 
+in fact a slice of the original grid. Each (x,y) is transformed to the 
+corresponding (x,y) in the other DEM, then the offset is applied, and finally
+a match is found by considering a region around that last point, and convolving
+the target with a search region according to the RECC formula.   
+---
+w        | int    | Radius of the circular patch
+md       | int    | Maximum distance, the maximum feasable error in pixels
+Edges0F  | 2D arr | Binary map from DEM up for georegistration
+Edges1F  | 2D arr | Binary map from DEM corresponding to base
+Edges1Fa | 2D arr | Buffered version of Edges1F to prevent out of bounds
+c1       | 2D arr | Binary circle for clipping a patch
+c2       | 2D arr | Binary circle for clipping of a search map
+gt0F     | tuple  | Geotransform corresponding to Edges0F
+gt1F     | tuple  | Geotransform corresponding to Edges1F
+x_off    | int    | X-offset found by OneMatch function using Edges0C and Edges1C
+y_off    | int    | Y-offset found by OneMatch function using Edges0C and Edges1C
+grid     | list   | List of 200 or 300 x,y tuples that form a grid in Edges0F
+x0       | 1D arr | Array containing x-pixel in Edges0F
+y0       | 1D arr | Array containing y-pixel in Edges0F
+xog      | 1D arr | Array containing x-pixel in Edges1F on top of x0 via lat-lon transform
+yog      | 1D arr | Array containing y-pixel in Edges1F on top of y0 via lat-lon transform
+xof      | 1D arr | Array containing x-pixel in Edges1F shifted from xog based on x_off
+yof      | 1D arr | Array containing y-pixel in Edges1F shifted from yog based on y_off
+x1       | 1D arr | Array containing x-pixel in Edges1F corresponding to x0 by actual matching
+y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0 by actual matching
+CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
+dx       | 1D arr | Array containing x-offset in meters for each match
+dy       | 1D arr | Array containing y-offset in meters for each match
+"""     
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     CV         = np.zeros(len(grid)) 
     x0         = np.zeros(len(grid)).astype(int)
@@ -248,10 +343,6 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]
         RECC_area[c2==0]=np.NaN
-        #RECC_total.fill(np.NaN)
-        #if RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md].shape != (2*(md),2*(md)):
-        #    continue
-        #RECC_total[xof[i]-md:xof[i]+md,yof[i]-md:yof[i]+md] = RECC_area
         max_one  = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-1)[-1]
         max_n    = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-4-1)[-4-1]
         x,y = np.where(RECC_area >= max_one)
@@ -267,6 +358,25 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     dy = (y1-yof)*0.05
     return x0,y0,xog,yog,xof,yof,x1,y1,CV,dx,dy
 
+
+"""
+Outlier removal procedure. First it is checked whether gridpoints have gone 
+out of bounds by lat-lon tranformation to the other DEM. After this, a second 
+order fit is created in an iterative manner. On the final iteration only points
+that have a (dx,dy) offset close enough to the fitted function are kept.
+---
+plist    | list   | List for plots
+Edges0F  | 2D arr | Binary map from DEM up for georegistration
+Edges1F  | 2D arr | Binary map from DEM corresponding to base
+x0       | 1D arr | Array containing x-pixel in Edges0F
+y0       | 1D arr | Array containing y-pixel in Edges0F
+x1       | 1D arr | Array containing x-pixel in Edges1F corresponding to x0
+y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0
+CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
+dx       | 1D arr | Array containing x-offset in meters for each match
+dy       | 1D arr | Array containing y-offset in meters for each match
+GCPstat  | str    | Contains the status of matches or GCP's after outlier removal
+"""
 def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     size0 = len(x0)
     indices = np.where(CV>0)[0]
@@ -350,28 +460,50 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     plist.append(p)
     return plist,x0,y0,x1,y1,CV,dx,dy,GCPstat
            
-def MakePnts(file,x0,y0,x1,y1,gt0F,gt1F):
+
+"""
+Convert (x0,y0) - (x1,y1) to (lat,lon) - (lat,lon) tranformation and place it
+in a .points file, such that it can be used to georegister both the orthomosaic
+and the DEM.
+---
+path     | str    | Path to the orthomosaic up for georegistration
+x0       | 1D arr | Array containing x-pixel in Edges0F
+y0       | 1D arr | Array containing y-pixel in Edges0F
+x1       | 1D arr | Array containing x-pixel in Edges1F corresponding to x0
+y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0
+gt0F     | tuple  | Geotransform corresponding to Edges0F
+gt1F     | tuple  | Geotransform corresponding to Edges1F
+f1       | int    | Flag for creation of .points file
+"""
+def MakePnts(path,x0,y0,x1,y1,gt0F,gt1F):
     pbar3 = tqdm(total=1,position=0,desc="MakePoints")
-    flag=0
+    f1=0
     target_lat = gt0F[3]+gt0F[5]*x0
     target_lon = gt0F[0]+gt0F[1]*y0
     origin_lat = gt1F[3]+gt1F[5]*x1
     origin_lon = gt1F[0]+gt1F[1]*y1
-    dest = file.strip(".tif")+".points" 
+    dest = path.strip(".tif")+".points" 
     if os.path.isfile(dest.replace("\\","/")):
         os.remove(dest)
     f = open(dest,"w+")
     f.write("mapX,mapY,pixelX,pixelY,enable,dX,dY,residual")
     for i in range(len(target_lon)):
         f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
+        f1=1
     f.close()
-    flag=1
     pbar3.update(1)
     pbar3.close()
-    return flag
+    return f1
     
-### Archived:
+
+"""
+###############################################################################
+Archived functions below.
+Mostly replaced by improved functions.
+###############################################################################
+"""
  
+
 #def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
 #    ps0F = 0.05
 #    w = int(25/ps0F)
@@ -644,7 +776,7 @@ def MakePnts(file,x0,y0,x1,y1,gt0F,gt1F):
 #        move(abs_path, dest)
 #        pbar3.update(1)
 #        pbar3.close()
-    
+#    
 #    medx0 = (np.max(x0)-np.min(x0))/2 + np.min(x0)
 #    medy0 = (np.max(y0)-np.min(y0))/2 + np.min(y0)
 #    x0 = x0 - medx0
