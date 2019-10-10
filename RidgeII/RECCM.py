@@ -31,7 +31,7 @@ Edges0C  | 2D arr | Binary map found by CannyLin for base orthomosaic
 gt0C     | tuple  | Geotransform corresponding to Edges0C
 MaskB0C  | 2D arr | Binary map defining edges of base orthomosaic
 x_off    | int    | X-offset found in meters
-y_off    | int    | Y-offset found in meters 
+y_off    | int    | Y-offset found in meters
 CV1      | float  | Concentration value for the given match
 """
 def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
@@ -47,20 +47,20 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     b1 = int(min(x))
     b2 = int(max(x))
     b3 = int(min(y))
-    b4 = int(max(y)) 
+    b4 = int(max(y))
     target = Edges0C[b3:b4,b1:b2]
-    sum_target = np.sum(target)   
+    sum_target = np.sum(target)
     xd = int(round((b4-b3)/2))
-    yd = int(round((b2-b1)/2)) 
+    yd = int(round((b2-b1)/2))
     buffer = 2*max(xd,yd)
     edges1Ca = np.zeros((Edges1C.shape[0]+buffer*2,Edges1C.shape[1]+2*buffer))
     edges1Ca[buffer:-buffer,buffer:-buffer] = Edges1C
-    x0=b3+xd    
+    x0=b3+xd
     y0=b1+yd
-    lat_0 = gt0C[3] + gt0C[5]*x0  
+    lat_0 = gt0C[3] + gt0C[5]*x0
     lon_0 = gt0C[0] + gt0C[1]*y0
     xog = int(round((lat_0-gt1C[3])/(gt1C[5])))
-    yog = int(round((lon_0-gt1C[0])/(gt1C[1])))     
+    yog = int(round((lon_0-gt1C[0])/(gt1C[1])))
     search_wide = np.zeros((2*(max_dist+yd),2*(max_dist+xd)))
     search_wide = edges1Ca[buffer+xog-max_dist-xd:buffer+xog+max_dist+xd,buffer+yog-max_dist-yd:buffer+yog+max_dist+yd]
     RECC_total = np.zeros(Edges1C.shape)
@@ -86,11 +86,11 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         y1=0
         CV1=100
         print("Something something out of bounds again...")
-    else:   
+    else:
         RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
         max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
-        y1       = np.where(RECC_total >= max_one)[1][0]  
+        y1       = np.where(RECC_total >= max_one)[1][0]
         x1       = np.where(RECC_total >= max_one)[0][0]
         y_n      = np.where(RECC_total >= max_n)[1][0:-1]
         x_n      = np.where(RECC_total >= max_n)[0][0:-1]
@@ -112,14 +112,14 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         plt.plot([y0,yog],[x0,xog],c='g',lw=0.1,alpha=0.5)
         plt.scatter(yog,xog,c='g',s=1)
         plt.plot([yog,y1],[xog,x1],c='b',lw=0.1,alpha=0.5)
-        plt.scatter(y1,x1,c='b',s=1) 
+        plt.scatter(y1,x1,c='b',s=1)
         plt.close()
         plist.append(p)
     return plist,x_off,y_off,CV1
 
 
 """
-Setup certain variables before matching GCPs in DEM data. Define the grid, 
+Setup certain variables before matching GCPs in DEM data. Define the grid,
 buffer Edges1F, define w and md, and create clipping circles.
 ---
 plist    | list   | List for plots
@@ -145,7 +145,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     w = int(25/ps0F)
     buffer = 2*w
     Edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
-    Edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
+    Edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F
     Edges1Fa=(Edges1Fa).astype(np.uint8)
     if CV1>=4:
         md = 8
@@ -161,8 +161,8 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     polygon = Polygon(np.array(biggest_contour[:,0]))
     polygon = polygon.buffer(-w)
     while polygon.type == 'MultiPolygon':
-        polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]    
-    x,y = polygon.exterior.xy   
+        polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+    x,y = polygon.exterior.xy
     distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
     distance = distance/distance[-1]
     fx, fy = interp1d( distance, x ), interp1d( distance, y )
@@ -170,19 +170,19 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     x_regular, y_regular = fx(alpha), fy(alpha)
     grid = []
     for i in range(len(x_regular)):
-        grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+        grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
     if polygon.buffer(-2*w).is_empty == False:
         polygon = polygon.buffer(-2*w)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
-        x,y = polygon.exterior.xy   
+        x,y = polygon.exterior.xy
         distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
         distance = distance/distance[-1]
         fx, fy = interp1d( distance, x ), interp1d( distance, y )
         alpha = np.linspace(0, 1, 100)
         x_regular, y_regular = fx(alpha), fy(alpha)
         for i in range(len(x_regular)):
-            grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
     c1 = np.zeros((2*w,2*w))
     for x in range(c1.shape[0]):
         for y in range(c1.shape[1]):
@@ -199,8 +199,8 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
 
 
 """
-Function that controls the actual matching of each grid point to a patch in 
-the DEM up for georegistration. Takes output from IniMatch as input, divides 
+Function that controls the actual matching of each grid point to a patch in
+the DEM up for georegistration. Takes output from IniMatch as input, divides
 the grid in a number of batches, which are distributed over a number of logical
 processors. The actual matching is carried out by BatchMatch.
 ---
@@ -241,9 +241,9 @@ def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,x_off,y_off,CV1,grid,md,circle1,circ
     N=int(np.ceil(len(grid)/num_batches))
     pbar = tqdm(total=num_batches+1,position=0,desc="RECC(f)   ")
     x0=[];y0=[];xog=[];yog=[];xof=[];yof=[];x1=[];y1=[];CV=[];dx=[];dy=[];
-    results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)    
+    results = pool.imap_unordered(func,(grid[int(i*N):int((i+1)*N)] for i in range(num_batches)),chunksize=N)
     for re in results:
-        x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CV.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);         
+        x0.extend(re[0]);y0.extend(re[1]);xog.extend(re[2]);yog.extend(re[3]);xof.extend(re[4]);yof.extend(re[5]);x1.extend(re[6]);y1.extend(re[7]);CV.extend(re[8]);dx.extend(re[9]);dy.extend(re[10]);
         pbar.update(1)
     pool.close()
     pool.join()
@@ -268,21 +268,21 @@ def MulMatch(plist,Edges0F,Edges1F,Edges1Fa,x_off,y_off,CV1,grid,md,circle1,circ
         if x1[i] != 0 and y1[i] != 0:
             plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
     ind = np.where(x1!=0)
-    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
+    plt.scatter(y1[ind],x1[ind],c='y',s=1)
     plt.close()
     plist.append(p)
     pbar.update(1)
     pbar.close()
     return plist,x0,y0,x1,y1,CV,dx,dy
-   
-    
+
+
 """
-Function that carries out the Relative Edge Cross Correlation (RECC) matching 
-for a part of the grid. Note therefore that the grid passed to this function is 
-in fact a slice of the original grid. Each (x,y) is transformed to the 
+Function that carries out the Relative Edge Cross Correlation (RECC) matching
+for a part of the grid. Note therefore that the grid passed to this function is
+in fact a slice of the original grid. Each (x,y) is transformed to the
 corresponding (x,y) in the other DEM, then the offset is applied, and finally
 a match is found by considering a region around that last point, and convolving
-the target with a search region according to the RECC formula.   
+the target with a search region according to the RECC formula.
 ---
 w        | int    | Radius of the circular patch
 md       | int    | Maximum distance, the maximum feasable error in pixels
@@ -307,9 +307,9 @@ y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0 by a
 CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
 dx       | 1D arr | Array containing x-offset in meters for each match
 dy       | 1D arr | Array containing y-offset in meters for each match
-"""     
+"""
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
-    CV         = np.zeros(len(grid)) 
+    CV         = np.zeros(len(grid))
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
     xog        = np.zeros(len(grid)).astype(int)
@@ -320,7 +320,6 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
     y1         = np.zeros(len(grid)).astype(int)
     lat        = np.zeros(len(grid))
     lon        = np.zeros(len(grid))
-    #RECC_total = np.zeros(Edges1F.shape)
     for i in range(len(grid)):
         x0[i] = grid[i][1]
         y0[i] = grid[i][0]
@@ -334,7 +333,7 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
         if target.shape != (2*w,2*w):
             continue
         target[c1==0] = 0
-        sum_target = np.sum(target)     
+        sum_target = np.sum(target)
         search_wide = Edges1Fa[2*w+xof[i]-md-w:2*w+xof[i]+md+w,2*w+yof[i]-md-w:2*w+yof[i]+md+w]
         if search_wide.shape != (2*(md+w),2*(md+w)):
             continue
@@ -343,15 +342,20 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
         RECC_wide = numerator / (sum_patch+sum_target)
         RECC_area = RECC_wide[w:-w,w:-w]
         RECC_area[c2==0]=np.NaN
-        max_one  = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-1)[-1]
-        max_n    = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-4-1)[-4-1]
+        if RECC_area.shape != (2*md,2*md):
+            continue
+        try:
+            max_one  = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-1)[-1]
+            max_n    = np.partition(RECC_area[~np.isnan(RECC_area)].flatten(),-4-1)[-4-1]
+        except:
+            continue
         x,y = np.where(RECC_area >= max_one)
-        y1[i]    = y[0] 
+        y1[i]    = y[0]
         x1[i]    = x[0]
         x,y = np.where(RECC_area >= max_n)
         y_n = y[0:-1]
         x_n = x[0:-1]
-        CV[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4 
+        CV[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
         x1[i] = x1[i] + xof[i]-md
         y1[i] = y1[i] + yof[i]-md
     dx = (x1-xof)*0.05
@@ -360,8 +364,8 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
 
 
 """
-Outlier removal procedure. First it is checked whether gridpoints have gone 
-out of bounds by lat-lon tranformation to the other DEM. After this, a second 
+Outlier removal procedure. First it is checked whether gridpoints have gone
+out of bounds by lat-lon tranformation to the other DEM. After this, a second
 order fit is created in an iterative manner. On the final iteration only points
 that have a (dx,dy) offset close enough to the fitted function are kept.
 ---
@@ -402,7 +406,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     plt.scatter(y1,x1,s=1,c=clist)
     plt.close()
     plist.append(p)
-    clist = np.array(clist)    
+    clist = np.array(clist)
     indices = np.where(CV>-1)[0]
     dist_range = [1.5,1,0.5,0.25,0.1]
     for dist in dist_range:
@@ -414,7 +418,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
         delta_y = dy - supposed_dy
         distance = np.sqrt(np.square(delta_x) + np.square(delta_y))
         radius = dist
-        indices = np.where(distance.T <= radius)[0] 
+        indices = np.where(distance.T <= radius)[0]
     inv_indices = []
     for i in range(len(dx)):
         if i not in indices:
@@ -426,7 +430,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     ax.scatter(x0[inv_indices],y0[inv_indices],dx[inv_indices],c='r',marker='o')
     ax.set_zlim(min(dx)-0.05, max(dx)+0.05)
     plt.close()
-    plist.append(p)   
+    plist.append(p)
     p = plt.figure()
     ax = p.add_subplot(111, projection='3d')
     ax.scatter(x0,y0,supposed_dy,c='b',marker='o',alpha=0.2)
@@ -441,9 +445,9 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     y1        = y1[indices]
     CV        = CV[indices]
     clist     = clist[indices]
-    size2=len(x0)  
+    size2=len(x0)
     GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
-    print(GCPstat) 
+    print(GCPstat)
     clist = list(clist)
     p = plt.figure()
     plt.subplot(1,2,1)
@@ -459,7 +463,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     plt.close()
     plist.append(p)
     return plist,x0,y0,x1,y1,CV,dx,dy,GCPstat
-           
+
 
 """
 Convert (x0,y0) - (x1,y1) to (lat,lon) - (lat,lon) tranformation and place it
@@ -482,7 +486,7 @@ def MakePnts(path,x0,y0,x1,y1,gt0F,gt1F):
     target_lon = gt0F[0]+gt0F[1]*y0
     origin_lat = gt1F[3]+gt1F[5]*x1
     origin_lon = gt1F[0]+gt1F[1]*y1
-    dest = path.strip(".tif")+".points" 
+    dest = path.strip(".tif")+".points"
     if os.path.isfile(dest.replace("\\","/")):
         os.remove(dest)
     f = open(dest,"w+")
@@ -494,7 +498,7 @@ def MakePnts(path,x0,y0,x1,y1,gt0F,gt1F):
     pbar3.update(1)
     pbar3.close()
     return f1
-    
+
 
 """
 ###############################################################################
@@ -502,14 +506,14 @@ Archived functions below.
 Mostly replaced by improved functions.
 ###############################################################################
 """
- 
+
 
 #def PatchMatch(plist,Edges1F, gt1F, fx1F, fy1F, Edges0F, gt0F, fx0F, fy0F, MaskB0F,x_off,y_off,CV1):
 #    ps0F = 0.05
 #    w = int(25/ps0F)
 #    buffer = 2*w
 #    edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
-#    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F    
+#    edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F
 #    if CV1>4:
 #        md = 10
 #    elif CV1<1.5:
@@ -530,7 +534,7 @@ Mostly replaced by improved functions.
 #        polygon = polygon.buffer(-v)
 #    if v != w:
 #        print("WARNING   : Polygon-buffer: "+str(v*ps0F)+" < 25...")
-#    x,y = polygon.exterior.xy   
+#    x,y = polygon.exterior.xy
 #    distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
 #    distance = distance/distance[-1]
 #    fx, fy = interp1d( distance, x ), interp1d( distance, y )
@@ -538,18 +542,18 @@ Mostly replaced by improved functions.
 #    x_regular, y_regular = fx(alpha), fy(alpha)
 #    grid = []
 #    for i in range(len(x_regular)):
-#        grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
+#        grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
 #    if polygon.buffer(-2*w).is_empty == False:
 #        polygon = polygon.buffer(-2*w)
-#        x,y = polygon.exterior.xy   
+#        x,y = polygon.exterior.xy
 #        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
 #        distance = distance/distance[-1]
 #        fx, fy = interp1d( distance, x ), interp1d( distance, y )
 #        alpha = np.linspace(0, 1, 100)
 #        x_regular, y_regular = fx(alpha), fy(alpha)
 #        for i in range(len(x_regular)):
-#            grid.append((int(round(x_regular[i])),int(round(y_regular[i])))) 
-#    CVa        = np.zeros(len(grid)) 
+#            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+#    CVa        = np.zeros(len(grid))
 #    x0         = np.zeros(len(grid)).astype(int)
 #    y0         = np.zeros(len(grid)).astype(int)
 #    xog        = np.zeros(len(grid)).astype(int)
@@ -578,7 +582,7 @@ Mostly replaced by improved functions.
 #        x0[i] = grid[i][1]
 #        y0[i] = grid[i][0]
 #        target_lon[i] = gt0F[0] + gt0F[1]*y0[i]*fy0F
-#        target_lat[i] = gt0F[3] + gt0F[5]*x0[i]*fx0F  
+#        target_lat[i] = gt0F[3] + gt0F[5]*x0[i]*fx0F
 #        xog[i] = int(round((target_lat[i]-gt1F[3])/(gt1F[5]*fx1F)))
 #        yog[i] = int(round((target_lon[i]-gt1F[0])/(gt1F[1]*fy1F)))
 #        xof[i] = int(round(xog[i] + x_off/ps0F))
@@ -587,7 +591,7 @@ Mostly replaced by improved functions.
 #        if target.shape != (2*w,2*w):
 #            continue
 #        target = target*circle1
-#        sum_target = np.sum(target)     
+#        sum_target = np.sum(target)
 #        search_wide = np.zeros((2*(max_dist+w),2*(max_dist+w)))
 #        search_wide = edges1Fa[buffer+xof[i]-max_dist-w:buffer+xof[i]+max_dist+w,buffer+yof[i]-max_dist-w:buffer+yof[i]+max_dist+w]
 #        if search_wide.shape != (2*(max_dist+w),2*(max_dist+w)):
@@ -602,15 +606,15 @@ Mostly replaced by improved functions.
 #        RECC_total[xof[i]-max_dist:xof[i]+max_dist,yof[i]-max_dist:yof[i]+max_dist] = RECC_area
 #        max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
 #        max_n    = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-4-1)[-4-1]
-#        y1[i]    = np.where(RECC_total >= max_one)[1][0]  
+#        y1[i]    = np.where(RECC_total >= max_one)[1][0]
 #        x1[i]    = np.where(RECC_total >= max_one)[0][0]
 #        y_n      = np.where(RECC_total >= max_n)[1][0:-1]
 #        x_n      = np.where(RECC_total >= max_n)[0][0:-1]
 #        CVa[i] = sum(np.sqrt(np.square(x1[i]-x_n)+np.square(y1[i]-y_n)))/4
 #        origin_x[i] = x1[i]*fx1F
-#        origin_y[i] = y1[i]*fy1F    
+#        origin_y[i] = y1[i]*fy1F
 #    dx = (x1-xof)*ps0F
-#    dy = (y1-yof)*ps0F 
+#    dy = (y1-yof)*ps0F
 #    p = plt.figure()
 #    plt.subplot(1,2,1)
 #    plt.title("Patch")
@@ -631,7 +635,7 @@ Mostly replaced by improved functions.
 #        if x1[i] != 0 and y1[i] != 0:
 #            plt.plot([yof[i],y1[i]],[xof[i],x1[i]],c='y',lw=0.1,alpha=0.5)
 #    ind = np.where(x1!=0)
-#    plt.scatter(y1[ind],x1[ind],c='y',s=1)   
+#    plt.scatter(y1[ind],x1[ind],c='y',s=1)
 #    plt.close()
 #    plist.append(p)
 #    plt.figure(257)
@@ -687,13 +691,13 @@ Mostly replaced by improved functions.
 #        i = [0,0]
 #        binnnn = len(sub_d_x)/10
 #        while len(i) > 1:
-#            binnnn -= 1 
+#            binnnn -= 1
 #            f,g,h = np.histogram2d(sub_d_x,sub_d_y,bins=binnnn)
 #            i,j = np.where(f==np.max(f))
 #        diff = (b[d]-g[i])**2 + (c[e]-h[j])**2
 #        ind = np.where(diff == np.min(diff))[0]
 #        d = d[ind]
-#        e = e[ind]    
+#        e = e[ind]
 #    x_offset = (b[d]+b[d+1])/2
 #    y_offset = (c[e]+c[e+1])/2
 #    delta_x = dx - x_offset
@@ -711,16 +715,16 @@ Mostly replaced by improved functions.
 #    y1        = y1[indices]
 #    CVa       = CVa[indices]
 #    clist     = clist[indices]
-#    size2=len(x0)  
-#    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]") 
+#    size2=len(x0)
+#    print("GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]")
 #    gcplist_DEM = []
-#    for k in range(len(origin_x)): 
+#    for k in range(len(origin_x)):
 #        gcplist_DEM.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
 #    gto = gdal.Open(files[iiii]).GetGeoTransform()
 #    origin_x = ((gt1F[3]+gt1F[5]*origin_x) - gto[3])/gto[5]
 #    origin_y = ((gt1F[0]+gt1F[1]*origin_y) - gto[0])/gto[1]
 #    gcplist = []
-#    for k in range(len(origin_x)): 
+#    for k in range(len(origin_x)):
 #        gcplist.append(gdal.GCP(target_lon[k],target_lat[k],0,origin_y[k],origin_x[k]))
 #    clist = list(clist)
 #    p = plt.figure(258)
@@ -740,7 +744,7 @@ Mostly replaced by improved functions.
 #        temp = files[i][::-1]
 #        temp2 = temp[:temp.find("/")]
 #        src = temp2[::-1]
-#        dest = files[i].strip(".tif")+"_GR.vrt"  
+#        dest = files[i].strip(".tif")+"_GR.vrt"
 #        if os.path.isfile(dest.replace("\\","/")):
 #            os.remove(dest)
 #        temp = gdal.Translate('',files[i],format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist)
@@ -755,12 +759,12 @@ Mostly replaced by improved functions.
 #        os.remove(dest)
 #        move(abs_path, dest)
 #        pbar3.update(1)
-#       
+#
 #        file = files[i].strip(".tif")+"_DEM.tif"
 #        temp = file[::-1]
 #        temp2 = temp[:temp.find("/")]
 #        src = temp2[::-1]
-#        dest = file.strip(".tif")+"_GR.vrt"  
+#        dest = file.strip(".tif")+"_GR.vrt"
 #        if os.path.isfile(dest.replace("\\","/")):
 #            os.remove(dest)
 #        temp = gdal.Translate('',file,format='VRT',outputSRS= 'EPSG:4326',GCPs=gcplist_DEM)
@@ -776,12 +780,12 @@ Mostly replaced by improved functions.
 #        move(abs_path, dest)
 #        pbar3.update(1)
 #        pbar3.close()
-#    
+#
 #    medx0 = (np.max(x0)-np.min(x0))/2 + np.min(x0)
 #    medy0 = (np.max(y0)-np.min(y0))/2 + np.min(y0)
 #    x0 = x0 - medx0
 #    y0 = y0 - medy0
-#    
+#
 #    A = []
 #    bdx = []
 #    bdy = []
@@ -794,24 +798,24 @@ Mostly replaced by improved functions.
 #    A = np.matrix(A)
 #    W = np.diag(1/CVa[ind])
 #    W = (W/np.sum(W))*len(CVa)
-#    
+#
 #    ErrorFunc_dx=lambda fit: np.ravel(W*(bdx - np.dot(A,fit)))
 #    ErrorFunc_dy=lambda fit: np.ravel(W*(bdy - np.dot(A,fit)))
-#    
+#
 #    fdx = [0,0,0,0,0,np.median(dx[ind])]
 #    fdx,flagx = optimize.leastsq(ErrorFunc_dx,fdx)
 #    fdy = [0,0,0,0,0,np.median(dy[ind])]
 #    fdy,flagy = optimize.leastsq(ErrorFunc_dy,fdy)
-#    
+#
 #    ErrorFunc_dx=lambda fit: np.sum((W*(bdx - np.dot(A,fit)))**2)
 #    ErrorFunc_dy=lambda fit: np.sum((W*(bdy - np.dot(A,fit)))**2)
-#    
-#    
+#
+#
 #    fdx = [1,1,1,1,1,np.median(dx[ind])]
 #    fdx = optimize.minimize(ErrorFunc_dx,fdx,method='Nelder-Mead',tol=0.1,options={'maxiter':100,'maxfun':500,'adaptive':True})
 #    fdy = [0,0,0,0,0,np.median(dy[ind])]
 #    fdy = optimize.minimize(ErrorFunc_dy,fdy,options={'maxiter':5000}).x
-#    
+#
 #    supposed_dx = fdx[0]*x0+fdx[1]*y0+fdx[2]*(x0*y0)+fdx[3]*(x0**2)+fdx[4]*(y0**2)+fdx[5]
 #    supposed_dy = fdy[0]*x0+fdy[1]*y0+fdy[2]*(x0*y0)+fdy[3]*(x0**2)+fdy[4]*(y0**2)+fdy[5]
 #

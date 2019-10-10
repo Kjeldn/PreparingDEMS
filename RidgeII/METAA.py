@@ -57,12 +57,13 @@ def FindFile(inbox):
     pathlist=[]
     for root, dirs, files in walk_level(inbox, level=0):
         for name in files:
-            if name[-4:] == ".tif":
-                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                    pathlist.append(os.path.join(root,name).replace("\\","/"))
-            if name[-7:] == "-GR.tif":
-                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                    pathlist.append(os.path.join(root,name).replace("\\","/"))
+            if "DEM" not in name:
+                if name[-4:] == ".tif":
+                    if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                        pathlist.append(os.path.join(root,name).replace("\\","/"))
+                if name[-7:] == "-GR.tif":
+                    if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                        pathlist.append(os.path.join(root,name).replace("\\","/"))
     pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
     plist = []
     plt.ioff()
@@ -380,18 +381,19 @@ def walk_folder(folder,company,parcel):
     candidates = []
     for root, dirs, files in os.walk(folder, topdown=True):
         for name in files:
-            if name[-4:] == ".tif" or name[-4:] == ".vrt":
-                if filename_to_info(name)[0] == company:
-                    if filename_to_info(name)[1] == parcel:
-                        if name[-7:] == "-GR.tif":
-                            if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                                candidates.append(os.path.join(root,name).replace("\\","/"))
-                        elif name[-7:] == "-GR.vrt":
-                            if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
-                                candidates.append(os.path.join(root,name).replace("\\","/"))
-                        else:
-                            if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                candidates.append(os.path.join(root,name).replace("\\","/"))    
+            if "DEM" not in name:
+                if name[-4:] == ".tif" or name[-4:] == ".vrt":
+                    if filename_to_info(name)[0] == company:
+                        if filename_to_info(name)[1] == parcel:
+                            if name[-7:] == "-GR.tif":
+                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                            elif name[-7:] == "-GR.vrt":
+                                if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))
+                            else:
+                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
+                                    candidates.append(os.path.join(root,name).replace("\\","/"))    
     return candidates
 
 
