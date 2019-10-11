@@ -47,7 +47,7 @@ y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0
 CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
 dx       | 1D arr | Array containing x-offset in meters for each match
 dy       | 1D arr | Array containing y-offset in meters for each match
-GCPstat  | str    | Contains the status of matches or GCP's after outlier removal
+GCPstat  | tuple  | Contains the status of matches or GCP's after outlier removal
 f1       | int    | Flag for creation of .points file
 f2       | int    | Flag for creation of .vrt files
 f3       | int    | Flag for moving files to corresponding folders
@@ -71,4 +71,4 @@ if __name__ == '__main__':
         plist                                    = METAA.SaveFigs(plist,path,base,rec,GCPstat)
         f1                                       = RECCM.MakePnts(path,x0,y0,x1,y1,gt0F,gt1F)
         f2                                       = GEORE.MakeVRTs(path)
-        f3                                       = METAA.MoveFile(path,rtu,nrtu,dstr,rec,grid,f1)    
+        f3                                       = METAA.MoveFile(path,rtu,nrtu,dstr,rec,GCPstat)    

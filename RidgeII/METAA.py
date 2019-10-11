@@ -236,7 +236,7 @@ plist    | list   | List for figures
 path     | str    | Path to the orthomosaic up for georegistration
 base     | str    | Path to the orthomosaic that will be used as base
 rec      | str    | Path to receipt
-GCPstat  | str    | Contains the status of matches or GCP's after outlier removal
+GCPstat  | tuple  | Contains the status of matches or GCP's after outlier removal
 """
 def SaveFigs(plist,path,base,rec,GCPstat):
     pbar1 = tqdm(total=1,position=0,desc="CapFigures")
@@ -254,7 +254,7 @@ def SaveFigs(plist,path,base,rec,GCPstat):
     f.write("\n"+time.strftime("%Y/%m/%d")+" - "+time.strftime("%H:%M"))
     f.write("\n"+"BASE: "+base)
     f.write("\n"+"FILE: "+path)
-    f.write("\n"+GCPstat)
+    f.write("\n"+GCPstat[1])
     f.close()
     pp.close()
     pbar1.update(1)
@@ -276,14 +276,12 @@ rtu      | str    | Path to ready to upload
 nrtu     | str    | Path to not ready to upload
 dstr     | str    | Path to rectified dems and points
 rec      | str    | Path to receipt
-grid     | list   | List of 200 or 300 x,y tuples that form a grid in Edges0F
-f2       | int    | Flag for creation of .vrt files
-f3       | int    | Flag for moving files to corresponding folders
+GCPstat  | tuple  | Contains the status of matches or GCP's after outlier removal
 """
-def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
+def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat):
     pbar1 = tqdm(total=1,position=0,desc="MoveFiles ")
     f3 = 0
-    if f2 > 0.6*len(grid):
+    if GCPstat[0] == 1:
         shutil.move(path,rtu+"\\"+path_to_filename(path))
         shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
         shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
@@ -297,7 +295,7 @@ def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
         shutil.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
         shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")
         shutil.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path)[:-4]+".points")
-        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
+        shutil.move(path[:-4]+"_LOG.pdf",nrtu+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
         f3 = 2
     pbar1.update(1)
     pbar1.close()

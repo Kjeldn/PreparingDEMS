@@ -143,9 +143,9 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
 
     ps0F = 0.05
     w = int(25/ps0F)
-    buffer = 2*w
-    Edges1Fa = np.zeros((Edges1F.shape[0]+buffer*2,Edges1F.shape[1]+2*buffer))
-    Edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F
+    buff = w
+    Edges1Fa = np.zeros((Edges1F.shape[0]+buff*2,Edges1F.shape[1]+2*buff))
+    Edges1Fa[buff:-buff,buff:-buff] = Edges1F
     Edges1Fa=(Edges1Fa).astype(np.uint8)
     if CV1>=4:
         md = 5
@@ -154,7 +154,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
         md = 2
     else:
         md = 2 + 3*((CV1-1.5)/2.5)
-    md=5
+    md=6
     md = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -310,6 +310,7 @@ dx       | 1D arr | Array containing x-offset in meters for each match
 dy       | 1D arr | Array containing y-offset in meters for each match
 """
 def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
+    buff       = w
     CV         = np.zeros(len(grid))
     x0         = np.zeros(len(grid)).astype(int)
     y0         = np.zeros(len(grid)).astype(int)
@@ -335,8 +336,8 @@ def BatchMatch(w,md,Edges0F,Edges1F,Edges1Fa,c1,c2,gt0F,gt1F,x_off,y_off,grid):
             continue
         target[c1==0] = 0
         sum_target = np.sum(target)
-        search_wide = Edges1Fa[2*w+xof[i]-md-w:2*w+xof[i]+md+w,2*w+yof[i]-md-w:2*w+yof[i]+md+w]
-        if search_wide.shape != (2*(md+w),2*(md+w)):
+        search_wide = Edges1Fa[buff+xof[i]-md-w:buff+xof[i]+md+w,buff+yof[i]-md-w:buff+yof[i]+md+w]
+        if search_wide.shape != (2*(md+w),2*(md+w)) or np.sum(search_wide) == 0:
             continue
         sum_patch = cv2.filter2D(search_wide.astype(float),-1,c1.astype(float))
         numerator = cv2.filter2D(search_wide.astype(float),-1,target.astype(float))
@@ -380,7 +381,7 @@ y1       | 1D arr | Array containing y-pixel in Edges1F corresponding to y0
 CV       | 1D arr | Array with concentration values corresponding to each (x0,y0) - (x1,y1) match
 dx       | 1D arr | Array containing x-offset in meters for each match
 dy       | 1D arr | Array containing y-offset in meters for each match
-GCPstat  | str    | Contains the status of matches or GCP's after outlier removal
+GCPstat  | tuple  | Contains the status of matches or GCP's after outlier removal
 """
 def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     size0 = len(x0)
@@ -449,6 +450,10 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     size2=len(x0)
     GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
     print(GCPstat)
+    YN = 0
+    if size2/size1 > 0.6:
+        YN = 1
+    GCPstat = (YN,GCPstat)
     clist = list(clist)
     p = plt.figure()
     plt.subplot(1,2,1)

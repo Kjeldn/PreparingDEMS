@@ -87,8 +87,10 @@ for tif in path:
     os.remove(dem_d)
     move(abs_path, dem_d)
     
-    move(tif,rtu+"\\"+METAA.path_to_filename(tif))
+    del tif_d,dem_d,abs_path,temp
+    
     move(tif[:-4]+"-GR.vrt",rtu+"\\"+METAA.path_to_filename(tif)[:-4]+"-GR.vrt")
-    move(METAA.path_to_path_dem(tif),dstr+"\\"+METAA.path_to_filename(METAA.path_to_path_dem(tif)))
-    move(METAA.path_to_path_dem(tif)[:-4]+"-GR.vrt",dstr+"\\"+METAA.path_to_filename(METAA.path_to_path_dem(tif))[:-4]+"-GR.vrt")   
-    move(tif[:-4]+".points",dstr+"\\"+METAA.path_to_filename(tif)[:-4]+".points") 
+    move(dem[:-4]+"-GR.vrt",dstr+"\\"+METAA.path_to_filename(dem)[:-4]+"-GR.vrt")
+    move(tif[:-4]+".points",dstr+"\\"+METAA.path_to_filename(tif)[:-4]+".points")
+    move(tif,rtu+"\\"+METAA.path_to_filename(tif))
+    move(dem,dstr+"\\"+METAA.path_to_filename(dem))
