@@ -36,7 +36,7 @@ CV1      | float  | Concentration value for the given match
 """
 def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
     psC = 0.5
-    md = 6
+    md = 5
     pbar = tqdm(total=1,position=0,desc="RECC(c)   ")
     max_dist = int((md)/psC)
     contours,hierarchy = cv2.findContours((1-MaskB0C).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -148,12 +148,12 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     Edges1Fa[buffer:-buffer,buffer:-buffer] = Edges1F
     Edges1Fa=(Edges1Fa).astype(np.uint8)
     if CV1>=4:
-        md = 8
+        md = 5
         x_off=0;y_off=0
     elif CV1<=1.5:
-        md = 4
+        md = 2
     else:
-        md = 4 + 4*((CV1-1.5)/2.5)
+        md = 2 + 3*((CV1-1.5)/2.5)
     md=5
     md = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)

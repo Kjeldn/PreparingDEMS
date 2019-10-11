@@ -286,8 +286,6 @@ def MoveFile(path,rtu,nrtu,dstr,rec,grid,f2):
     if f2 > 0.6*len(grid):
         shutil.move(path,rtu+"\\"+path_to_filename(path))
         shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
-        shutil.copy(path_to_path_dem(path),rtu+"\\"+path_to_filename(path_to_path_dem(path)))
-        shutil.copy(path_to_path_dem(path)[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")
         shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
         shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
         shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
@@ -330,6 +328,14 @@ def path_to_filename(path):
 
 
 """
+Retrieves the folder in which the file is placed.
+"""
+def path_to_folder(path):
+    folpath,p = os.path.split(path)
+    p,folder = os.path.split(folpath)
+    return folder
+
+"""
 Extracts company, parcel, and date information from the filename.
 """
 def filename_to_info(filename):
@@ -358,6 +364,8 @@ def filename_to_info(filename):
 Adjusts the path of an orthomosaic to the corresponding path for the DEM.
 """
 def path_to_path_dem(path):
+    if path_to_folder(path) == "2_ready_to_upload":
+        path = path.replace("2_ready_to_upload","00_rectified_DEMs_points")
     if path[-4:] == ".vrt":
         path_dem = path[:-4]
         if path_dem[-3:] == "-GR":
@@ -385,15 +393,8 @@ def walk_folder(folder,company,parcel):
                 if name[-4:] == ".tif" or name[-4:] == ".vrt":
                     if filename_to_info(name)[0] == company:
                         if filename_to_info(name)[1] == parcel:
-                            if name[-7:] == "-GR.tif":
-                                if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
-                            elif name[-7:] == "-GR.vrt":
-                                if os.path.exists(os.path.join(root,name).replace("-GR.vrt","_DEM-GR.vrt")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))
-                            else:
-                                if os.path.exists(os.path.join(root,name).replace(".tif","_DEM.tif")) == True:
-                                    candidates.append(os.path.join(root,name).replace("\\","/"))    
+                            if os.path.exists(path_to_path_dem(os.path.join(root,name))) == True:
+                                candidates.append(os.path.join(root,name).replace("\\","/"))
     return candidates
 
 
