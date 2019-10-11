@@ -136,7 +136,7 @@ c1       | 2D arr | Binary circle for clipping a patch
 c2       | 2D arr | Binary circle for clipping of a search map
 """
 def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
-    # Nullify impact of Ort + Canny + SinglMatch:
+    # Nullify impact of OpenOrth + CannyLin + OneMatch:
     x_off = 0
     y_off = 0
     CV1 = 1.5
