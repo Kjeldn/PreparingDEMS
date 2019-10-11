@@ -71,4 +71,4 @@ if __name__ == '__main__':
         plist                                    = METAA.SaveFigs(plist,path,base,rec,GCPstat)
         f1                                       = RECCM.MakePnts(path,x0,y0,x1,y1,gt0F,gt1F)
         f2                                       = GEORE.MakeVRTs(path)
-        f3                                       = METAA.MoveFile(path,rtu,nrtu,dstr,rec,grid,f2)    
+        f3                                       = METAA.MoveFile(path,rtu,nrtu,dstr,rec,grid,f1)    

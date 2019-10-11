@@ -19,7 +19,7 @@ path     | str    | Path to the orthomosaic up for georegistration
 """
 def MakeVRTs(path):
     pbar1 = tqdm(total=1,position=0,desc="CreateVRTs")
-    flag = 0
+    f2 = 0
     if "\\" in path:
         folder = path[::-1][path[::-1].find("\\"):][::-1]
     else:
@@ -100,7 +100,7 @@ def MakeVRTs(path):
         os.remove(dem_d)
         move(abs_path, dem_d)
         
-    flag = len(gcp_t)
+    f2 = len(gcp_t)
     pbar1.update(1)
     pbar1.close()
-    return flag
+    return f2

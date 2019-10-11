@@ -154,6 +154,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
         md = 4
     else:
         md = 4 + 4*((CV1-1.5)/2.5)
+    md=5
     md = int((md)/(ps0F))
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
@@ -171,7 +172,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     grid = []
     for i in range(len(x_regular)):
         grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
-    if polygon.buffer(-2*w).is_empty == False:
+    if polygon.buffer(-3*w).is_empty == False:
         polygon = polygon.buffer(-2*w)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
@@ -492,8 +493,8 @@ def MakePnts(path,x0,y0,x1,y1,gt0F,gt1F):
     f = open(dest,"w+")
     f.write("mapX,mapY,pixelX,pixelY,enable,dX,dY,residual")
     for i in range(len(target_lon)):
-        f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")
-        f1=1
+        f.write("\n"+str(target_lon[i])+","+str(target_lat[i])+","+str(origin_lon[i])+","+str(origin_lat[i])+",1,0,0,0")    
+        f1=len(x0)
     f.close()
     pbar3.update(1)
     pbar3.close()
