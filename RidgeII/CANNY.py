@@ -1,41 +1,52 @@
 import METAA
+
 import cv2
+import copy
+import warnings
 import numpy as np
 import numpy.matlib
-import matplotlib.pyplot as plt
-from random import randint
-from math import cos, sin, asin, sqrt, radians, log, tan, exp, atan2, atan
-import warnings
-import copy
-warnings.simplefilter(action = "ignore", category = RuntimeWarning)
-warnings.filterwarnings("ignore")
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from math import sqrt, log, exp, atan2
 
-def CannyLines(plist,Img0C,img_b,mask_b):
-    pixel_size = 0.5
-    if pixel_size == 0.05:
-        size=6
-    else:
-        size=5
-    pbar1 = tqdm(total=size,position=0,desc="CannyPF   ")
+warnings.filterwarnings("ignore")
+warnings.simplefilter(action = "ignore", category = RuntimeWarning)
+
+
+"""
+Combined function that performs both CannyPF and CannyLines (Lu et al. 2015). 
+Takes only the grayscale image (full image included for plots) and returns a
+binary map with edges.
+---
+plist    | list   | List for plots
+img      | 3D arr | Rescaled and equalised orthomosaic                         (Img0C/Img1C)
+img_b    | 2D arr | Rescaled, equalised, grayscaled and blurred orthomosaic    (ImgB0C/ImgB1C)
+mask_b   | 2D arr | Binary map defining edges of orthomosaic                   (MaskB0C/MaskB1C)
+"""
+def CannyLin(plist,img,img_b,mask_b):
+    """
+    (1/2) CannyPF procedure. Takes grayscale image and returns edges, gradient
+    values, and orientation values. The edgemap is created using cv2.Canny,
+    whose thresholds are set by examining the gradientMap of the image.
+    ---
+    gradientMap    | 2D arr | Gradient in pixelvalue, created using double Sobel kernels
+    edgemap        | 2D arr | Binary map created using CannyPF procedure
+    orientationMap | 2D arr | Angle of gradient in pixel values
+    gradientPoints | list   | List with coordinates of pixels in edgemap
+    gradientValues | list   | List with the value of gradientMap for pixels in edgemap
+    """
+    pbar1 = tqdm(total=5,position=0,desc="CannyPF   ")
     rows = img_b.shape[0]
     cols = img_b.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
     gNoise = 1.33333
     VMGradient = 70
-    k=3
     gradientMap = np.zeros(img_b.shape)
-    dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
-    dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=k, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    dx = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=1, dy=0, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
+    dy = cv2.Sobel(src=img_b,ddepth=cv2.CV_16S, dx=0, dy=1, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_REPLICATE)
     pbar1.update(1)
     dx[mask_b>=10**-10]=0
     dy[mask_b>=10**-10]=0
-    if k == 5:
-        dx = dx/13.4
-        dy = dy/13.4
-    if k == 7:
-        dx = dx/47.5
-        dy = dy/47.5
     totalNum = 0
     histogram = np.zeros(255*8)
     for i in range(gradientMap.shape[0]):
@@ -98,19 +109,18 @@ def CannyLines(plist,Img0C,img_b,mask_b):
     gradientPoints = gradientPoints[::-1]
     gradientValues = gradientValues[::-1]  
     pbar1.update(1)
-    if pixel_size == 0.05: # SECOND PIXELSIZE
-        mask2 = np.zeros(img_b.shape)
-        mask2[img_b==0] = 1
-        for x in range(edgemap.shape[0]):
-            for y in range(edgemap.shape[1]):
-                if edgemap[x,y] == 255:
-                    if np.sum(mask2[x-2:x+2,y-2:y+2]) >= 1:
-                        edgemap[x,y] = 0
-        pbar1.update(1)
     pbar1.close()
     rows = edgemap.shape[0]
     cols = edgemap.shape[1]
     thMeaningfulLength = int(2*log(rows*cols)/log(8)+0.5)
+    """
+    (2/2) Partial CannyLines procedure. Takes the edgemap created by CannyPF 
+    (and more information), and returns 'meaningful' line segments within 
+    the map.
+    ---
+    EdgeChainsA | list   | List of list that contain tuples of coordinates within a 'chain' or 'line segment'.
+    mapA        | 2D arr | Binary map that contains only the linked pixels that are in a line segment.
+    """
     pbar2 = tqdm(total=6,position=0,desc="CannyLines")
     # [A] Initial Chains
     edgeChainsA = []    
@@ -131,193 +141,196 @@ def CannyLines(plist,Img0C,img_b,mask_b):
             chain = np.array(chain)       
     pbar2.update(1)
     # [B] Splitting orientation shifts
-    edgeChainsB = copy.deepcopy(edgeChainsA)
-    for i in range(len(edgeChainsB)-1,-1,-1):
-        if len(edgeChainsB[i]) >= 2*thMeaningfulLength: 
-            orientationchain = []
-            for x in edgeChainsB[i]:
-                orientationchain.append(orientationMap[x[0],x[1]])
-            av = METAA.moving_average(orientationchain, n=7)
-            avchain = np.zeros(len(orientationchain))
-            avchain[0:3] = av[0]
-            avchain[3:-3] = av
-            avchain[-3:] = av[-1]
-            d = np.diff(avchain)
-            for j in range(len(d)):
-                if abs(d[j]) >= 0.3:
-                    edgeChainsB.append(edgeChainsB[i][0:j])
-                    edgeChainsB.append(edgeChainsB[i][j:])
-                    del edgeChainsB[i] 
-    edgeChainsB = [x for x in edgeChainsB if x != []] 
+#    edgeChainsB = copy.deepcopy(edgeChainsA)
+#    for i in range(len(edgeChainsB)-1,-1,-1):
+#        if len(edgeChainsB[i]) >= 2*thMeaningfulLength: 
+#            orientationchain = []
+#            for x in edgeChainsB[i]:
+#                orientationchain.append(orientationMap[x[0],x[1]])
+#            av = METAA.moving_average(orientationchain, n=7)
+#            avchain = np.zeros(len(orientationchain))
+#            avchain[0:3] = av[0]
+#            avchain[3:-3] = av
+#            avchain[-3:] = av[-1]
+#            d = np.diff(avchain)
+#            for j in range(len(d)):
+#                if abs(d[j]) >= 0.3:
+#                    edgeChainsB.append(edgeChainsB[i][0:j])
+#                    edgeChainsB.append(edgeChainsB[i][j:])
+#                    del edgeChainsB[i] 
+#    edgeChainsB = [x for x in edgeChainsB if x != []] 
     pbar2.update(1)
     # [B] Line fitting     
-    metaLinesB = []
-    lengthB = []
-    for i in range(len(edgeChainsB)):
-        chain = np.array(edgeChainsB[i])
-        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
-        xmin = min(chain[:,1])
-        xmax = max(chain[:,1])
-        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
-        yn = np.polyval([m, c], xn)
-        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
-        metaLinesB.append((xn,yn,m,c))
-        lengthB.append(l)
-    lengthB = np.array(lengthB)
-    metaLinesB = np.array(metaLinesB)
-    edgeChainsB = np.array(edgeChainsB)
-    indices = lengthB.argsort()
-    indices = indices[::-1]
-    metaLinesB = metaLinesB[indices] 
-    edgeChainsB = edgeChainsB[indices]
-    lengthB = lengthB[indices]   
+#    metaLinesB = []
+#    lengthB = []
+#    for i in range(len(edgeChainsB)):
+#        chain = np.array(edgeChainsB[i])
+#        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
+#        xmin = min(chain[:,1])
+#        xmax = max(chain[:,1])
+#        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
+#        yn = np.polyval([m, c], xn)
+#        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
+#        metaLinesB.append((xn,yn,m,c))
+#        lengthB.append(l)
+#    lengthB = np.array(lengthB)
+#    metaLinesB = np.array(metaLinesB)
+#    edgeChainsB = np.array(edgeChainsB)
+#    indices = lengthB.argsort()
+#    indices = indices[::-1]
+#    metaLinesB = metaLinesB[indices] 
+#    edgeChainsB = edgeChainsB[indices]
+#    lengthB = lengthB[indices]   
     pbar2.update(1)
     # [E] Alternative Extending
-    edgeChainsE = list(copy.deepcopy(edgeChainsB))
-    metaLinesE = list(copy.deepcopy(metaLinesB))
-    edgemap_s = (edgemap/255).astype(int)
-    residualmap = copy.deepcopy(edgemap_s)
-    for i in range(len(edgeChainsE)):
-        chain = np.array(edgeChainsE[i])
-        chain_x = chain[:,0]
-        chain_y = chain[:,1]
-        indices = chain_y.argsort()
-        chain   = chain[indices]
-        chain_x = chain_x[indices]
-        chain_y = chain_y[indices]
-        indices = chain_x.argsort()
-        chain   = chain[indices]
-        chain_x = chain_x[indices]
-        chain_y = chain_y[indices]
-        chain_n = []
-        for j in range(len(chain_x)):
-            chain_n.append((chain_x[j],chain_y[j]))
-            residualmap[chain_x[j],chain_y[j]]=0
-        edgeChainsE[i] = chain_n  
-    i = -1
-    while i <= len(edgeChainsE)-3:
-        i += 1
-        chain = np.array(edgeChainsE[i])
-        s       = metaLinesE[i][2]
-        begin   = chain[0,0]
-        end     = chain[-1,0]
-        # BEGIN
-        if s >= 0:
-            begin_i = min(np.where(chain[:,0]==begin)[0])
-        else:
-            begin_i = max(np.where(chain[:,0]==begin)[0])
-        b_x = chain[begin_i,0]
-        b_y = chain[begin_i,1]
-        while b_x >= 0 and b_y >= 0:
-            b_x,b_y = METAA.next4(b_x,b_y,rows,cols,edgemap_s,0,s,edgeChainsE[i])
-            if b_x >= 0 and b_y >= 0 and residualmap[b_x,b_y] == 1:            # Extend chain with residual pixel
-                edgeChainsE[i].append((b_x,b_y))
-                residualmap[b_x,b_y] = 0
-            elif b_x >= 0 and b_y >= 0:                                        # Extend chain with another chain
-                for j in range(i+1,len(edgeChainsE)):
-                    if (b_x,b_y) in edgeChainsE[j]:
-                        Tchain   = np.array(edgeChainsE[j])
-                        Ts       = metaLinesE[j][2]
-                        Tbegin   = Tchain[0,0]
-                        Tend     = Tchain[-1,0]
-                        erange   = METAA.rangemaker(Tend,thMeaningfulLength)
-                        if b_x in erange:                                      # Appropriate connection 
-                            edgeChainsE[i].extend(edgeChainsE[j])
-                            if Ts >= 0:
-                                begin_i = min(np.where(Tchain[:,0]==Tbegin)[0])
-                            else:
-                                begin_i = max(np.where(Tchain[:,0]==Tbegin)[0])
-                            b_x = Tchain[begin_i,0]
-                            b_y = Tchain[begin_i,1]
-                            s = Ts
-                            del edgeChainsE[j]
-                            del metaLinesE[j]
-                        else:                                                  # Inappropriate connection
-                            b_x = -1
-                            b_y = -1
-                        break
-                    if j == len(edgeChainsE)-1:
-                        b_x = -1
-                        b_y = -1
-        # END
-        if s >= 0:
-            end_i = max(np.where(chain[:,0]==end)[0])
-        else:
-            end_i = min(np.where(chain[:,0]==end)[0])
-        e_x = chain[end_i,0]
-        e_y = chain[end_i,1]
-        while e_x >= 0 and e_y >= 0:
-            e_x,e_y = METAA.next4(e_x,e_y,rows,cols,edgemap_s,1,s,edgeChainsE[i])
-            if e_x >= 0 and e_y >= 0 and residualmap[e_x,e_y] == 1:
-                edgeChainsE[i].append((e_x,e_y))
-                residualmap[e_x,e_y] = 0
-            elif e_x >= 0 and e_y >= 0:
-                for j in range(i+1,len(edgeChainsE)):
-                    if (e_x,e_y) in edgeChainsE[j]:
-                        Tchain   = np.array(edgeChainsE[j])
-                        Ts       = metaLinesE[j][2]
-                        Tbegin   = Tchain[0,0]
-                        Tend     = Tchain[-1,0]
-                        brange   = METAA.rangemaker(Tbegin,thMeaningfulLength)
-                        if e_x in brange:                    
-                            edgeChainsE[i].extend(edgeChainsE[j])
-                            if Ts >= 0:
-                                end_i = max(np.where(Tchain[:,0]==Tend)[0])
-                            else:
-                                end_i = min(np.where(Tchain[:,0]==Tend)[0])
-                            e_x = Tchain[end_i,0]
-                            e_y = Tchain[end_i,1]
-                            s = Ts
-                            del edgeChainsE[j]
-                            del metaLinesE[j]
-                        else:                                                  
-                            e_x = -1
-                            e_y = -1
-                        break
-                    if j == len(edgeChainsE)-1:
-                        e_x = -1
-                        e_y = -1
+#    edgeChainsE = list(copy.deepcopy(edgeChainsB))
+#    metaLinesE = list(copy.deepcopy(metaLinesB))
+#    edgemap_s = (edgemap/255).astype(int)
+#    residualmap = copy.deepcopy(edgemap_s)
+#    for i in range(len(edgeChainsE)):
+#        chain = np.array(edgeChainsE[i])
+#        chain_x = chain[:,0]
+#        chain_y = chain[:,1]
+#        indices = chain_y.argsort()
+#        chain   = chain[indices]
+#        chain_x = chain_x[indices]
+#        chain_y = chain_y[indices]
+#        indices = chain_x.argsort()
+#        chain   = chain[indices]
+#        chain_x = chain_x[indices]
+#        chain_y = chain_y[indices]
+#        chain_n = []
+#        for j in range(len(chain_x)):
+#            chain_n.append((chain_x[j],chain_y[j]))
+#            residualmap[chain_x[j],chain_y[j]]=0
+#        edgeChainsE[i] = chain_n  
+#    i = -1
+#    while i <= len(edgeChainsE)-3:
+#        i += 1
+#        chain = np.array(edgeChainsE[i])
+#        s       = metaLinesE[i][2]
+#        begin   = chain[0,0]
+#        end     = chain[-1,0]
+#        # BEGIN
+#        if s >= 0:
+#            begin_i = min(np.where(chain[:,0]==begin)[0])
+#        else:
+#            begin_i = max(np.where(chain[:,0]==begin)[0])
+#        b_x = chain[begin_i,0]
+#        b_y = chain[begin_i,1]
+#        while b_x >= 0 and b_y >= 0:
+#            b_x,b_y = METAA.next4(b_x,b_y,rows,cols,edgemap_s,0,s,edgeChainsE[i])
+#            if b_x >= 0 and b_y >= 0 and residualmap[b_x,b_y] == 1:            # Extend chain with residual pixel
+#                edgeChainsE[i].append((b_x,b_y))
+#                residualmap[b_x,b_y] = 0
+#            elif b_x >= 0 and b_y >= 0:                                        # Extend chain with another chain
+#                for j in range(i+1,len(edgeChainsE)):
+#                    if (b_x,b_y) in edgeChainsE[j]:
+#                        Tchain   = np.array(edgeChainsE[j])
+#                        Ts       = metaLinesE[j][2]
+#                        Tbegin   = Tchain[0,0]
+#                        Tend     = Tchain[-1,0]
+#                        erange   = METAA.rangemaker(Tend,thMeaningfulLength)
+#                        if b_x in erange:                                      # Appropriate connection 
+#                            edgeChainsE[i].extend(edgeChainsE[j])
+#                            if Ts >= 0:
+#                                begin_i = min(np.where(Tchain[:,0]==Tbegin)[0])
+#                            else:
+#                                begin_i = max(np.where(Tchain[:,0]==Tbegin)[0])
+#                            b_x = Tchain[begin_i,0]
+#                            b_y = Tchain[begin_i,1]
+#                            s = Ts
+#                            del edgeChainsE[j]
+#                            del metaLinesE[j]
+#                        else:                                                  # Inappropriate connection
+#                            b_x = -1
+#                            b_y = -1
+#                        break
+#                    if j == len(edgeChainsE)-1:
+#                        b_x = -1
+#                        b_y = -1
+#        # END
+#        if s >= 0:
+#            end_i = max(np.where(chain[:,0]==end)[0])
+#        else:
+#            end_i = min(np.where(chain[:,0]==end)[0])
+#        e_x = chain[end_i,0]
+#        e_y = chain[end_i,1]
+#        while e_x >= 0 and e_y >= 0:
+#            e_x,e_y = METAA.next4(e_x,e_y,rows,cols,edgemap_s,1,s,edgeChainsE[i])
+#            if e_x >= 0 and e_y >= 0 and residualmap[e_x,e_y] == 1:
+#                edgeChainsE[i].append((e_x,e_y))
+#                residualmap[e_x,e_y] = 0
+#            elif e_x >= 0 and e_y >= 0:
+#                for j in range(i+1,len(edgeChainsE)):
+#                    if (e_x,e_y) in edgeChainsE[j]:
+#                        Tchain   = np.array(edgeChainsE[j])
+#                        Ts       = metaLinesE[j][2]
+#                        Tbegin   = Tchain[0,0]
+#                        Tend     = Tchain[-1,0]
+#                        brange   = METAA.rangemaker(Tbegin,thMeaningfulLength)
+#                        if e_x in brange:                    
+#                            edgeChainsE[i].extend(edgeChainsE[j])
+#                            if Ts >= 0:
+#                                end_i = max(np.where(Tchain[:,0]==Tend)[0])
+#                            else:
+#                                end_i = min(np.where(Tchain[:,0]==Tend)[0])
+#                            e_x = Tchain[end_i,0]
+#                            e_y = Tchain[end_i,1]
+#                            s = Ts
+#                            del edgeChainsE[j]
+#                            del metaLinesE[j]
+#                        else:                                                  
+#                            e_x = -1
+#                            e_y = -1
+#                        break
+#                    if j == len(edgeChainsE)-1:
+#                        e_x = -1
+#                        e_y = -1
     pbar2.update(1)
     # [E] Line fitting     
-    metaLinesE = []
-    lengthE = []
-    for i in range(len(edgeChainsE)):
-        chain = np.array(edgeChainsE[i])
-        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
-        xmin = min(chain[:,1])
-        xmax = max(chain[:,1])
-        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
-        yn = np.polyval([m, c], xn)
-        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
-        metaLinesE.append((xn,yn,m,c))
-        lengthE.append(l)
-    lengthE = np.array(lengthE)
-    metaLinesE = np.array(metaLinesE)
-    edgeChainsE = np.array(edgeChainsE)
-    indices = lengthE.argsort()
-    indices = indices[::-1]
-    metaLinesE = metaLinesE[indices] 
-    edgeChainsE = edgeChainsE[indices]
-    lengthE = lengthE[indices]   
+#    metaLinesE = []
+#    lengthE = []
+#    for i in range(len(edgeChainsE)):
+#        chain = np.array(edgeChainsE[i])
+#        m,c = np.polyfit(chain[:,1],chain[:,0],1) 
+#        xmin = min(chain[:,1])
+#        xmax = max(chain[:,1])
+#        xn = np.linspace(xmin,xmax,(max(1,xmax-xmin))*10)
+#        yn = np.polyval([m, c], xn)
+#        l = sqrt((xn[0]-xn[-1])**2+(yn[0]-yn[-1])**2)
+#        metaLinesE.append((xn,yn,m,c))
+#        lengthE.append(l)
+#    lengthE = np.array(lengthE)
+#    metaLinesE = np.array(metaLinesE)
+#    edgeChainsE = np.array(edgeChainsE)
+#    indices = lengthE.argsort()
+#    indices = indices[::-1]
+#    metaLinesE = metaLinesE[indices] 
+#    edgeChainsE = edgeChainsE[indices]
+#    lengthE = lengthE[indices]   
     pbar2.update(1)
     # [F] Delete
-    edgeChainsF = list(copy.deepcopy(edgeChainsE))
-    for i in range(len(metaLinesE)-1,-1,-1):
-        if lengthE[i] < thMeaningfulLength:
-            del edgeChainsF[i]
+#    edgeChainsF = list(copy.deepcopy(edgeChainsE))
+#    for i in range(len(metaLinesE)-1,-1,-1):
+#        if lengthE[i] < thMeaningfulLength:
+#            del edgeChainsF[i]
     # FINALIZE
     mapA = np.zeros(edgemap.shape)
     for chain in edgeChainsA:
        for point in chain:    
            mapA[point[0],point[1]]=1
-    mapE = np.zeros(edgemap.shape)
-    for chain in edgeChainsE:
-       for point in chain:    
-           mapE[point[0],point[1]]=1           
-    mapF = np.zeros(edgemap.shape)
-    for chain in edgeChainsF:
-        for point in chain:    
-            mapF[point[0],point[1]]=1
+    mapA = (mapA).astype(np.uint8)
+#    mapE = np.zeros(edgemap.shape)
+#    for chain in edgeChainsE:
+#       for point in chain:    
+#           mapE[point[0],point[1]]=1           
+#    mapE = (mapE).astype(np.uint8)
+#    mapF = np.zeros(edgemap.shape)
+#    for chain in edgeChainsF:
+#        for point in chain:    
+#            mapF[point[0],point[1]]=1
+#    mapF = (mapF).astype(np.uint8)
     pbar2.update(1)
     pbar2.close()
     temp = copy.deepcopy(edgemap)
@@ -325,7 +338,7 @@ def CannyLines(plist,Img0C,img_b,mask_b):
     temp[temp==0]=np.NaN
     p = plt.figure()
     plt.title('Edges 0.5m')
-    plt.imshow(Img0C)
+    plt.imshow(img)
     plt.imshow(temp,cmap='spring')
     plt.close()
     plist.append(p)
