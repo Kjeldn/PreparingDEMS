@@ -451,7 +451,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
     print(GCPstat)
     YN = 0
-    if size2/size1 > 0.6:
+    if size2/size1 > 0.3:
         YN = 1
     GCPstat = (YN,GCPstat)
     clist = list(clist)
