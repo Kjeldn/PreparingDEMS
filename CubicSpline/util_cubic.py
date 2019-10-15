@@ -1,17 +1,22 @@
 import gdal
 import numpy as np
 from shapely.geometry import Polygon, LinearRing, Point
+import numpy as np
 
 class Plane:
     def __init__(self, array, gt):
         self.array = array
         self.gt = gt
+        self.vcoord = np.vectorize(self.getCoordByIndices2)
         
     def getIndicesByCoord(self, cx, cy):
         return int(abs(np.floor((cx - self.gt[3])/self.gt[5]))), int(abs(np.floor((cy - self.gt[0])/self.gt[1])))
     
     def getCoordByIndices(self, x, y):
         return self.gt[3] + x * self.gt[5], self.gt[0] + y * self.gt[1] 
+    
+    def getCoordByIndices2(self, xy):
+        return self.gt[3] + xy[0] * self.gt[5], self.gt[0] + xy[1] * self.gt[1] 
         
     def getMeanValueAt(self, x, y, k_size = 3):
         ptl = Point(int(abs(np.floor((x - self.gt[3])/self.gt[5]))), int(abs(np.floor((y - self.gt[0])/self.gt[1]))))
@@ -56,7 +61,8 @@ def get_convex_hull(plants):
     return polygon
 
     
-def getMask(array, plants, gt, k_size = 25):
+
+def getMask(array, plants, gt, k_size = 15):
     mask = np.zeros(array.shape)
     plane = Plane(mask, gt)
     

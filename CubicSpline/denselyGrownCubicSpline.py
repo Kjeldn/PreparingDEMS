@@ -13,7 +13,11 @@ from tkinter import filedialog
 from tkinter import *
 from tqdm import trange
 
+<<<<<<< Updated upstream
 use_ahn = False
+=======
+use_ahn = False #"m_19fn2.tif"
+>>>>>>> Stashed changes
 
 root = Tk()
 paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
@@ -111,6 +115,19 @@ for a in trange(len(paths), desc="cubic spline thingies"):
         for j in range(0, a.shape[1], 20):
             if mask[i][j] == 0 and ridges_array[i][j] == 1 and polygon.contains(Point(i, j)):
                 e.append(a[i][j] if not use_ahn else a[i][j] - ahn_array[i][j])
+<<<<<<< Updated upstream
     mask = None
+=======
+    #mask = None
     
     util.create_tiff(a - np.mean(e)-0.1, gt, proj, path.split(".")[0] + "_cubic.tif")
+>>>>>>> Stashed changes
+    
+#%%
+file = gdal.Open(r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare\Aart Maris\c07_hollandbean-Aart Maris-201907241028_DEM_GR_cubic.tif")
+band = file.GetRasterBand(1)
+array = band.ReadAsArray()
+gt = file.GetGeoTransform()
+proj = file.GetProjection()
+array -= 1
+util.create_tiff(array, gt, proj, r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare\Aart Maris\c07_hollandbean-Aart Maris-201907241028_DEM_GR_cubic.tif")
