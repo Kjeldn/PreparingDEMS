@@ -10,15 +10,15 @@ import fiona
 from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
-from tqdm import trange
+from tqdm import tqdm
 from tkinter import filedialog
 from tkinter import *
 
 gdal.UseExceptions()
 
 root = Tk()
-paths = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
-plant_path = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
+paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
+plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
 
 use_ahn = False
 if use_ahn:
@@ -26,6 +26,10 @@ if use_ahn:
 
 root.destroy()
 use_ridges = True
+plot = False
+
+##The space between possible bare ground points to fit over
+step = 40
 
 #%% plants
 plants = []
@@ -64,11 +68,9 @@ if use_ahn:
                     )
             
     source = None
-        
-        ##util.create_tiff(ahn_array, orig.GetGeoTransform(), orig.GetProjection(), 'ahn.tif')
-
-#%% cubic spline   
-for a in trange(len(paths), desc="doing cubic splines thingies"):
+#%% cubic spline
+pbar = tqdm(total=len(paths), desc="Doing cubic spline thingies", position=0)
+for a in range(len(paths)):
     file = gdal.Open(paths[a])
     
     band = file.GetRasterBand(1)
@@ -93,18 +95,18 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
     polygon = Polygon(poly_line)
         
     if use_ridges:
-        ridges_array = dt.get_ridges_array(array).astype(np.uint8)
+        ridges_array = dt.get_ridges_array(array, -0.01).astype(np.uint8)
     
     ##Remove all non-values from array
     array[array == np.amin(array)] = 0
-    
-    ##The space between possible bare ground points to fit over
-    step = 40
     
     data = np.zeros((int(ysize/step), int(xsize/step)))
     mask = np.zeros((int(ysize/step), int(xsize/step))) > 0
     x = np.zeros((int(ysize/step), int(xsize/step)))
     y = np.zeros((int(ysize/step), int(xsize/step)))
+    
+    xx = []
+    yy = []
         
     # create list of points inside the field to get the fit over
     for i in range(int(ysize/step)):
@@ -118,7 +120,15 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
                 mask[i][j] = True
             if use_ahn and abs(ahn_array[step * i, step * j]) > 10:
                 mask[i][j] = True
-                    
+            if not mask[i][j]:
+                xx.append(step*i)
+                yy.append(step*j)
+                  
+    if plot:
+        plt.figure()
+        plt.scatter(yy, xx)
+        plt.spy(ridges_array)
+        plt.show()
     ridges_array = None
     
     z = np.ma.array(data, mask=mask)
@@ -148,3 +158,5 @@ for a in trange(len(paths), desc="doing cubic splines thingies"):
     
     util.create_tiff(znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
     znew = None
+    pbar.update(1)
+pbar.close()

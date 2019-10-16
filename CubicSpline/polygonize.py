@@ -70,79 +70,11 @@ if __name__ == "__main__":
         pbar.update(1)
     pbar.close()
     
-    holes = []
-    holes_i = []
+    polys_list = []
     for key in polys.keys():
-        if polys[key]['holes']:
-            holes += polys[key]['holes']
-            holes_i += [key for _ in range(len(polys[key]['holes']))]
-    
-    plants = geopandas.read_file(plant_path)
-    plants_r, mx, my = utilv.readable_values(np.array([(p.x, p.y) for p in plants.loc[:,'geometry']]))
-    vor = Voronoi(plants_r)
-    convex_hull = Polygon([(p.x, p.y) for p in plants.loc[:,'geometry']]).convex_hull
-    vor_polys = []
-    for r in vor.regions:
-        if -1 not in r and len(r) > 2 and Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)).within(convex_hull):
-            vor_polys.append(Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)))
+        polys_list.append(Polygon(list(polys[key]['boundary'].exterior.coords), [list(hole.exterior.coords)] for hole in polys[key]['holes']))
             
-    ordered = dict(OrderedDict(sorted(polys.items(), key = lambda p:p[1]['boundary'].area, reverse=True)))
-    pbar2 = tqdm(total=len(vor_polys), desc="sorting")
-    ordered_intersecting_vor_polys = []
-    ordered_contained_vor_polys = []
-    index_i = []
-    index_c = []
-    for key in ordered.keys():
-        prepped = prep(ordered[key]['boundary'])
-        contained_vor_polys = list(filter(lambda p: prepped.contains(p), vor_polys))
-        ordered_contained_vor_polys += contained_vor_polys
-        ordered[key]['vor_polys_c'] = contained_vor_polys
-        index_c += [key for _ in range(len(contained_vor_polys))]
-        vor_polys = list(filter(lambda p : not prepped.contains(p), vor_polys))
-        intersecting_vor_polys = list(filter(lambda p : prepped.intersects(p), vor_polys))
-        ordered_intersecting_vor_polys += intersecting_vor_polys
-        index_i += [key for _ in range(len(intersecting_vor_polys))]
-        vor_polys = list(filter(lambda p: not prepped.intersects(p), vor_polys))
-        ordered[key]['vor_polys_i'] = intersecting_vor_polys
-        pbar2.update(len(contained_vor_polys)+len(intersecting_vor_polys))
-    pbar2.close()
-        
-    p = mp.Pool(n_processes)
-    batches = []
-    batchsize = int(len(ordered_intersecting_vor_polys) / n_batches)
-    results = [p.apply_async(intersect, (polys, index_i[i*batchsize: (i+1)*batchsize], ordered_intersecting_vor_polys[i*batchsize: (i+1)*batchsize])) for i in range(n_batches)]
-    
-    ints = []
-    pbar3 = tqdm(total=len(results), desc="intersecting vor polys on boundary", position=0)   
-    for i in range(len(results)):
-        ints += results[i].get()
-        pbar3.update(1)
-    pbar3.close()
-    
-    pbar4 = tqdm(total=len(polys.keys()), desc="intersecting with holes", position = 0)
-    for key in polys.keys():
-        if polys[key]['holes']:
-            t = STRtree(polys[key]['holes'])
-            for i in range(len(ordered_contained_vor_polys)):
-                if index_c[i] == key:
-                    for hole in t.query(ordered_contained_vor_polys[i]):
-                        if hole.overlaps(ordered_contained_vor_polys[i]):
-                            try:
-                                ordered_contained_vor_polys[i] = ordered_contained_vor_polys[i].difference(hole)
-                            except:
-                                pass
-            for i in range(len(ints)):
-                if index_c[i] == key:
-                    for hole in t.query(ints[i]):
-                        if hole.overlaps(ints[i]):
-                            try:
-                                ints[i] = ints[i].difference(hole)
-                            except:
-                                pass
-        pbar4.update(1)
-    pbar4.close()
-            
-    dfv = geopandas.GeoDataFrame({'geometry': ints + ordered_contained_vor_polys})
-    dfv.crs = {'init': 'epsg:4326'}
-    dfv = dfv.to_crs({'init': 'epsg:28992'})
-    dfv.to_file("_".join(mask_path.split("_")[:-1])+"_voronoi.shp")
+    df = geopandas.GeoDataFrame({'geometry': geopandas.GeoSeries(polys_list)})
+    df.crs = {'init': 'epsg:4326'}
+    df = dfv.to_crs({'init': 'epsg:28992'})
+    df.to_file("_".join(mask_path.split("_")[:-1])+"_polys.shp")
