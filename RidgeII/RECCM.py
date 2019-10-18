@@ -85,7 +85,6 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         x1=0
         y1=0
         CV1=100
-        print("Something something out of bounds again...")
     else:
         RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
@@ -168,7 +167,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
     poly_file = Polygon(np.array(biggest_contour[:,0]))
     if poly_file.area < 0.4*poly_base.area:
         sf=1
-        print("Making cool new grid")
+        print("Georegistration of small orthomosaic on larger, very cool, preventive move to nrtu folder afterwards...")
         polygon = poly_file.buffer(-w)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
@@ -185,8 +184,9 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
             y[i] = (lat-gt0F[3])/gt0F[5]
             x[i] = (lon-gt0F[0])/gt0F[1]
             grid.append((int(round(x[i])),int(round(y[i]))))
-    else:
-        sf=0
+    elif poly_base.area < 0.4*poly_file.area:
+        sf=1
+        print("Georegistration of large orthomosaic on smaller, moving to nrtu folder afterwards...")
         polygon = poly_base.buffer(-w)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
@@ -211,7 +211,32 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
             x_regular, y_regular = fx(alpha), fy(alpha)
             for i in range(len(x_regular)):
                 grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
-                
+    else:    
+        sf=0
+        polygon = poly_base.buffer(-w)
+        while polygon.type == 'MultiPolygon':
+            polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+        x,y = polygon.exterior.xy
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 200)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        grid = []
+        for i in range(len(x_regular)):
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+        if polygon.buffer(-3*w).is_empty == False:
+            polygon = polygon.buffer(-2*w)
+            while polygon.type == 'MultiPolygon':
+                polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+            x,y = polygon.exterior.xy
+            distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+            distance = distance/distance[-1]
+            fx, fy = interp1d( distance, x ), interp1d( distance, y )
+            alpha = np.linspace(0, 1, 100)
+            x_regular, y_regular = fx(alpha), fy(alpha)
+            for i in range(len(x_regular)):
+                grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))                
     c1 = np.zeros((2*w,2*w))
     for x in range(c1.shape[0]):
         for y in range(c1.shape[1]):
