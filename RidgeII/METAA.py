@@ -286,15 +286,7 @@ GCPstat  | tuple  | Contains the status of matches or GCP's after outlier remova
 def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat,sf):
     pbar1 = tqdm(total=1,position=0,desc="MoveFiles ")
     f3 = 0
-    if GCPstat[0] == 1 or sf == 1:
-        shutil.move(path,rtu+"\\"+path_to_filename(path))
-        shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
-        shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
-        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
-        shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
-        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
-        f3 = 1                           
-    else:
+    if sf == 1 or GCPstat[0] == 0:
         shutil.move(path,nrtu+"\\"+path_to_filename(path))
         shutil.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))
         shutil.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
@@ -302,6 +294,14 @@ def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat,sf):
         shutil.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path)[:-4]+".points")
         shutil.move(path[:-4]+"_LOG.pdf",nrtu+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
         f3 = 2
+    else:
+        shutil.move(path,rtu+"\\"+path_to_filename(path))
+        shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
+        shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
+        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
+        shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
+        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
+        f3 = 1                           
     pbar1.update(1)
     pbar1.close()
     return f3

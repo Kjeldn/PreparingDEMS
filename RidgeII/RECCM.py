@@ -156,7 +156,6 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
     md=6
     md = int(6/ps0F)
     
-    #Check which photo is larger:
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
@@ -165,10 +164,14 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
     poly_file = Polygon(np.array(biggest_contour[:,0]))
-    if poly_file.area < 0.4*poly_base.area:
+    if poly_file.area < 0.7*poly_base.area:
         sf=1
         print("Georegistration of small orthomosaic on larger, very cool, preventive move to nrtu folder afterwards...")
+        inward = 0
         polygon = poly_file.buffer(-w)
+        while polygon.area < 0.6*poly_file.area:
+            inward +=20 
+            polygon = poly_file.buffer(-w+inward)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
         x,y = polygon.exterior.xy
@@ -181,9 +184,9 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
         for i in range(len(x_regular)):
             lat = gt1F[3] + gt1F[5]*y_regular[i]
             lon = gt1F[0] + gt1F[1]*x_regular[i]
-            y[i] = (lat-gt0F[3])/gt0F[5]
-            x[i] = (lon-gt0F[0])/gt0F[1]
-            grid.append((int(round(x[i])),int(round(y[i]))))
+            y_regular[i] = (lat-gt0F[3])/gt0F[5]
+            x_regular[i] = (lon-gt0F[0])/gt0F[1]
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
     elif poly_base.area < 0.4*poly_file.area:
         sf=1
         print("Georegistration of large orthomosaic on smaller, moving to nrtu folder afterwards...")
