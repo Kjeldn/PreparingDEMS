@@ -65,8 +65,11 @@ def FindFile(inbox):
                     if os.path.exists(os.path.join(root,name).replace("-GR.tif","_DEM-GR.tif")) == True:
                         pathlist.append(os.path.join(root,name).replace("\\","/"))
     pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-1])
+    pathlist = sorted(pathlist, key = lambda a: filename_to_info(path_to_filename(a))[-2])
     plist = []
     plt.ioff()
+    for path in pathlist:
+        print(path)
     return plist,pathlist
 
 
@@ -92,6 +95,8 @@ def FindBase(plist,pathlist,archive,rtu,path):
         dif.append(float(date)-float(filename_to_info(path_to_filename(cand))[-1]))  
     dif = np.array(dif)                                      
     if (dif<=0).all() == True:
+        print("Found zero suitable orthomosaics in the past")
+    if len(dif) == 0:
         print("Found zero suitable orthomosaics in the past")
     dif[dif<=0]=np.NaN
     ind = np.where(dif==np.nanmin(dif))[0][:]
@@ -278,18 +283,10 @@ dstr     | str    | Path to rectified dems and points
 rec      | str    | Path to receipt
 GCPstat  | tuple  | Contains the status of matches or GCP's after outlier removal
 """
-def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat):
+def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat,sf):
     pbar1 = tqdm(total=1,position=0,desc="MoveFiles ")
     f3 = 0
-    if GCPstat[0] == 1:
-        shutil.move(path,rtu+"\\"+path_to_filename(path))
-        shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
-        shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
-        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
-        shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
-        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
-        f3 = 1                           
-    else:
+    if sf == 1 or GCPstat[0] == 0:
         shutil.move(path,nrtu+"\\"+path_to_filename(path))
         shutil.move(path_to_path_dem(path),nrtu+"\\"+path_to_filename(path_to_path_dem(path)))
         shutil.move(path[:-4]+"-GR.vrt",nrtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
@@ -297,6 +294,14 @@ def MoveFile(path,rtu,nrtu,dstr,rec,GCPstat):
         shutil.move(path[:-4]+".points",nrtu+"\\"+path_to_filename(path)[:-4]+".points")
         shutil.move(path[:-4]+"_LOG.pdf",nrtu+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
         f3 = 2
+    else:
+        shutil.move(path,rtu+"\\"+path_to_filename(path))
+        shutil.move(path[:-4]+"-GR.vrt",rtu+"\\"+path_to_filename(path)[:-4]+"-GR.vrt")
+        shutil.move(path_to_path_dem(path),dstr+"\\"+path_to_filename(path_to_path_dem(path)))
+        shutil.move(path_to_path_dem(path)[:-4]+"-GR.vrt",dstr+"\\"+path_to_filename(path_to_path_dem(path))[:-4]+"-GR.vrt")   
+        shutil.move(path[:-4]+".points",dstr+"\\"+path_to_filename(path)[:-4]+".points") 
+        shutil.move(path[:-4]+"_LOG.pdf",rec+"\\"+path_to_filename(path)[:-4]+"_LOG.pdf") 
+        f3 = 1                           
     pbar1.update(1)
     pbar1.close()
     return f3

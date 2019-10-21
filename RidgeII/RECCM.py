@@ -85,7 +85,6 @@ def OneMatch(plist,Edges1C,gt1C,Edges0C,gt0C,MaskB0C):
         x1=0
         y1=0
         CV1=100
-        print("Something something out of bounds again...")
     else:
         RECC_total[xog-max_dist:xog+max_dist,yog-max_dist:yog+max_dist] = RECC_area
         max_one  = np.partition(RECC_total[~np.isnan(RECC_total)].flatten(),-1)[-1]
@@ -135,12 +134,12 @@ md       | int    | Maximum distance, the maximum feasable error in pixels
 c1       | 2D arr | Binary circle for clipping a patch
 c2       | 2D arr | Binary circle for clipping of a search map
 """
-def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
+def IniMatch(plist,Edges0F,Edges1F,MaskB0F,MaskB1F,x_off,y_off,CV1,gt0F,gt1F):
     # Nullify impact of OpenOrth + CannyLin + OneMatch:
     x_off = 0
     y_off = 0
     CV1 = 1.5
-
+    
     ps0F = 0.05
     w = int(25/ps0F)
     buff = w
@@ -155,35 +154,92 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
     else:
         md = 2 + 3*((CV1-1.5)/2.5)
     md=6
-    md = int((md)/(ps0F))
+    md = int(6/ps0F)
+    
     contours,hierarchy = cv2.findContours((1-MaskB0F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
     biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
-    polygon = Polygon(np.array(biggest_contour[:,0]))
-    polygon = polygon.buffer(-w)
-    while polygon.type == 'MultiPolygon':
-        polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
-    x,y = polygon.exterior.xy
-    distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
-    distance = distance/distance[-1]
-    fx, fy = interp1d( distance, x ), interp1d( distance, y )
-    alpha = np.linspace(0, 1, 200)
-    x_regular, y_regular = fx(alpha), fy(alpha)
-    grid = []
-    for i in range(len(x_regular)):
-        grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
-    if polygon.buffer(-3*w).is_empty == False:
-        polygon = polygon.buffer(-2*w)
+    poly_base = Polygon(np.array(biggest_contour[:,0]))
+    contours,hierarchy = cv2.findContours((1-MaskB1F).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contour_sizes = [(cv2.contourArea(contour), contour) for contour in contours]
+    biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
+    poly_file = Polygon(np.array(biggest_contour[:,0]))
+    if poly_file.area < 0.7*poly_base.area:
+        sf=1
+        print("Georegistration of small orthomosaic on larger, very cool, preventive move to nrtu folder afterwards...")
+        inward = 0
+        polygon = poly_file.buffer(-w)
+        while polygon.area < 0.6*poly_file.area:
+            inward +=20 
+            polygon = poly_file.buffer(-w+inward)
         while polygon.type == 'MultiPolygon':
             polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
         x,y = polygon.exterior.xy
         distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
         distance = distance/distance[-1]
         fx, fy = interp1d( distance, x ), interp1d( distance, y )
-        alpha = np.linspace(0, 1, 100)
+        alpha = np.linspace(0, 1, 200)
         x_regular, y_regular = fx(alpha), fy(alpha)
+        grid = []
+        for i in range(len(x_regular)):
+            lat = gt1F[3] + gt1F[5]*y_regular[i]
+            lon = gt1F[0] + gt1F[1]*x_regular[i]
+            y_regular[i] = (lat-gt0F[3])/gt0F[5]
+            x_regular[i] = (lon-gt0F[0])/gt0F[1]
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+    elif poly_base.area < 0.4*poly_file.area:
+        sf=1
+        print("Georegistration of large orthomosaic on smaller, moving to nrtu folder afterwards...")
+        polygon = poly_base.buffer(-w)
+        while polygon.type == 'MultiPolygon':
+            polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+        x,y = polygon.exterior.xy
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 200)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        grid = []
         for i in range(len(x_regular)):
             grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+        if polygon.buffer(-3*w).is_empty == False:
+            polygon = polygon.buffer(-2*w)
+            while polygon.type == 'MultiPolygon':
+                polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+            x,y = polygon.exterior.xy
+            distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+            distance = distance/distance[-1]
+            fx, fy = interp1d( distance, x ), interp1d( distance, y )
+            alpha = np.linspace(0, 1, 100)
+            x_regular, y_regular = fx(alpha), fy(alpha)
+            for i in range(len(x_regular)):
+                grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+    else:    
+        sf=0
+        polygon = poly_base.buffer(-w)
+        while polygon.type == 'MultiPolygon':
+            polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+        x,y = polygon.exterior.xy
+        distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+        distance = distance/distance[-1]
+        fx, fy = interp1d( distance, x ), interp1d( distance, y )
+        alpha = np.linspace(0, 1, 200)
+        x_regular, y_regular = fx(alpha), fy(alpha)
+        grid = []
+        for i in range(len(x_regular)):
+            grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))
+        if polygon.buffer(-3*w).is_empty == False:
+            polygon = polygon.buffer(-2*w)
+            while polygon.type == 'MultiPolygon':
+                polygon = sorted(list(polygon), key=lambda p:p.area, reverse=True)[0]
+            x,y = polygon.exterior.xy
+            distance = np.cumsum(np.sqrt( np.ediff1d(x, to_begin=0)**2 + np.ediff1d(y, to_begin=0)**2 ))
+            distance = distance/distance[-1]
+            fx, fy = interp1d( distance, x ), interp1d( distance, y )
+            alpha = np.linspace(0, 1, 100)
+            x_regular, y_regular = fx(alpha), fy(alpha)
+            for i in range(len(x_regular)):
+                grid.append((int(round(x_regular[i])),int(round(y_regular[i]))))                
     c1 = np.zeros((2*w,2*w))
     for x in range(c1.shape[0]):
         for y in range(c1.shape[1]):
@@ -196,7 +252,7 @@ def IniMatch(plist,Edges0F,Edges1F,MaskB0F,x_off,y_off,CV1):
             if (x-md)**2 + (y-md)**2 < md**2:
                 c2[x,y]=1
     c2 = (c2).astype(np.uint8)
-    return plist,Edges1Fa,x_off,y_off,grid,md,c1,c2
+    return plist,Edges1Fa,x_off,y_off,grid,md,c1,c2,sf
 
 
 """
@@ -451,7 +507,7 @@ def RemovOut(plist,Edges0F,Edges1F,x0,y0,x1,y1,CV,dx,dy):
     GCPstat = "GCP status: ("+str(size2)+"/"+str(size0-size1)+"/"+str(size1-size2)+") [OK/OoD/CV-2D]"
     print(GCPstat)
     YN = 0
-    if size2/size1 > 0.3:
+    if size2/size1 > 0.2:
         YN = 1
     GCPstat = (YN,GCPstat)
     clist = list(clist)
