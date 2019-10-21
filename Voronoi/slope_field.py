@@ -1,4 +1,4 @@
-import util
+import util_voronoi as util
 import voronoi_diagram as vd
 import numpy as np
 import multiprocessing as mp
@@ -6,7 +6,7 @@ import divide_into_beds as dib
 import time
 
 clip_voronoi = True
-path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Joke Visser\20190603_final_plant_count.gpkg"
+path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 1\20190709\1137\Plant_count\c01_verdonk-Rijweg stalling 1-201907091137-GR-count_KMV.shp"
 batch_size = 5000
 overlap = 1000
 n_processes = 4
@@ -23,7 +23,7 @@ def get_slopes(plants, index, size):
     adjacent_missed_regions = vd.find_adjacent_polygons(missed_regions)
     slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
     print("batch", index + 1, "of", size, "done")
-    return slopes
+    return slopes, dists
 
 if __name__ == "__main__":
     plants, src_driver, src_crs, src_schema = util.open_shape_file(path)
@@ -43,10 +43,12 @@ if __name__ == "__main__":
     results = [p.apply_async(get_slopes, (batches[i], i, len(batches))) for i in range(len(batches))]
     
     slopes = []
+    dists = []
     for res in results:
         if res.get():
-            slopes += res.get()
-            print(np.nanmedian(slopes))
+            slopes += res.get()[0]
+            dists += res.get()[1]
+            print('mean slope:', np.nanmedian(slopes), 'mean dist:', np.nanmedian(dists))
         
     print(np.nanmedian(slopes))
     time.sleep(300)

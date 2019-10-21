@@ -225,7 +225,7 @@ mean_dist : float
 
 Returns
 -----------
-missed_point : list of coordinates
+missed_points : list of coordinates
     coordinates of all missed points in adjacent_missed_regions which have length 2
 """
 def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, dists, first_it=True, mean_dist=None):
@@ -237,7 +237,7 @@ def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope
             p2 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             slope, dist = util.get_slope_and_dist(p1, p2)
 
-            if first_it:
+            if not np.isnan(mean_dist) or not not mean_dist:
                 n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
             else:
                 n_p = int(dist/(mean_dist/2) + 0.5) - 1
@@ -320,16 +320,16 @@ def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dis
                 for c in range(len(line) - 1):
                     dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
                     if first_it:
-                        if dists:
-                            n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
-                        elif mean_dist:
+                        if not np.isnan(mean_dist) or not not mean_dist:
                             n_p = int(dist/(mean_dist/2) + 0.5) - 1
+                        elif dists:
+                            n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
                         else:
                             n_p = 0
                     else:
                         n_p = int(dist/(mean_dist/2) + 0.5) - 1
                     if n_p > 0:
-                        if first_it:
+                        if not np.isnan(mean_dist) or not not mean_dist:
                             mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, np.median(dists)/4)
                         else:
                             mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, mean_dist/4)

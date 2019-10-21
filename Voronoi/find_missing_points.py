@@ -11,20 +11,23 @@ import remove_outliers as ro
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
-path = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\20190717_count.shp"
-dst = r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\20190717_count.shp"
+path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 1\20190709\1137\Plant_count\c01_verdonk-Rijweg stalling 1-201907091137-GR-count_KMV.shp"
+dst = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 1\20190709\1137\Plant_count\c01_verdonk-Rijweg stalling 1-201907091137-GR-count_KMV_missed.shp"
 
 clip_voronoi = True
 slope_field_mice = -0.7143475337058449
 slope_field_schol = 0.5842593210109179
 slope_field_weveroost = -0.8818719406757523
 slope_field_jokevisser = -0.17404523952846995
-slope_field = -0.7143475337058449
-n_ints = 1
+slope_field_rijwegstalling1 = 0.36930600102426436
+slope_field = slope_field_rijwegstalling1
+n_its = 2
 n_processes = 4
-batch_size = 5000
+batch_size = 15000
 overlap = 1000
-    
+
+dist_between_two_crops = 0
+
 def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=None):
     convex_hull = util.get_convex_hull(np.array(plants))
     vor = vd.Voronoi_diagram(plants)
@@ -32,12 +35,12 @@ def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=Non
     if clip_voronoi:        
         vor.clip_regions(convex_hull.buffer(0.03))
     ci = util.get_confidence_interval(a)
-    missed_regions, small_regions = vd.get_large_and_small_regions(vor, convex_hull, ci, clip_voronoi)         
+    missed_regions, small_regions = vd.get_large_and_small_regions(vor, convex_hull, ci, clip_voronoi)
     adjacent_missed_regions = vd.find_adjacent_polygons(missed_regions)
     slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
     
-    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, dists, first_it, mean_dist)
-    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dists, spindex, first_it, mean_dist)
+    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field or np.nanmedian(slopes), dists, first_it, mean_dist)
+    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field or np.nanmedian(slopes), dists, spindex, first_it, mean_dist)
     if plot:
         vd.plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
     return missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor
@@ -58,7 +61,7 @@ def worker(batch, first_it, mean_dist, i, total):
         missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex, first_it = False, mean_dist = mean_dist)
     missed_points_coord = missed_points_coord + list(util.readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))
     
-    print("batch", i, "/", total, "done by", mp.current_process(), "in", time.time() - start, "seconds")
+    print("batch", i + 1, "/", total, "done by", mp.current_process(), "in", time.time() - start, "seconds")
     return missed_points_coord, np.nanmedian(slopes), np.nanmedian(dists)
 
 if __name__ == "__main__":
@@ -66,7 +69,7 @@ if __name__ == "__main__":
     missed_points_coord = []
     slope_means = []
     dists_means = []
-    for z in range(n_ints):
+    for z in range(n_its):
         beds = dib.divide(np.array(plants + missed_points_coord))
         p = mp.Pool(n_processes)
         
@@ -81,7 +84,7 @@ if __name__ == "__main__":
                         batches.append(bed[i * batch_size: i * batch_size + offset, :])
         
         time1= time.time()
-        results = [p.apply_async(worker, (batches[i], z == 0, np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
+        results = [p.apply_async(worker, (batches[i], z == 0, dist_between_two_crops or np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
         
         new_missed_points = []
         for res in results:
