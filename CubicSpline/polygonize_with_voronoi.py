@@ -1,6 +1,7 @@
 import geopandas
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon, Point
 from shapely.prepared import prep
+from shapely.ops import unary_union
 from shapely.strtree import STRtree
 import numpy as np
 from scipy.spatial import Voronoi
@@ -13,22 +14,39 @@ from tkinter import *
 from collections import OrderedDict
 warnings.filterwarnings("ignore")
 import multiprocessing as mp
+import polygonize
+from pyqtree import Index
 import util_voronoi as utilv
+from itertools import islice
+from random import shuffle
 
 n_processes = 4 #number of processes used for intersecting vor polys
-n_batches = 40 #number of batches used for intersecting vor polys
+n_batches = 1000 #number of batches used for intersecting vor polys
 n_pixels = 50 #number of pixels of an interior of an contour to be ignored
 
-def getCoordByIndices(x, y):
-    return gt[0] + y * gt[1], gt[3] + x * gt[5]
+def divide_into_batches(d, n):
+    dicts = [dict() for _ in range(n)]
+    for i, key in enumerate(d.keys()):
+        dicts[i % n][key] = d[key]
+    shuffle(dicts)
+    return dicts
 
-def intersect(polys, index_i, ordered_intersecting_vor_polys):
-    for i in range(len(ordered_intersecting_vor_polys)):
-        try:
-            ordered_intersecting_vor_polys[i] = ordered_intersecting_vor_polys[i].intersection(polys[index_i[i]]['boundary'])
-        except:
-            pass
-    return ordered_intersecting_vor_polys
+def intersect(polys_dict):
+    for key in polys_dict.keys():
+        if 'vor_polys_i' in polys_dict[key].keys():
+            for i in range(len(polys_dict[key]['vor_polys_i'])):
+                try:
+                    polys_dict[key]['vor_polys_i'][i] = polys_dict[key]['vor_polys_i'][i].intersection(polys_dict[key]['boundary'])
+                except:
+                    try:
+                        polys_dict[key]['vor_polys_i'][i] = polys_dict[key]['vor_polys_i'][i].buffer(0).intersection(polys_dict[key]['boundary'])
+                    except:
+                        pass
+    return polys_dict
+
+def readable_values_inv(x, y, mean_x_coord, mean_y_coord):
+    f = 10000
+    return x / f + mean_x_coord, y / f + mean_y_coord
 
 if __name__ == "__main__":
     root = Tk()
@@ -39,36 +57,7 @@ if __name__ == "__main__":
     band = file.GetRasterBand(1)
     gt = file.GetGeoTransform()
     array = band.ReadAsArray()
-    pbar0 = tqdm(total = 1, desc='finding contours', position=0)
-    _, contours, hier = cv.findContours(array.astype(np.uint8), cv.RETR_CCOMP, cv.CHAIN_APPROX_TC89_L1)
-    pbar0.update(1)
-    pbar0.close()
-
-    vfunc = np.vectorize(getCoordByIndices)
-    
-    pbar = tqdm(total=(len(contours)), desc="creating polys from contours", position=0)
-    polys = OrderedDict()
-    for i, c in enumerate(contours):
-        if len(c) > 2 and Polygon([p[0] for p in c]).area > n_pixels:
-            poly = Polygon(np.array(vfunc([p[0][1] for p in c], [p[0][0] for p in c])).T)
-            if not poly.is_valid:
-                poly = poly.buffer(0)
-            if isinstance(poly, MultiPolygon):
-                poly = sorted(list(poly), key=lambda a:a.area, reverse=True)[0]
-            if hier[0,i,3] == -1:
-                if str(i) in polys:
-                    polys[str(i)]['boundary'] = poly
-                else:
-                    polys[str(i)] = {'boundary': None, 'holes': [], 'vor_polys': []}
-                    polys[str(i)]['boundary'] = poly
-            else:
-                if str(hier[0,i,3]) in polys:
-                    polys[str(hier[0,i,3])]['holes'].extend([poly])
-                else:
-                    polys[str(hier[0,i,3])] = {'boundary': None, 'holes': [], 'vor_polys': []}
-                    polys[str(hier[0,i,3])]['holes'] = [poly]
-        pbar.update(1)
-    pbar.close()
+    polys = polygonize.get_contour_polygons_seperated(n_pixels, array, gt)
     
     holes = []
     holes_i = []
@@ -87,62 +76,108 @@ if __name__ == "__main__":
             vor_polys.append(Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)))
             
     ordered = dict(OrderedDict(sorted(polys.items(), key = lambda p:p[1]['boundary'].area, reverse=True)))
-    pbar2 = tqdm(total=len(vor_polys), desc="sorting")
-    ordered_intersecting_vor_polys = []
-    ordered_contained_vor_polys = []
-    index_i = []
-    index_c = []
-    for key in ordered.keys():
-        prepped = prep(ordered[key]['boundary'])
-        contained_vor_polys = list(filter(lambda p: prepped.contains(p), vor_polys))
-        ordered_contained_vor_polys += contained_vor_polys
-        ordered[key]['vor_polys_c'] = contained_vor_polys
-        index_c += [key for _ in range(len(contained_vor_polys))]
-        vor_polys = list(filter(lambda p : not prepped.contains(p), vor_polys))
-        intersecting_vor_polys = list(filter(lambda p : prepped.intersects(p), vor_polys))
-        ordered_intersecting_vor_polys += intersecting_vor_polys
-        index_i += [key for _ in range(len(intersecting_vor_polys))]
-        vor_polys = list(filter(lambda p: not prepped.intersects(p), vor_polys))
-        ordered[key]['vor_polys_i'] = intersecting_vor_polys
-        pbar2.update(len(contained_vor_polys)+len(intersecting_vor_polys))
+# =============================================================================
+#     pbar2 = tqdm(total=len(vor_polys), desc="sorting", position = 0)
+#     ordered_intersecting_vor_polys = []
+#     ordered_contained_vor_polys = []
+#     index_i = []
+#     index_c = []
+#     for key in ordered.keys():
+#         prepped = prep(ordered[key]['boundary'])
+#         contained_vor_polys = list(filter(lambda p: prepped.contains(p), vor_polys))
+#         ordered_contained_vor_polys += contained_vor_polys
+#         ordered[key]['vor_polys_c'] = contained_vor_polys
+#         index_c += [key for _ in range(len(contained_vor_polys))]
+#         vor_polys = list(filter(lambda p : not prepped.contains(p), vor_polys))
+#         intersecting_vor_polys = list(filter(lambda p : prepped.intersects(p), vor_polys))
+#         ordered_intersecting_vor_polys += intersecting_vor_polys
+#         index_i += [key for _ in range(len(intersecting_vor_polys))]
+#         vor_polys = list(filter(lambda p: not prepped.intersects(p), vor_polys))
+#         ordered[key]['vor_polys_i'] = intersecting_vor_polys
+#         pbar2.update(len(contained_vor_polys)+len(intersecting_vor_polys))
+#     pbar2.close()
+# =============================================================================
+    points_list = [[] for _ in range(len(polys))]
+    
+    spindex = Index(Polygon(utilv.readable_values_inv(vor.points, mx, my)).bounds)
+    for i, p in enumerate(utilv.readable_values_inv(vor.points, mx, my)):
+        spindex.insert({'index': i, 'coord': p}, (p[0], p[1], p[0], p[1]))
+
+    pbar15 = tqdm(total=len(ordered), desc="sorting", position=0)
+    ints = []
+    for i, key in enumerate(ordered.keys()):
+        if (isinstance(ordered[key]['boundary'], Polygon) and ordered[key]['boundary'].exterior) or isinstance(ordered[key]['boundary'], MultiPolygon):
+            prepped = prep(ordered[key]['boundary'])
+            filtered = list(filter(lambda a : prepped.contains(Point(a['coord'][0], a['coord'][1])), spindex.intersect(ordered[key]['boundary'].bounds)))
+            points_list[i].extend([p['index'] for p in filtered])   
+        pbar15.update(1)
+    pbar15.close()
+    
+    vread_values = np.vectorize(readable_values_inv, excluded=["mean_x_coord", "mean_y_coord"])
+    pbar2 = tqdm(total=len(ordered.keys()), desc='sorting more', position=0)
+    for i, key in enumerate(ordered.keys()):
+        if (isinstance(ordered[key]['boundary'], Polygon) and ordered[key]['boundary'].exterior) or isinstance(ordered[key]['boundary'], MultiPolygon):
+            prepped = prep(ordered[key]['boundary'])
+            prepped_exterior = prep(ordered[key]['boundary'].exterior
+                                    if isinstance(ordered[key]['boundary'], Polygon)
+                                    else unary_union([poly.exterior for poly in ordered[key]['boundary']]))
+            ordered[key]['vor_polys_c'] = list(filter(
+                    prepped.contains, 
+                    [Polygon(np.array(vread_values(
+                            x=np.array(vor.vertices[vor.regions[vor.point_region[p]]])[:,0], 
+                            y=np.array(vor.vertices[vor.regions[vor.point_region[p]]])[:,1], 
+                            mean_x_coord=mx, mean_y_coord=my)).T)
+                    for p in points_list[i] if -1 not in vor.regions[vor.point_region[p]]]))
+            ordered[key]['vor_polys_i'] = list(filter(
+                    prepped_exterior.intersects, 
+                    [Polygon(np.array(vread_values(
+                            x=np.array(vor.vertices[vor.regions[vor.point_region[p]]])[:,0], 
+                            y=np.array(vor.vertices[vor.regions[vor.point_region[p]]])[:,1], 
+                            mean_x_coord=mx, mean_y_coord=my)).T) 
+                    for p in points_list[i] if -1 not in vor.regions[vor.point_region[p]]]))
+        pbar2.update()
     pbar2.close()
         
     p = mp.Pool(n_processes)
-    batches = []
-    batchsize = int(len(ordered_intersecting_vor_polys) / n_batches)
-    results = [p.apply_async(intersect, (polys, index_i[i*batchsize: (i+1)*batchsize], ordered_intersecting_vor_polys[i*batchsize: (i+1)*batchsize])) for i in range(n_batches)]
+    batches = divide_into_batches(ordered, n_batches)
+    results = [p.apply_async(intersect, (batches[i],)) for i in range(n_batches)]
     
-    ints = []
+    d = dict()
     pbar3 = tqdm(total=len(results), desc="intersecting vor polys on boundary", position=0)   
     for i in range(len(results)):
-        ints += results[i].get()
+        for key in results[i].get().keys():
+            d[key] = results[i].get()[key]
         pbar3.update(1)
     pbar3.close()
     
     pbar4 = tqdm(total=len(polys.keys()), desc="intersecting with holes", position = 0)
     for key in polys.keys():
-        if polys[key]['holes']:
-            t = STRtree(polys[key]['holes'])
-            for i in range(len(ordered_contained_vor_polys)):
-                if index_c[i] == key:
-                    for hole in t.query(ordered_contained_vor_polys[i]):
-                        if hole.overlaps(ordered_contained_vor_polys[i]):
+        if d[key]['holes']:
+            t = STRtree(d[key]['holes'])
+            if 'vor_polys_c' in d[key].keys():
+                for i in range(len(d[key]['vor_polys_c'])):
+                    for hole in t.query(d[key]['vor_polys_c'][i]):
+                        if hole.overlaps(d[key]['vor_polys_c'][i]):
                             try:
-                                ordered_contained_vor_polys[i] = ordered_contained_vor_polys[i].difference(hole)
+                                d[key]['vor_polys_c'][i] = d[key]['vor_polys_c'][i].difference(hole)
                             except:
                                 pass
-            for i in range(len(ints)):
-                if index_c[i] == key:
-                    for hole in t.query(ints[i]):
-                        if hole.overlaps(ints[i]):
+            if 'vor_polys_i' in d[key].keys():
+                for i in range(len(d[key]['vor_polys_i'])):
+                    for hole in t.query(d[key]['vor_polys_i'][i]):
+                        if hole.overlaps(d[key]['vor_polys_i'][i]):
                             try:
-                                ints[i] = ints[i].difference(hole)
+                                ints[i] = d[key]['vor_polys_i'][i].difference(hole)
                             except:
                                 pass
         pbar4.update(1)
     pbar4.close()
+    
+    ints = []
+    for key in d.keys():
+        ints.extend(d[key]['vor_polys_i'] + d[key]['vor_polys_c'])
             
-    dfv = geopandas.GeoDataFrame({'geometry': ints + ordered_contained_vor_polys})
+    dfv = geopandas.GeoDataFrame({'geometry': ints})
     dfv.crs = {'init': 'epsg:4326'}
     dfv = dfv.to_crs({'init': 'epsg:28992'})
     dfv.to_file("_".join(mask_path.split("_")[:-1])+"_voronoi.shp")

@@ -20,7 +20,7 @@ root = Tk()
 paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
 plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
 
-use_ahn = False
+use_ahn = True
 if use_ahn:
     ahn_path = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select ahn dem", parent=root)
 
@@ -44,34 +44,33 @@ with fiona.open(plant_path) as src:
         src_driver = src.driver
         src_crs = src.crs
         src_schema = src.schema
-    
-#%% reproject AHN Model
-if use_ahn:
-    orig = gdal.Open(paths[0])
-    dst_shape = (orig.GetRasterBand(1).YSize, orig.GetRasterBand(1).XSize)
-    dst_transform = A(orig.GetGeoTransform()[1], 0, orig.GetGeoTransform()[0], 0, orig.GetGeoTransform()[5],  orig.GetGeoTransform()[3])
-    ahn_array = np.zeros(dst_shape)
-    dst_crs = "EPSG:4326"
-    
-    with rasterio.open(ahn_path) as src:
-        source = src.read(1)
-        
-        with rasterio.Env():
-            reproject(
-                    source,
-                    ahn_array,
-                    src_transform = src.transform,
-                    src_crs = src.crs,
-                    dst_transform = dst_transform,
-                    dst_crs = dst_crs,
-                    respampling = Resampling.nearest
-                    )
-            
-    source = None
+
 #%% cubic spline
 pbar = tqdm(total=len(paths), desc="Doing cubic spline thingies", position=0)
 for a in range(len(paths)):
     file = gdal.Open(paths[a])
+    if use_ahn:
+        dst_shape = (file.GetRasterBand(1).YSize, file.GetRasterBand(1).XSize)
+        dst_transform = A(file.GetGeoTransform()[1], 0, file.GetGeoTransform()[0], 0, file.GetGeoTransform()[5],  file.GetGeoTransform()[3])
+        ahn_array = np.zeros(dst_shape)
+        dst_crs = "EPSG:4326"
+        
+        with rasterio.open(ahn_path) as src:
+            source = src.read(1)
+            
+            with rasterio.Env():
+                reproject(
+                        source,
+                        ahn_array,
+                        src_transform = src.transform,
+                        src_crs = src.crs,
+                        dst_transform = dst_transform,
+                        dst_crs = dst_crs,
+                        respampling = Resampling.cubic
+                        )
+                
+        source = None
+    
     
     band = file.GetRasterBand(1)
     array = band.ReadAsArray()
@@ -156,7 +155,7 @@ for a in range(len(paths)):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
+    util.create_tiff(znew - ahn_array if use_ahn else znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
     znew = None
     pbar.update(1)
 pbar.close()

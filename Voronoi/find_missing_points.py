@@ -39,8 +39,16 @@ def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=Non
     adjacent_missed_regions = vd.find_adjacent_polygons(missed_regions)
     slopes, dists = vd.get_slopes_and_distances_in_pairs_of_large_regions(vor, adjacent_missed_regions)
     
-    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field or np.nanmedian(slopes), dists, first_it, mean_dist)
-    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field or np.nanmedian(slopes), dists, spindex, first_it, mean_dist)
+    if slope_field:
+        s = slope_field
+    else:
+        if slopes:
+            s = np.nanmedian(slopes)
+        else:
+            s = 0
+    
+    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, s, dists, first_it, mean_dist)
+    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, s, dists, spindex, first_it, mean_dist)
     if plot:
         vd.plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
     return missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor
@@ -84,7 +92,7 @@ if __name__ == "__main__":
                         batches.append(bed[i * batch_size: i * batch_size + offset, :])
         
         time1= time.time()
-        results = [p.apply_async(worker, (batches[i], z == 0, dist_between_two_crops or np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
+        results = [p.apply_async(worker, (batches[i], z == 0, np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
         
         new_missed_points = []
         for res in results:

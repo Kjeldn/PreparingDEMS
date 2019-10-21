@@ -237,11 +237,11 @@ def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope
             p2 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             slope, dist = util.get_slope_and_dist(p1, p2)
 
-            if not np.isnan(mean_dist) or not not mean_dist:
+            if first_it:
                 n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
             else:
                 n_p = int(dist/(mean_dist/2) + 0.5) - 1
-            if abs(slope - slope_field) < 0.03 and n_p > 0:
+            if slope and abs(slope - slope_field) < 0.03 and n_p > 0:
                 missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
     return missed_points
 
@@ -329,7 +329,7 @@ def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dis
                     else:
                         n_p = int(dist/(mean_dist/2) + 0.5) - 1
                     if n_p > 0:
-                        if not np.isnan(mean_dist) or not not mean_dist:
+                        if first_it:
                             mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, np.median(dists)/4)
                         else:
                             mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, mean_dist/4)
