@@ -3,7 +3,6 @@ import voronoi_diagram as vd
 import numpy as np
 import multiprocessing as mp
 import divide_into_beds as dib
-import time
 
 clip_voronoi = True
 path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 1\20190709\1137\Plant_count\c01_verdonk-Rijweg stalling 1-201907091137-GR-count_KMV.shp"
@@ -48,7 +47,4 @@ if __name__ == "__main__":
         if res.get():
             slopes += res.get()[0]
             dists += res.get()[1]
-            print('mean slope:', np.nanmedian(slopes), 'mean dist:', np.nanmedian(dists))
-        
-    print(np.nanmedian(slopes))
-    time.sleep(300)
+            print('mean slope:', np.nanmedian(slopes), 'cv score:', np.nanstd(slopes)/np.nanmean(slopes), 'mean dist:', np.nanmedian(dists))

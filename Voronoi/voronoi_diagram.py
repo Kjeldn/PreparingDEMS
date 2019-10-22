@@ -228,7 +228,7 @@ Returns
 missed_points : list of coordinates
     coordinates of all missed points in adjacent_missed_regions which have length 2
 """
-def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, dists, first_it=True, mean_dist=None):
+def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope_field, d):
     missed_points = []
     for s in adjacent_missed_regions:
         if len(s) == 2:
@@ -236,11 +236,7 @@ def find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, slope
             p1 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             p2 = vor.points[(np.where(vor.point_region == next(it).id))[0][0]]
             slope, dist = util.get_slope_and_dist(p1, p2)
-
-            if first_it:
-                n_p = int(dist/(np.median(dists)/2) + 0.5) - 1
-            else:
-                n_p = int(dist/(mean_dist/2) + 0.5) - 1
+            n_p = int(dist/(d/2) + 0.5) - 1
             if slope and abs(slope - slope_field) < 0.03 and n_p > 0:
                 missed_points.append([(p1[0] + p2[0])/ 2, (p1[1] + p2[1])/2])
     return missed_points
@@ -310,7 +306,7 @@ Returns
 missed_points : list of coordinates
     All missed points found with this method
 """
-def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dists, spindex, first_it=False, mean_dist=None):
+def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, d, spindex):
     missed_points = []
     for i in range(len(adjacent_missed_regions)):
         if len(adjacent_missed_regions[i]) != 2:
@@ -319,20 +315,9 @@ def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, dis
             for line in lines:
                 for c in range(len(line) - 1):
                     dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
-                    if first_it:
-                        if not np.isnan(mean_dist) or not not mean_dist:
-                            n_p = int(dist/(mean_dist/2) + 0.5) - 1
-                        elif dists:
-                            n_p = int(dist/(np.nanmedian(dists)/2) + 0.5) - 1
-                        else:
-                            n_p = 0
-                    else:
-                        n_p = int(dist/(mean_dist/2) + 0.5) - 1
+                    n_p = int(dist/(d/2) + 0.5) - 1
                     if n_p > 0:
-                        if first_it:
-                            mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, np.median(dists)/4)
-                        else:
-                            mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, mean_dist/4)
+                        mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, d/4)
                         for mp in mps:
                             if mp not in missed_points:
                                 missed_points.append(mp)

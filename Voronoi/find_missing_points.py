@@ -20,13 +20,13 @@ slope_field_schol = 0.5842593210109179
 slope_field_weveroost = -0.8818719406757523
 slope_field_jokevisser = -0.17404523952846995
 slope_field_rijwegstalling1 = 0.36930600102426436
-slope_field = slope_field_rijwegstalling1
-n_its = 2
+slope_field = 0
+n_its = 1
 n_processes = 4
-batch_size = 15000
-overlap = 1000
+batch_size = 3000
+overlap = 2000
 
-dist_between_two_crops = 0
+dist_between_two_crops = 0.115536254228
 
 def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=None):
     convex_hull = util.get_convex_hull(np.array(plants))
@@ -46,9 +46,19 @@ def get_missing_points(plants, spindex, plot=False, first_it=True, mean_dist=Non
             s = np.nanmedian(slopes)
         else:
             s = 0
+            
+    if dist_between_two_crops:
+        d = dist_between_two_crops
+    else:
+        if not np.isnan(mean_dist) and first_it:
+            d = mean_dist
+        elif dists:
+            d = np.nanmedian(dists)
+        else:
+            d = 0
     
-    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, s, dists, first_it, mean_dist)
-    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, s, dists, spindex, first_it, mean_dist)
+    missed_points = vd.find_midpoints_in_pairs_of_large_regions(adjacent_missed_regions, vor, s, d)
+    missed_points = missed_points + vd.find_missed_points_in_regions(adjacent_missed_regions, vor, s, d, spindex)
     if plot:
         vd.plot_voronoi_diagram(vor, np.array(missed_points), missed_regions, small_regions)
     return missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor
@@ -61,7 +71,9 @@ def worker(batch, first_it, mean_dist, i, total):
     spindex = Index(bbox=(np.amin(plants_i[:,0]), np.amin(plants_i[:,1]), np.amax(plants_i[:,0]), np.amax(plants_i[:,1])))
     for plant in plants_i:
         spindex.insert(plant, bbox=(plant[0], plant[1], plant[0], plant[1]))
-    plants_i, _ = ro.remove_outliers(plants_i, slope_field)
+    if slope_field:
+        plants_i, _ = ro.remove_outliers(plants_i, slope_field)
+        
     plants_i = np.array(plants_i)
     if first_it:
         missed_points, a, ci, adjacent_missed_regions, slopes, dists, vor = get_missing_points(plants_i, spindex, mean_dist = mean_dist)
@@ -70,7 +82,7 @@ def worker(batch, first_it, mean_dist, i, total):
     missed_points_coord = missed_points_coord + list(util.readable_values_inv(np.array(missed_points), mean_x_coord, mean_y_coord))
     
     print("batch", i + 1, "/", total, "done by", mp.current_process(), "in", time.time() - start, "seconds")
-    return missed_points_coord, np.nanmedian(slopes), np.nanmedian(dists)
+    return missed_points_coord, np.nanmedian(slopes), np.nanmedian(dists), a, ci, adjacent_missed_regions, slopes, dists, vor, plants_i
 
 if __name__ == "__main__":
     plants, src_driver, src_crs, src_schema = util.open_shape_file(path)
@@ -92,6 +104,7 @@ if __name__ == "__main__":
                         batches.append(bed[i * batch_size: i * batch_size + offset, :])
         
         time1= time.time()
+        
         results = [p.apply_async(worker, (batches[i], z == 0, np.nanmedian(dists_means), i, len(batches))) for i in range(len(batches))]
         
         new_missed_points = []
