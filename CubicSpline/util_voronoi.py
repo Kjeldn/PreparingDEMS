@@ -155,7 +155,7 @@ def find_points_in_line(ps, slope_field, vor):
         for j in range(len(lines)):
             for k in range(len(lines)):
                 if j !=k:
-                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[1] for q in lines[k]) for p in lines[j]):                            
+                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.02)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.02)[1] for q in lines[k]) for p in lines[j]):                            
                         newline = list(set(lines[j] + lines[k]))
                         if j < k:
                             del lines[k]

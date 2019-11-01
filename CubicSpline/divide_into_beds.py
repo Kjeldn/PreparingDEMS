@@ -35,11 +35,11 @@ plot : Boolean
 orentation : String
     If The orientation of the crop field is more North-South than East-West set this to North-South
 a : float
-    tolerance for finding lines, if too many are found descrease, if not enough increase
+    tolerance for finding lines, if too many are found descrease, if not enough increase (0.5 < a < 5)
 b : int
-    max size of groups of lone points which are ignored
+    max size of groups of lone points which are ignored (3 < a < 8)
 c : float
-    min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy)
+    min distance to plants for a point to be classified as a lone point, defined box (-c*dx, -c*dy, c*dx, c*dy) (3 < a < 8)
     
 Returns
 -----------
@@ -48,9 +48,9 @@ beds : list of numpy arrays
 """
 def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     if orientation == 'North-South':
-        plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
+        plants = np.array(sorted(sorted(plants, key=lambda p : p[1]), key = lambda p: p[0]))
     else:    
-        plants = np.array(sorted(sorted(plants, key=lambda a : a[0]), key = lambda a: a[1]))
+        plants = np.array(sorted(sorted(plants, key=lambda p : p[0]), key = lambda p: p[1]))
     
     spindex = Index(bbox=(np.amin(plants[:,0]), np.amin(plants[:,1]), np.amax(plants[:,0]), np.amax(plants[:,1])))
     for plant in plants:
@@ -81,8 +81,9 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     dist = []
     for i in range(len(x) - 1):
         line = LineString([(x[i], y[i]), (x[i + 1], y[i + 1])])
+        lc = line.coords
         n = int(line.length / ds + 0.5) - 1
-        points = fill_points_in_line(line.coords[0], line.coords[1], n) + [[x[i], y[i]]]
+        points = fill_points_in_line(lc[0], lc[1], n) + [[x[i], y[i]]]
         for p in points:
             j = 1
             while j < 200 and not spindex.intersect((p[0] - j*dx, p[1] - j*dy, p[0] + j*dx, p[1] + j*dy)):
@@ -136,8 +137,9 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
             q = max_points[j]
             if p != q:
                 l = LineString([(p[0], p[1]), (q[0], q[1])])
+                lc = l.coords
                 if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds and LineString([p, q]).length > convex_hull_o.length/4:
-                    points = fill_points_in_line(l.coords[0], l.coords[1], int(l.length / ds + 0.5) - 1)
+                    points = fill_points_in_line(lc[0], lc[1], int(l.length / ds + 0.5) - 1)
                     n = 0
                     for point in points:
                         if spindex.intersect((point[0] - a*dx, point[1] - a*dy, point[0] + a*dx, point[1] + a*dy)):
@@ -192,4 +194,15 @@ def write_shape_file(plants, dst, crs):
     mps = [MultiPoint(bed) for bed in beds]
     with fiona.open(dst, 'w', driver='ESRI Shapefile', schema= { 'geometry': 'MultiPoint', 'properties': {'bed': 'int'} }, crs=crs) as c:
         for i, mp in enumerate(mps):
-            c.write({ 'geometry': mapping(mp), 'properties': {'bed': i}})
+            c.write({ 'geometry': mapping(mp), 'properties': { 'bed': i }})
+            
+if __name__ == "__main__":
+    plants = []
+    with fiona.open(r"Z:\VanBovenDrive\VanBoven MT\Archive\c08_biobrass\Schol\20190726\1210\Plant_count\20190726_count_merged.shp") as src:
+        for s in src:
+            if s['geometry']:
+                if s['geometry']['type'] == 'Point':
+                    plants.append(s['geometry']['coordinates'] if s['geometry'] else None)
+                if s['geometry']['type'] == 'MultiPoint':
+                    plants.append(s['geometry']['coordinates'][0] if s['geometry'] else None)
+    divide(plants, plot=True)

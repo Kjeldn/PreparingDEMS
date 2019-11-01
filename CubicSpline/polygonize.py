@@ -1,3 +1,10 @@
+"""
+Reads binary image, find contours and writes them to a shape file.
+CRS of resulting shape file is espg:28992 and location is "_".join(mask_path.split("_")[:-1])+"_polys.shp".
+For binary images with small crops n_pixels should be small (~20). When crops are larger and grouped together
+n_pixels should be larger (~50), this will ignore the holes in the binary image caused by overexposure.
+"""
+
 import geopandas
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.prepared import prep

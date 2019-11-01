@@ -26,17 +26,14 @@ gdal.UseExceptions()
 root = Tk()
 paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
 plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
-
-use_ahn = True
-if use_ahn:
-    ahn_path = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select ahn dem", parent=root)
+base_path = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select base dem", parent=root)
 
 root.destroy()
 use_ridges = True
-plot = True
+plot = False
 
 ##The space between possible bare ground points to fit over
-step = 40
+step = 20
 
 #%% plants
 plants = []
@@ -53,27 +50,26 @@ with fiona.open(plant_path) as src:
 pbar = tqdm(total=len(paths), desc="Doing cubic spline thingies", position=0)
 for a in range(len(paths)):
     file = gdal.Open(paths[a])
-    if use_ahn:
-        dst_shape = (file.GetRasterBand(1).YSize, file.GetRasterBand(1).XSize)
-        dst_transform = A(file.GetGeoTransform()[1], 0, file.GetGeoTransform()[0], 0, file.GetGeoTransform()[5],  file.GetGeoTransform()[3])
-        ahn_array = np.zeros(dst_shape)
-        dst_crs = "EPSG:4326"
+    dst_shape = (file.GetRasterBand(1).YSize, file.GetRasterBand(1).XSize)
+    dst_transform = A(file.GetGeoTransform()[1], 0, file.GetGeoTransform()[0], 0, file.GetGeoTransform()[5],  file.GetGeoTransform()[3])
+    base_array = np.zeros(dst_shape)
+    dst_crs = "EPSG:4326"
+    
+    with rasterio.open(base_path) as src:
+        source = src.read(1)
         
-        with rasterio.open(ahn_path) as src:
-            source = src.read(1)
+        with rasterio.Env():
+            reproject(
+                    source,
+                    base_array,
+                    src_transform = src.transform,
+                    src_crs = src.crs,
+                    dst_transform = dst_transform,
+                    dst_crs = dst_crs,
+                    respampling = Resampling.cubic
+                    )
             
-            with rasterio.Env():
-                reproject(
-                        source,
-                        ahn_array,
-                        src_transform = src.transform,
-                        src_crs = src.crs,
-                        dst_transform = dst_transform,
-                        dst_crs = dst_crs,
-                        respampling = Resampling.cubic
-                        )
-                
-        source = None
+    source = None
     
     band = file.GetRasterBand(1)
     array = band.ReadAsArray()
@@ -95,18 +91,8 @@ for a in range(len(paths)):
     convex_hull = Polygon(zip(x_plants, y_plants)).convex_hull
         
     if use_ridges:
-        ridges_array = dt.get_ridges_array(array, -0.01).astype(np.uint8)
+        ridges_array = dt.get_ridges_array(array, -0.035).astype(np.uint8)
         mask = util.getMask(array, plants, gt, k_size = 13)
-        temp = np.array(ridges_array)
-        temp[mask == 0] = 2
-        u, c = np.unique(temp, return_counts=True)
-        if (c[1]/sum(c)) < 0.01:
-            ridges_array = dt.get_ridges_array(array, -0.005).astype(np.uint8)
-            temp = np.array(ridges_array)
-            temp[mask == 0] = 2
-            u, c = np.unique(temp, return_counts=True)
-            if c[1]/sum(c) < 0.01:
-                ridges_array = dt.get_ridges_array(array, -0.001).astype(np.uint8)
         ridges_array *= mask
     
     ##Remove all non-values from array
@@ -123,14 +109,14 @@ for a in range(len(paths)):
     # create list of points inside the field to get the fit over
     for i in range(int(ysize/step)):
         for j in range(int(xsize/step)):
-            data[i][j] = array[step * i, step * j] - ahn_array[step * i, step * j] if use_ahn else array[step * i, step * j]
+            data[i][j] = array[step * i, step * j] - base_array[step * i, step * j]
             x[i][j] = step * i
             y[i][j] = step * j
             if array[step * i, step * j] == 0 or not convex_hull.contains(Point(step * i, step * j)):
                 mask[i][j] = True
             if use_ridges and ridges_array[step * i, step * j] != 1:
                 mask[i][j] = True
-            if use_ahn and abs(ahn_array[step * i, step * j]) > 10:
+            if abs(base_array[step * i, step * j]) > 10:
                 mask[i][j] = True
             if not mask[i][j]:
                 xx.append(step*i)
@@ -168,7 +154,7 @@ for a in range(len(paths)):
     znew = array - znew
     array = None
     
-    util.create_tiff(znew - ahn_array if use_ahn else znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
+    util.create_tiff(znew, gt, projection, paths[a].split(".")[0] + "_cubic.tif")
     znew = None
     pbar.update(1)
 pbar.close()

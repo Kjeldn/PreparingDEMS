@@ -5,7 +5,7 @@ import multiprocessing as mp
 import divide_into_beds as dib
 
 clip_voronoi = True
-path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 1\20190709\1137\Plant_count\c01_verdonk-Rijweg stalling 1-201907091137-GR-count_KMV.shp"
+path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 2\20190709\1156\Plant_count\907170908-GR_points_merged_gli_dem_check_KMV.shp"
 batch_size = 5000
 overlap = 1000
 n_processes = 4
@@ -47,4 +47,4 @@ if __name__ == "__main__":
         if res.get():
             slopes += res.get()[0]
             dists += res.get()[1]
-            print('mean slope:', np.nanmedian(slopes), 'cv score:', np.nanstd(slopes)/np.nanmean(slopes), 'mean dist:', np.nanmedian(dists))
+            print('mean slope:', np.nanmedian(slopes), 'cv score:', abs(np.nanstd(slopes))/np.nanmean(slopes), 'mean dist:', np.nanmedian(dists))

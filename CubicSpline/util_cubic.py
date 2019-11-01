@@ -60,9 +60,9 @@ def get_convex_hull(plants):
     polygon = Polygon(poly_line.coords)
     return polygon
 
-    
-
 def getMask(array, plants, gt, k_size = 15):
+    if k_size % 2 == 0:
+        raise ValueError("k_size should be odd")
     mask = np.zeros(array.shape)
     plane = Plane(mask, gt)
     
@@ -70,4 +70,4 @@ def getMask(array, plants, gt, k_size = 15):
         if p:
             plane.maskValuesInNeighborhood(p[1], p[0], k_size)
 
-    return plane.array
+    return plane.array.astype(np.uint8)

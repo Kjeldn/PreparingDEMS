@@ -1,4 +1,4 @@
-from shapely.geometry import Polygon, Point, LineString, mapping, MultiPoint, MultiPolygon
+from shapely.geometry import Point, LineString, mapping, MultiPoint, MultiPolygon
 from shapely.geometry.polygon import LinearRing
 import numpy as np
 from pyqtree import Index
@@ -46,7 +46,7 @@ Returns
 beds : list of numpy arrays
     plants divided in beds
 """
-def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
+def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4, heighest_in_group=True):
     if orientation == 'North-South':
         plants = np.array(sorted(sorted(plants, key=lambda a : a[1]), key = lambda a: a[0]))
     else:    
@@ -81,8 +81,9 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     dist = []
     for i in range(len(x) - 1):
         line = LineString([(x[i], y[i]), (x[i + 1], y[i + 1])])
+        lc = line.coords
         n = int(line.length / ds + 0.5) - 1
-        points = fill_points_in_line(line.coords[0], line.coords[1], n) + [[x[i], y[i]]]
+        points = fill_points_in_line(lc[0], lc[1], n) + [[x[i], y[i]]]
         for p in points:
             j = 1
             while j < 200 and not spindex.intersect((p[0] - j*dx, p[1] - j*dy, p[0] + j*dx, p[1] + j*dy)):
@@ -120,14 +121,17 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
     
     max_points = []
     for i in range(len(groups)):
-        max_index = groups[i][0]['index']
-        max_dist = dist[max_index]['dist']
-        for j in range(1, len(groups[i])):
-            if dist[groups[i][j]['index']]['dist'] > max_dist:
-                max_index = groups[i][j]['index']
-                max_dist = dist[max_index]['dist']
-                
-        max_points.append(dist[max_index]['coord'])
+        if heighest_in_group:
+            max_index = groups[i][0]['index']
+            max_dist = dist[max_index]['dist']
+            for j in range(1, len(groups[i])):
+                if dist[groups[i][j]['index']]['dist'] > max_dist:
+                    max_index = groups[i][j]['index']
+                    max_dist = dist[max_index]['dist']
+                    
+            max_points.append(dist[max_index]['coord'])
+        else:
+            max_points.append(groups[i][int(len(groups[i])/2)]['coord'])
     
     likeliness = []
     for i in range(len(max_points)):
@@ -136,8 +140,9 @@ def divide(plants, plot=False, orientation='East-West', a=1, b=4, c=4):
             q = max_points[j]
             if p != q:
                 l = LineString([(p[0], p[1]), (q[0], q[1])])
+                lc = l.coords
                 if convex_hull.exterior.distance(Point((p[0] + q[0])/2, (p[1] + q[1])/2)) > ds and LineString([p, q]).length > convex_hull_o.length/4:
-                    points = fill_points_in_line(l.coords[0], l.coords[1], int(l.length / ds + 0.5) - 1)
+                    points = fill_points_in_line(lc[0], lc[1], int(l.length / ds + 0.5) - 1)
                     n = 0
                     for point in points:
                         if spindex.intersect((point[0] - a*dx, point[1] - a*dy, point[0] + a*dx, point[1] + a*dy)):
@@ -193,3 +198,7 @@ def write_shape_file(plants, dst, crs):
     with fiona.open(dst, 'w', driver='ESRI Shapefile', schema= { 'geometry': 'MultiPoint', 'properties': {'bed': 'int'} }, crs=crs) as c:
         for i, mp in enumerate(mps):
             c.write({ 'geometry': mapping(mp), 'properties': {'bed': i}})
+            
+if __name__ == "__main__":
+    plants, src_driver, src_crs, src_schema = util.open_shape_file(r"Z:\800 Operational\c01_verdonk\Rijweg stalling 2\20190709\1156\Plant_count\bed3.gpkg")
+    divide(plants, plot=True, heighest_in_group = False, b=1, c=8)

@@ -1,7 +1,11 @@
+"""
+Contains helper function for the find_missing_points.py script.
+"""
+
 from shapely.geometry import Point, Polygon, LinearRing
 import numpy as np
 import fiona
-from tqdm import trange
+from tqdm import trange, tqdm
 from pyqtree import Index
 from collections import OrderedDict
 
@@ -109,25 +113,41 @@ Returns
 lines_coord : list of list of coordinates
     List of all Voronoi_points in the same line in the set of Voronoi_polygons grouped together
 """
-def find_points_in_line(ps, slope_field, vor):
+def find_points_in_line(ps, slope_field, vor, delta1 = 0.02, delta2= 0.03):
+    def get_slope(p, q):
+        if p[0] == q[0] and p[1] == q[1]:
+            return 0
+        [p, q] = sorted([p, q], key=lambda v : v[0])
+        return np.arctan((p[1] - q[1])/ (p[0] - q[0]))
+    v = np.vectorize(get_slope, otypes=[np.float], signature='(2),(2)->()')
+    
+    
+
     coords = [vor.points[np.where(vor.point_region == p.id)[0][0]] for p in ps]
     points = [np.where(vor.point_region == p.id)[0][0] for p in ps]
+    points_i = [coords[points.index(p)] for p in points]
+    indices = [i for i in range(len(points_i))]
+    m = np.array([indices,]*len(indices)).flatten()
+    n = np.array([indices,]*len(indices)).T.flatten()
+    p = [points_i[i] for i in m]
+    q = [points_i[i] for i in n]
+    slopes = v(p,q).reshape((len(points), len(points)))
     lines = []
-    for p in points:
+    for i, p in enumerate(points):
         closest_slope_p = None
         closest_slope = 0
-        for q in points:
+        for j, q in enumerate(points):
             if p != q:
                 if not closest_slope_p:
                     closest_slope_p = q
-                    closest_slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
+                    closest_slope = slopes[i,j]
                 else:
-                    slope, _ = get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])
+                    slope = slopes[i,j]
                     if abs(slope_field - slope) < abs(slope_field - closest_slope):
                         closest_slope_p = q
                         closest_slope = slope
                         
-        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], slope_field, 0.02)
+        ci_s = ci_slopes(coords[points.index(p)], coords[points.index(closest_slope_p)], slope_field, delta1)
         
         if closest_slope > ci_s[0] and closest_slope < ci_s[1]:
             lines.append([p, closest_slope_p])
@@ -150,12 +170,13 @@ def find_points_in_line(ps, slope_field, vor):
             if found:
                 break
             
+        
     for i in range(len(lines)):
         found = False
         for j in range(len(lines)):
             for k in range(len(lines)):
                 if j !=k:
-                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, 0.05)[1] for q in lines[k]) for p in lines[j]):             
+                    if all(all(get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] > ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, delta2)[0] and get_slope_and_dist(coords[points.index(p)], coords[points.index(q)])[0] < ci_slopes(coords[points.index(p)], coords[points.index(q)], slope_field, delta2)[1] for q in lines[k]) for p in lines[j]):             
                         newline = list(set(lines[j] + lines[k]))
                         if j < k:
                             del lines[k]
@@ -171,7 +192,7 @@ def find_points_in_line(ps, slope_field, vor):
     
     lines_coord = []
     for line in lines:
-        lines_coord.append(sorted([coords[points.index(p)] for p in line], key=lambda a: a[0]))
+        lines_coord.append(sorted([coords[points.index(p)] for p in line], key=lambda a: a[0]))    
     return lines_coord
 
 """
@@ -194,12 +215,11 @@ Returns
 ret : list(len=n) of coordinates
     The points filled in the line between p and q
 """
-def fill_points_in_line(p, q, n, spindex, d):
+def fill_points_in_line(p, q, n, d):
     ret = []
     for i in range(1, n + 1):
         point_to_add = [(i*p[0] + (n + 1 -i) * q[0])*(1/(n+1)), (i*p[1] + (n + 1 -i) * q[1])*(1/(n+1))]
-        if len(spindex.intersect((point_to_add[0] - d, point_to_add[1] - d, point_to_add[0] + d, point_to_add[1] + d))) == 0:
-            ret.append(point_to_add)
+        ret.append(point_to_add)
     return ret
  
 """
@@ -317,7 +337,9 @@ def open_shape_file(path):
         src_driver = src.driver
         src_crs = src.crs
         src_schema = src.schema
-        for i in trange(len(src), desc='opening plants'):
+        pbar = tqdm(total=len(src), desc='opening plants', position=0)
+        for i in range(len(src)):
+            pbar.update(1)
             if src[i] and src[i]['geometry']:
                 if src[i]['geometry']['type'] == 'MultiPoint':
                     plants.append([src[i]['geometry']['coordinates'][0][0], src[i]['geometry']['coordinates'][0][1]])
@@ -325,6 +347,7 @@ def open_shape_file(path):
                     plants.append([src[i]['geometry']['coordinates'][0], src[i]['geometry']['coordinates'][1]])
             else:
                 n+=1
+        pbar.close()
     return plants, src_driver, src_crs, src_schema
 
 """
@@ -367,14 +390,22 @@ Returns
 missed_points_coord : list of coordinates
     Missed points where overlapping points are removed
 """
-def remove_overlapping_points(missed_points_coord):
+def remove_overlapping_points(new_points, missed_points_coord):
+    d_y = 1/222222.0 ## 0.5 meters
+    d_x = np.cos(missed_points_coord[0][1] / (180 / np.pi))/222222.0 ## 0.5 meters
+    missed_new_points_qtree = Index(bbox=(np.amin(new_points[:,0]), np.amin(new_points[:,1]), np.amax(new_points[:,0]), np.amax(new_points[:,1])))
+    for n in new_points:
+        if not missed_new_points_qtree.intersect((n[0] - d_x, n[1] - d_y, n[0] + d_x, n[1] + d_y)):
+            missed_new_points_qtree.insert(n, bbox=(n[0], n[1], n[0], n[1]))
+    new_points = missed_new_points_qtree.intersect((np.amin(new_points[:,0]), np.amin(new_points[:,1]), np.amax(new_points[:,0]), np.amax(new_points[:,1])))
     missed_points_qtree = Index(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
-    d_y = 1/444444.0 ## 0.25 meters
-    d_x = np.cos(missed_points_coord[0][1] / (180 / np.pi))/444444.0 ## 0.25 meters
-    for i in trange(len(missed_points_coord), desc='check for double points'):
-        mp = missed_points_coord[i]
-        if not missed_points_qtree.intersect((mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y)):
-            missed_points_qtree.insert(mp, (mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y))
+    checked_points = []
     
-    missed_points_coord = missed_points_qtree.intersect(bbox=(np.amin(missed_points_coord[:, 0]), np.amin(missed_points_coord[:,1]), np.amax(missed_points_coord[:,0]), np.amax(missed_points_coord[:, 1])))
-    return missed_points_coord
+    for p in missed_points_coord:
+        missed_points_qtree.insert(p, (p[0], p[1], p[0], p[1]))
+    for i in trange(len(new_points), desc='check for double points'):
+        mp = new_points[i]
+        if not missed_points_qtree.intersect((mp[0] - d_x, mp[1] - d_y, mp[0] + d_x, mp[1] + d_y)):
+            checked_points.append(mp)
+    
+    return checked_points

@@ -15,7 +15,7 @@ def get_ridges_array(dem, thr):
     dem_f = cv2.GaussianBlur(dem,(11,11),0)
     smooth = cv2.GaussianBlur(dem_f,(15,15),0)
     ridges = dem_f - smooth
-    ridges[mask>10**-10]=0  
+    ridges[mask>10**-10]=0
     temp2 = np.zeros(ridges.shape)
     temp2[ridges<thr]=1
     ridges = (temp2).astype(np.uint8) 
@@ -37,12 +37,3 @@ def write_ridges_array(src_path, dst_path):
     tiff.GetRasterBand(1).WriteArray(array)
     tiff.GetRasterBand(1).FlushCache()
     tiff = None
-    
-#write_ridges_array(r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR.tif", r"C:\Users\wytze\OneDrive\Documents\vanBoven\Broccoli\c01_verdonk-Wever oost-201908041528_DEM-GR_ridges.tif")
-if __name__ == "__main__":
-    file = gdal.Open(r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants compare2\c01_verdonk-Wever west-201907170749_DEM-GR.tif")
-    projection = file.GetProjection()
-    band = file.GetRasterBand(1)
-    array = get_ridges_array(band.ReadAsArray())
-    plt.spy(array)
-    file = None

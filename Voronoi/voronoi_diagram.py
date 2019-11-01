@@ -1,8 +1,16 @@
+"""
+Contains helper function for the find_missing_points.py script.
+"""
+
 from shapely.geometry import Polygon, Point, LineString
+from shapely.prepared import prep
 import numpy as np
 import util_voronoi as util
 from scipy.spatial import voronoi_plot_2d, Voronoi
 import matplotlib.pyplot as plt
+from collections import deque
+from shapely.ops import unary_union
+import networkx as nx
 
 """
 Extension of Voronoi regions found in the Voronoi diagram,
@@ -117,11 +125,12 @@ class Voronoi_diagram:
     """
     def clip_regions(self, polygon):
         clipped_ridges = self.clip_ridges(polygon)
+        prepped = prep(polygon)
         for i in range(len(self.regions)):
             for j in range(len(self.regions[i])-1, -1, -1):
                 if self.regions[i][j] == -1:
                     del self.regions[i][j]
-            if not all(Point(self.vertices[v]).within(polygon) for v in self.regions[i]):
+            if len(list(filter(prepped.contains, [Point(self.vertices[v]) for v in self.regions[i]]))) != len(self.regions[i]):
                 vs = self.regions[i]
                 vs_i = list(filter(lambda i : not Point(self.vertices[vs[i]]).within(polygon), list(np.arange(len(vs)))))
                 hole_i = list(filter(lambda i : vs_i[i + 1] - vs_i[i] != 1, np.arange(len(vs_i) - 1)))
@@ -306,21 +315,61 @@ Returns
 missed_points : list of coordinates
     All missed points found with this method
 """
-def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, d, spindex):
+def find_missed_points_in_regions(adjacent_missed_regions, vor, slope_field, d, delta1 = 0.02, delta2 = 0.03):
     missed_points = []
     for i in range(len(adjacent_missed_regions)):
         if len(adjacent_missed_regions[i]) != 2:
             l = list(adjacent_missed_regions[i])
-            lines = util.find_points_in_line(l, slope_field, vor)
-            for line in lines:
-                for c in range(len(line) - 1):
-                    dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
-                    n_p = int(dist/(d/2) + 0.5) - 1
-                    if n_p > 0:
-                        mps = util.fill_points_in_line(line[c], line[c + 1], n_p, spindex, d/4)
-                        for mp in mps:
-                            if mp not in missed_points:
-                                missed_points.append(mp)
+            try:
+                u = unary_union([Polygon(ll.vc) for ll in l])
+                u_prepped = prep(u)
+                
+                if len(adjacent_missed_regions[i]) > 20:
+                    lines = util.find_points_in_line(l, slope_field, vor, delta1 = delta1, delta2=delta2)
+                    ss = []
+                    for ll in lines:
+                        for i in range(len(ll) - 1):
+                            ss.append(util.get_slope_and_dist(ll[i], ll[i + 1])[0])
+                    lines = util.find_points_in_line(l, np.median(ss), vor, delta1 = delta1, delta2=delta2)
+                    ss = []
+                    for ll in lines:
+                        for i in range(len(ll) - 1):
+                            ss.append(util.get_slope_and_dist(ll[i], ll[i + 1])[0])
+                    lines = util.find_points_in_line(l, np.median(ss), vor, delta1 = delta1, delta2=delta2)
+                    for i in range(len(lines)):
+                        ll = deque(lines[i])
+                        if isinstance(u, Polygon):
+                            a = LineString([(ll[-1][0], ll[-1][1]), (ll[-1][0] +  2* np.cos(np.median(ss)), ll[-1][1] + 2*np.sin(np.median(ss)))]).intersection(u.exterior)
+                            if a.type == "Point":
+                                ll.append(np.array(list([a.xy[0][0], a.xy[1][0]])))
+                            elif a.type == "MultiPoint":
+                                a = sorted(a, key=lambda aa : aa.distance(Point((ll[-1][0], ll[-1][1]))), reverse=True)[0]
+                                ll.append(np.array(list([a.xy[0][0], a.xy[1][0]])))
+                                
+                            b = LineString([(ll[0][0] -  2* np.cos(np.median(ss)), ll[0][1] - 2*np.sin(np.median(ss))), (ll[0][0], ll[0][1])]).intersection(u.exterior)
+                            if b.type == "Point":
+                                ll.appendleft(np.array(list([b.xy[0][0], b.xy[1][0]])))
+                            elif b.type == "MultiPoint":
+                                b = sorted(b, key=lambda aa : aa.distance(Point((ll[-1][0], ll[-1][1]))), reverse=True)[0]
+                                ll.appendleft(np.array(list([b.xy[0][0], b.xy[1][0]])))
+                            
+                        lines[i] = list(ll)
+                else:
+                    lines = util.find_points_in_line(l, slope_field, vor, delta1 = delta1 + 0.01, delta2=delta2 + 0.01)
+                for line in lines:
+                    for c in range(len(line) - 1):
+                        dist = np.sqrt((line[c][1] - line[c + 1][1])**2 + (line[c][0] - line[c + 1][0])**2)
+                        try:
+                            n_p = int(dist/(d/2) + 0.5) - 1
+                            if n_p > 0:
+                                mps = util.fill_points_in_line(line[c], line[c + 1], n_p, d/4)
+                                for mp in mps:
+                                    if u_prepped.contains(Point(mp[0],mp[1])):
+                                        missed_points.append(mp)
+                        except:
+                            pass
+            except:
+                pass
     return missed_points
 
 """
@@ -336,7 +385,7 @@ Returns
 aps : list of set of Voronoi_polygon
     The original large Voronoi_polygons grouped together in sets
 """
-def find_adjacent_polygons(ps):
+def find_adjacent_polygons2(ps): ##old method
     aps = []
     for p in ps:
         for q in ps:
@@ -349,7 +398,7 @@ def find_adjacent_polygons(ps):
             for k in range(len(aps)):
                 for r in aps[j]:
                     if r in aps[k] and k != j:
-                        aps[k] = aps[k].union(aps[j])
+                        aps[k] |= aps[j]
                         del aps[j]
                         found = True
                         break
@@ -357,6 +406,24 @@ def find_adjacent_polygons(ps):
                     break
             if found:
                 break
+    
+    return aps
+def find_adjacent_polygons(ps):
+    G = nx.Graph()
+    G.add_nodes_from(np.arange(len(ps)))
+    
+    for i in range(len(ps)):
+        for j in range(len(ps)):
+            if i !=j and ps[i].is_adjacent(ps[j]):
+                G.add_edge(i, j)
+                
+    aps = []
+    for g in list(nx.connected_components(G)):
+        if len(g) > 1:
+            polys = set()
+            for i in list(g):
+                polys.add(ps[i])
+            aps.append(polys)
     
     return aps
 
