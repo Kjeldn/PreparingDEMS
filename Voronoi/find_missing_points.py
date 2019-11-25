@@ -14,8 +14,8 @@ import remove_outliers as ro
 
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
-path = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 2\20190709\1156\Plant_count\bed2.gpkg"
-dst = r"Z:\800 Operational\c01_verdonk\Rijweg stalling 2\20190709\1156\Plant_count\bed2_missed.gpkg"
+path = r"C:\Users\VanBoven\Documents\DL Plant Count\PLANT COUNT - c08_biobrass-AZ74-201905171650-GR\POINTS.shp"
+dst = r"C:\Users\VanBoven\Documents\DL Plant Count\PLANT COUNT - c08_biobrass-AZ74-201905171650-GR\points_missed2"
 
 clip_voronoi = True #clip voronoi polygons on the border to find missing points on the border
 slope_field_mice = -0.7143475337058449
@@ -24,15 +24,17 @@ slope_field_weveroost = -0.8818719406757523
 slope_field_jokevisser = -0.17404523952846995
 slope_field_rijwegstalling1 = 0.36930600102426436
 slope_field_rijwegstalling2 = -0.744001707930606
-slope_field = slope_field_rijwegstalling2 #slope of the field, can be computed from slope_field.py, if 0 it is not used
-n_its = 3 #number of iterations
-n_processes = 4 #number of processes used
-batch_size = [2000, 6000, 8000] #batch sizes used in each iteration, len should be n_its
+slope_field_AZ91 = 0.325
+slope_field = slope_field_AZ91 #slope of the field, can be computed from slope_field.py, if 0 it is not used
+n_its = 4 #number of iterations
+n_processes = 8 #number of processes used
+batch_size = [2000, 6000, 8000,15000] #batch sizes used in each iteration, len should be n_its
 overlap = 1000 #number of points overlap between batches
 
 dist_between_two_crops = 0.101646283 #distance between two crops such that one missed point is between them, can be computed with slope_field.py, if 0 it is not used
-delta1 = [0.02, 0.04, 0.04] #delta1 used in each iteration, used in util_voronoi.ci_slopes. should be 0.01 < delta1 < 0.06. Decrease if skewed lines are found.
-delta2 = [0.03, 0.06, 0.06] #delta2 used in each iteration, used in util_voronoi.ci_slopes. should be 0.01 < delta1 < delta2 < 0.06. Decrease if skewed lines are found.
+#dist_between_two_crops = 0.10
+delta1 = [0.03, 0.04, 0.04, 0.03] #delta1 used in each iteration, used in util_voronoi.ci_slopes. should be 0.01 < delta1 < 0.06. Decrease if skewed lines are found.
+delta2 = [0.04, 0.06, 0.06, 0.06] #delta2 used in each iteration, used in util_voronoi.ci_slopes. should be 0.01 < delta1 < delta2 < 0.06. Decrease if skewed lines are found.
 remove_outliers = True #Remove outliers from plant count (points which are not on a ridge) before finding missed points
 
 def get_missing_points(plants, d1, d2, plot=False, first_it=True, mean_dist=None):

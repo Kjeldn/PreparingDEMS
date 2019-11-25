@@ -36,7 +36,7 @@ def intersect(polys, index_i, ordered_intersecting_vor_polys):
 
 def get_contour_polygons_seperated(n_pixels, array, gt):
     pbar0 = tqdm(total = 1, desc='finding contours', position=0)
-    _, contours, hier = cv.findContours(array.astype(np.uint8), cv.RETR_CCOMP, cv.CHAIN_APPROX_TC89_L1)
+    contours, hier = cv.findContours(array.astype(np.uint8), cv.RETR_CCOMP, cv.CHAIN_APPROX_TC89_L1)
     pbar0.update(1)
     pbar0.close()
 
