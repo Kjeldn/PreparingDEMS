@@ -1,4 +1,4 @@
-import geopandas as gpd
+#import geopandas as gpd
 
 from tkinter import filedialog
 from tkinter import *
@@ -9,13 +9,15 @@ import re
 import csv
 from tqdm import tqdm
 import scipy
-
-csv_dest = r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\areas.csv"
+import os
+import geopandas as gpd
 
 root = Tk()
-voronoi_paths = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select voronoi polygons", parent=root, multiple=True)
-plantcount_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select plant count", parent=root)
+voronoi_paths = filedialog.askopenfilename(initialdir =  r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select voronoi polygons", parent=root, multiple=True)
+plantcount_path = filedialog.askopenfilename(initialdir =  r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select plant count", parent=root)
 root.destroy()
+
+csv_dest = r"D:\800 Operational\c07_hollandbean\Season evaluation\Areas/" + os.path.basename(plantcount_path)[:-5] + ".csv"
 
 df = gpd.read_file(plantcount_path)
 for i in df.index:
@@ -33,6 +35,10 @@ for p in voronoi_paths:
     keys.append('area' + re.findall(r'\d+', p)[-1])
     f = gpd.read_file(p)
     f = f.to_crs({'init': 'epsg:28992'})
+#    f = gpd.GeoDataFrame(f)
+    f['isvalid'] = f.geometry.apply(lambda x: x.is_valid)
+    f = f[(f['isvalid'] == True)]
+    f = f.drop(columns = 'isvalid')
     polys_list.append(f.loc[:, 'geometry'])
     areas.append([0 for _ in range(len(plants))])
     pbar0.update(1)
@@ -56,7 +62,7 @@ for j, f in enumerate(polys_list):
     pbar.update(1)
     pbar1.close()
 pbar.close()
-#
+
 #with open(csv_dest, "w") as file:
 #    writer = csv.writer(file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 #
