@@ -3,18 +3,18 @@ import geopandas as gpd
 from tkinter import filedialog
 from tkinter import *
 from pyqtree import Index
-from shapely.geometry import mapping, MultiPoint, Point
+from shapely.geometry import mapping, MultiPoint, Point, Polygon
 from shapely.strtree import STRtree
 import re
 import csv
 from tqdm import tqdm
 import scipy
 
-csv_dest = r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\areas.csv"
+csv_dest = r"Z:\800 Operational\c07_hollandbean\Season evaluation\NoviFarm\areas.csv"
 
 root = Tk()
-voronoi_paths = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select voronoi polygons", parent=root, multiple=True)
-plantcount_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI", title="Select plant count", parent=root)
+voronoi_paths = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Season evaluation", title="Select voronoi polygons", parent=root, multiple=True)
+plantcount_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Season evaluation", title="Select plant count", parent=root)
 root.destroy()
 
 df = gpd.read_file(plantcount_path)
@@ -42,21 +42,23 @@ pyq = Index(bbox=bbox)
 for i, p  in enumerate(plants):
     pyq.insert(i, p.bounds)
     
+convex_hull = Polygon([(p.x, p.y) for p in plants]).convex_hull
 
 pbar = tqdm(total=len(voronoi_paths), position=0)
 for j, f in enumerate(polys_list):
     pbar1 = tqdm(total=len(polys_list[j]), position=0)
     for p in f:
-        bbox = p.bounds
-        intersected = pyq.intersect(bbox)
-        if intersected:
-            for k in intersected:
-                areas[j][k] = p.area / len(intersected)
+        if (p.is_valid and p.within(convex_hull)) or (not p.is_valid and p.buffer(0).within(convex_hull)):
+            bbox = p.bounds
+            intersected = pyq.intersect(bbox)
+            if intersected:
+                for k in intersected:
+                    areas[j][k] = p.area / len(intersected)
         pbar1.update(1)
     pbar.update(1)
     pbar1.close()
 pbar.close()
-#
+
 #with open(csv_dest, "w") as file:
 #    writer = csv.writer(file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 #
@@ -164,15 +166,28 @@ sm.set_array([])
 plt.colorbar(sm)
 plt.show()
 
-
 rows = []
 
 for i in range(len(poly_values)):
     if len(poly_values[i]) > 0:
         rows.append([np.std(poly_values[i]), allpolys[i]])
-        
+    
 df = gpd.GeoDataFrame(rows,columns=['std','geometry'])
 df.crs = {'init': 'epsg:28992'}
-        
 
 df.to_file(voronoi_paths[0].split(".")[0] + "_std.shp")
+
+#%%
+import copy
+import numpy as np
+means = []
+for a in areas:
+    ac = copy.deepcopy(a)
+    m = np.mean(ac)
+    std2 = 2*np.std(ac)
+    for i in range(len(ac) -1, -1, -1):
+        if abs(ac[i] - m) > std2:
+            del ac[i]
+    means.append(np.mean(ac))
+    
+plt.plot(means)
