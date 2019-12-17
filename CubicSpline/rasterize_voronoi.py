@@ -74,12 +74,10 @@ def create_index_column(vector_layer):
     else:
         return
 
-def create_plant_polygons(vector_layer, raster_layer, target_layer):
+def create_plant_polygons(vector_layer, raster_layer, target_layer, p):
     #vector_layer = voronoi2shp.create_voronoi_from_points(vector_layer)
     create_index_column(vector_layer)
-    
-    n_processes = 4
-    
+        
     n_pixels = 50 #contours with area 100 pixels are ignored, use 100 for medium to large crops, 50 for small
     
     # =============================================================================
@@ -104,10 +102,7 @@ def create_plant_polygons(vector_layer, raster_layer, target_layer):
     ds = None
 # =============================================================================
 
-
-
-#%%
-    blocksize = 2000
+    blocksize = 2048
     ds = gdal.Open(target_layer, gdal.GA_ReadOnly)
     gt = ds.GetGeoTransform()
     ds_mask = gdal.Open(raster_layer, gdal.GA_ReadOnly)
@@ -131,6 +126,7 @@ def create_plant_polygons(vector_layer, raster_layer, target_layer):
     offsets_with_data = []
     pbar0 = tqdm(total=len(offsets), desc='loading arrays', position=0)
     for offset in offsets[:]:
+        pbar0.update(1)
         try:
             arrays_p.append(ds.GetRasterBand(1).ReadAsArray(*offset))
             try:
@@ -151,14 +147,13 @@ def create_plant_polygons(vector_layer, raster_layer, target_layer):
                 pass
         except:
             pass
+    pbar0.close()
 
     ds = None
     ds_mask = None
 
-    pbar0.update(1)
-    pbar0.close()
     pbar = tqdm(total=len(offsets_with_data), desc='finding contours', position=0)
-    p = mp.Pool(n_processes)
+    #p = mp.Pool(n_processes)
     results = [p.apply_async(get_intersections, (offsets_with_data[i], arrays_p[i], arrays_m[i], vfunc, gt, n_pixels)) for i in range(len(offsets_with_data))]
 
     polys = []
@@ -204,53 +199,124 @@ def create_plant_polygons(vector_layer, raster_layer, target_layer):
         df.to_file("_".join(raster_layer.split("_")[:-1]) + "_voronoi.shp")
     except:
         pass
+
     return print("finished run of " + target_layer + " at " + str(datetime.datetime.now()))
 
 if __name__=='__main__':
-    vector_layers = [r"D:\VanBovenDrive\VanBoven MT\Archive\c01_verdonk\Wever west\20190717\0749\Plant_count\20190717_count_voronoi_polys.shp"
-                    #r"D:\VanBovenDrive\VanBoven MT\Archive\c01_verdonk\Rijweg stalling 1\20190717\0849\Plant_count\20190717_count.shp",
-                    #r"D:\800 Operational\c08_biobrass\AZ74\plant_count.shp",
-                    #r"D:\800 Operational\c08_biobrass\AZ91\plant_count.shp"
+    n_processes = 12
+    p = mp.Pool(n_processes)
+    vector_layers = [#r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\joke_shp_test_voronoi_polys.shp",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hage-905221113-GR_plant_count._voronoi_polys.shp",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hein de Schutter-201906051255_plant_count_voronoi_polys.shp",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hendrik de Heer-905131422-GR_plant_count_voronoi_polys.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Jos Schelling-906031318-GR_plant_count_voronoi_polys.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\NoviFarm1-906031305-GR_plant_count_voronoi_polys.shp"
                     ]
     
     for vector_layer in vector_layers:
-        if vector_layer == r"D:\VanBovenDrive\VanBoven MT\Archive\c01_verdonk\Wever west\20190717\0749\Plant_count\20190717_count_voronoi_polys.shp":
-            raster_layers = [r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI\c01_verdonk-Wever west-201908291238-GR_clustering_output_.tif"]#,
-                            #r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI\c01_verdonk-Wever west-201907170749-GR_clustering_output.tif",
-                            #r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI\c01_verdonk-Wever west-201907240724-GR_clustering_output.tif",
-                            #r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\LAI\c01_verdonk-Wever west-201908041528-GR_clustering_output.tif"]
+        if vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\joke_shp_test_voronoi_polys.shp":
+        #r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Joke Visser-906031020-GR_plant_count.gpkg":
+            raster_layers = [
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201908231004-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201908020829-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201907241431-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201907101007-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201907010933-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201906250739-GR_clustering_output.tif"
+]
             for raster_layer in raster_layers:
                 target_layer = raster_layer[:-4] + "_voronoi.tif"
-                create_plant_polygons(vector_layer, raster_layer, target_layer)
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
                 
             
-        elif vector_layer == r"D:\VanBovenDrive\VanBoven MT\Archive\c01_verdonk\Rijweg stalling 1\20190717\0849\Plant_count\20190717_count.shp":
-            raster_layers = [r"D:\800 Operational\c01_verdonk\Rijweg stalling 1\Season evaluation\LAI\c01_verdonk-Rijweg stalling 1-201907170849-GR_clustering_output.tif",
-                            r"D:\800 Operational\c01_verdonk\Rijweg stalling 1\Season evaluation\LAI\c01_verdonk-Rijweg stalling 1-201907230859-GR_clustering_output.tif",
-                            r"D:\800 Operational\c01_verdonk\Rijweg stalling 1\Season evaluation\LAI\c01_verdonk-Rijweg stalling 1-201908041120-GR_clustering_output.tif",
-                            r"D:\800 Operational\c01_verdonk\Rijweg stalling 1\Season evaluation\LAI\c01_verdonk-Rijweg stalling 1-201907091137-GR_clustering_output.tif"]
+        elif vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Jos Schelling-906031318-GR_plant_count_voronoi_polys.shp":
+            raster_layers = [#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201905221346_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201909051036-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201908270803-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201908191407-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201907241542-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201907091020-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201907011300-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201906251102-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201906181027-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201906031318-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Jos Schelling-201905290920-GR_clustering_output.tif"
+]
             for raster_layer in raster_layers:
                 target_layer = raster_layer[:-4] + "_voronoi.tif"
-                create_plant_polygons(vector_layer, raster_layer, target_layer)
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
             
-        elif vector_layer == r"D:\800 Operational\c08_biobrass\AZ74\plant_count.shp":
-            raster_layers = [r"D:\800 Operational\c08_biobrass\AZ74\Season evaluation\LAI\c08_biobrass-AZ74-201905291141-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ74\Season evaluation\LAI\c08_biobrass-AZ74-201906041446-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ74\Season evaluation\LAI\c08_biobrass-AZ74-201906141536-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ74\Season evaluation\LAI\c08_biobrass-AZ74-201905171650-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ74\Season evaluation\LAI\c08_biobrass-AZ74-201905271248-GR_clustering_output.tif"]
+        elif vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\NoviFarm1-906031305-GR_plant_count_voronoi_polys.shp":
+            raster_layers = [r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201906251017-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201906180944-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201906031305-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201905271542_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201909051134-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201908271050-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201908191017-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201908021136-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201907241459-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201907090932-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-NoviFarm 1 8ha-201907011229-GR_clustering_output.tif"
+]
             for raster_layer in raster_layers:
                 target_layer = raster_layer[:-4] + "_voronoi.tif"
-                create_plant_polygons(vector_layer, raster_layer, target_layer)
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
                 
-        elif vector_layer == r"D:\800 Operational\c08_biobrass\AZ91\plant_count.shp":
-            raster_layers = [r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201906281013-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201907050837-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201907161410-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201905271321_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201906141505-GR_clustering_output.tif",
-                            r"D:\800 Operational\c08_biobrass\AZ91\Season evaluation\LAI\c08_biobrass-AZ91-201906201457-GR_clustering_output.tif"]
+        elif vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hage-905221113-GR_plant_count._voronoi_polys.shp":
+            raster_layers = [#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201905131326-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-20190503_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201909051318-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201908301016-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201908191156-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201907241108-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201907101111-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201907011102-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201906250840-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201906191259-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201906031128-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201905271347-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hage-201905221113-GR_clustering_output.tif"
+]
             for raster_layer in raster_layers:
                 target_layer = raster_layer[:-4] + "_voronoi.tif"
-                create_plant_polygons(vector_layer, raster_layer, target_layer)
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
+                
+        elif vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hein de Schutter-201906051255_plant_count_voronoi_polys.shp":
+            raster_layers = [r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906241432-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906171419-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906051255_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201909061020-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908291210-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908231146-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908061119-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201907240955-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201907081101-GR_clustering_output.tif",
+                            r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201907031301-GR_clustering_output.tif"
+                            ]
+            for raster_layer in raster_layers:
+                target_layer = raster_layer[:-4] + "_voronoi.tif"
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
+            
+        elif vector_layer == r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hendrik de Heer-905131422-GR_plant_count_voronoi_polys.shp":
+            raster_layers =[#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201908300942-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201908191243-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201908020933-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201907241201-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201907101037-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201907011024-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201906250808-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201906191238-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201906031049-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201905271311-GR_clustering_output.tif",
+#r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201905221036-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201905131422-GR_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201905030100_clustering_output.tif",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hendrik de Heer-201909051401-GR_clustering_output.tif"]
+            for raster_layer in raster_layers:
+                target_layer = raster_layer[:-4] + "_voronoi.tif"
+                create_plant_polygons(vector_layer, raster_layer, target_layer, p)
+    
+    p.close()
+    p.join()
     
