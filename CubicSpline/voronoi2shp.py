@@ -26,10 +26,12 @@ def create_voronoi_from_points(plant_path):
     vor_polys = []
     for r in vor.regions:
         if -1 not in r and len(r) > 2 and Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)).within(convex_hull):
-            vor_polys.append(Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)))
-            
+            vor_polys.append(Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)))   
             
     df = geopandas.GeoDataFrame({'geometry': geopandas.GeoSeries(vor_polys), 'index': np.arange(1, len(vor_polys) + 1)})
     df.crs = {'init': 'epsg:4326'}
     df.to_file(output_name)
     return output_name
+
+if __name__ == "__main__":
+    create_voronoi_from_points(r"D:\800 Operational\c07_hollandbean\Season evaluation\Mellisant\POINTS.shp")

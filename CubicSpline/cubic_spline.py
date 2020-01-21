@@ -18,20 +18,20 @@ from shapely.geometry import Polygon, Point
 from shapely.geometry.polygon import LinearRing
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from tkinter import filedialog
-from tkinter import *
 
 gdal.UseExceptions()
 
-root = Tk()
-paths = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select dems", parent=root, multiple=True)
-plant_path = filedialog.askopenfilename(initialdir =  r"Z:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select plant count", parent=root)
+paths = [r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Joke Visser\20190625\0739\Orthomosaic\c07_hollandbean-Joke Visser-201906250739_DEM-GR.vrt",
+r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Joke Visser\20190522\1245\Orthomosaic\c07_hollandbean-Joke Visser-201905221245_DEM.tif",
+r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Joke Visser\20190527\1514\Orthomosaic\c07_hollandbean-Joke Visser-201905271514_DEM-GR.vrt",
+r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Joke Visser\20190603\1020\Orthomosaic\c07_hollandbean-Joke Visser-201906031020_DEM-GR.vrt",
+r"D:\VanBovenDrive\VanBoven MT\Archive\c07_hollandbean\Joke Visser\20190619\1208\Orthomosaic\c07_hollandbean-Joke Visser-201906191208_DEM-GR.vrt",]
+plant_path = r"D:\800 Operational\c07_hollandbean\Joke visser\Count\906250739-GR_plant_count.gpkg"
 
 use_ahn = True
 if use_ahn:
-    ahn_path = filedialog.askopenfilename(initialdir =  r"D:\VanBovenDrive\VanBoven MT\500 Projects\Student Assignments\Interns\Plants_compare", title="Select ahn dem", parent=root)
+    ahn_path = r"C:\Users\VanBoven\Downloads\M_43EN2\m_43en2.tif"
 
-root.destroy()
 use_ridges = True
 plot = True
 

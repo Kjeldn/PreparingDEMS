@@ -49,10 +49,12 @@ def readable_values_inv(x, y, mean_x_coord, mean_y_coord):
     return x / f + mean_x_coord, y / f + mean_y_coord
 
 if __name__ == "__main__":
-    root = Tk()
-    mask_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Joke visser", title="Select mask raster", parent=root)
-    plant_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Joke visser", title="Select plants shape file", parent=root)
-    root.destroy()
+    #root = Tk()
+    #mask_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Joke visser", title="Select mask raster", parent=root)
+    #plant_path = filedialog.askopenfilename(initialdir =  r"Z:\800 Operational\c07_hollandbean\Joke visser", title="Select plants shape file", parent=root)
+    #root.destroy()
+    mask_path = r"D:\800 Operational\c01_verdonk\Wever west\Season evaluation\archive\c01_verdonk-Wever west-201907170749-GR_clustering_output.tif"
+    plant_path= r"D:\VanBovenDrive\VanBoven MT\Archive\c01_verdonk\Wever west\20190717\0749\Plant_count\20190717_count.shp"
     file = gdal.Open(mask_path)
     band = file.GetRasterBand(1)
     gt = file.GetGeoTransform()
@@ -67,9 +69,10 @@ if __name__ == "__main__":
             holes_i += [key for _ in range(len(polys[key]['holes']))]
     
     plants = geopandas.read_file(plant_path)
-    plants_r, mx, my = utilv.readable_values(np.array([(p.x, p.y) for p in plants.loc[:,'geometry']]))
+    plants = plants.mask(plants.geometry.eq('None')).dropna()
+    plants_r, mx, my = utilv.readable_values(np.array([(p.centroid.xy[0][0], p.centroid.xy[1][0]) for p in plants.loc[:,'geometry']]))
     vor = Voronoi(plants_r)
-    convex_hull = Polygon([(p.x, p.y) for p in plants.loc[:,'geometry']]).convex_hull
+    convex_hull = Polygon([(p.centroid.xy[0][0], p.centroid.xy[1][0]) for p in plants.loc[:,'geometry']]).convex_hull
     vor_polys = []
     for r in vor.regions:
         if -1 not in r and len(r) > 2 and Polygon(utilv.readable_values_inv(vor.vertices[r], mx, my)).within(convex_hull):

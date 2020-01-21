@@ -9,17 +9,20 @@ from tqdm import tqdm
 import scipy
 import numpy as np
 
-csv_dest = r"Z:\800 Operational\c07_hollandbean\Season evaluation\Hein de Schutter\heights.csv"
+csv_dest = r"D:\800 Operational\c07_hollandbean\Season evaluation\Joke Visser\heights.csv"
 
-voronoi_paths = [r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908291210-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201909061020-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906051255_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906171419-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201906241432-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201907031301-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908061119-GR_clustering_voronoi.shp",
-r"Z:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Hein de Schutter-201908231146-GR_clustering_voronoi.shp"]
-plantcount_path = r"Z:\800 Operational\c07_hollandbean\Season evaluation\Counts\Hein de Schutter-201906051255_plant_count.gpkg"
+voronoi_paths = [r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201908300729-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201909060802-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201905221245_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201905271514-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201906031020-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201906191208-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201906250739-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201907010933-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201907101007-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201908020829-GR_clustering_voronoi.shp",
+r"D:\800 Operational\c07_hollandbean\Season evaluation\c07_hollandbean-Joke Visser-201908231004-GR_clustering_voronoi.shp"]
+plantcount_path = r"D:\800 Operational\c07_hollandbean\Season evaluation\Counts\joke_shp_test.shp"
 
 df = gpd.read_file(plantcount_path)
 for i in df.index:
